@@ -67,9 +67,9 @@ def import_sdf(mine_db, target, id_db='UniversalMINE'):
         comphash = hashlib.sha1(compound['SMILES']).hexdigest()
         if '_id' in compound:
             if "X" in compound['_id']:
-                compound = Utils.fix_rxn_pointers(mine_db, 'X' + comphash, compound)
+                compound = mine_db.fix_rxn_pointers(mine_db, 'X' + comphash, compound)
             else:
-                compound = Utils.fix_rxn_pointers(mine_db, 'C' + comphash, compound)
+                compound = mine_db.fix_rxn_pointers(mine_db, 'C' + comphash, compound)
         else:
             compound['_id'] = 'C' + comphash
 

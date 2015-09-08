@@ -39,6 +39,7 @@ class MINE:
         self.meta_data = self.meta_data
         self.compounds = db.compounds
         self.reactions = db.reactions
+        self.operators = db.operators
         self.models = db.models
 
     def add_rxn_pointers(self):
@@ -51,3 +52,29 @@ class MINE:
                 self.compounds.update({"_id": compound[1]}, {'$push': {"Reactant_in": reaction['_id']}})
             for compound in reaction['Products']:
                 self.compounds.update({"_id": compound[1]}, {'$push': {"Product_of": reaction['_id']}})
+
+    def fix_rxn_pointers(self, new_id, comp_dict):
+        if new_id != comp_dict['_id']:
+            try:
+                for reaction in comp_dict['Product_of']:
+                    rxn = self.reactions.find_one({'_id': str(reaction)}, {'Products': 1})
+                    for i, product in enumerate(rxn['Products']):
+                        if product[1] == comp_dict['_id']:
+                            rxn['Products'][i][1] = new_id
+                    self.reactions.update({'_id': str(reaction)}, {'$set': {'Products': rxn['Products']}})
+            except KeyError:
+                pass
+
+            try:
+                for reaction in comp_dict['Reactant_in']:
+                    rxn = self.reactions.find_one({'_id': str(reaction)}, {'Reactants': 1})
+                    for i, reactant in enumerate(rxn['Reactants']):
+                        if reactant[1] == comp_dict['_id']:
+                            rxn['Reactants'][i][1] = new_id
+                    self.reactions.update({'_id': str(reaction)}, {'$set': {'Reactants': rxn['Reactants']}})
+            except KeyError:
+                pass
+
+            comp_dict['_id'] = new_id
+
+        return comp_dict
