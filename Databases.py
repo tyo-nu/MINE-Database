@@ -78,3 +78,15 @@ class MINE:
             comp_dict['_id'] = new_id
 
         return comp_dict
+
+    def link_to_external_database(self, external_database, match_field="Inchikey", fields_to_copy=None):
+        """
+        This function looks for matching compounds in other databases (i.e. PubChem) and adds links where found
+
+        :param external_database: String, the name of the database to search for matching compounds
+        :param match_field: String, The field to search on for matching compunds
+        :param fields_to_copy: List of tuples, data to copy into the mine database. The first field is the field name in
+        the external database. The second field is the field name in the MINE database where the data will be copied.
+        :return:
+        """
+        pass

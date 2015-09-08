@@ -11,6 +11,7 @@ default_projection = {'SMILES': 1, 'Formula': 1, 'MINE_id': 1, 'Names': 1, 'Inch
 def quick_search(db, query, search_projection=default_projection):
     """
     This function takes user provided compound identifiers and attempts to find a related database ID
+
     :param db: A Mongo Database, DB to search
     :param query: String, a MINE id, KEGG code, ModelSEED id, Inchikey or Name
     :param search_projection: Dictionary, The fields which should be returned
@@ -53,6 +54,7 @@ def quick_search(db, query, search_projection=default_projection):
 def advanced_search(db, mongo_query, search_projection=default_projection):
     """
     Returns compounds in the indicated database which match the provided mongo query
+
     :param db: A Mongo Database, DB to search
     :param mongo_query: String, A valid mongo query
     :param search_projection: Dictionary, The fields which should be returned
@@ -67,6 +69,7 @@ def advanced_search(db, mongo_query, search_projection=default_projection):
 def similarity_search(db, comp_structure, min_tc, fp_type, limit, search_projection=default_projection):
     """
     Returns compounds in the indicated database which have structural similarity to the provided compound
+
     :param db: A Mongo Database, DB to search
     :param comp_structure: String, A molecule in Molfile or or SMILES format
     :param min_tc: Float, Minimum Tannimoto score
@@ -103,9 +106,10 @@ def similarity_search(db, comp_structure, min_tc, fp_type, limit, search_project
 
     return similarity_search_results
 
-def substructure_search(db, comp_structure, search_projection=default_projection):
+def structure_search(db, comp_structure, search_projection=default_projection):
     """
-    Returns compounds in the indicated database which contain the provided structure
+    Returns compounds in the indicated database which are exact matches to the provided structure
+
     :param db: A Mongo Database, DB to search
     :param comp_structure: String, A molecule in Molfile or or SMILES format
     :param search_projection: Dictionary, The fields which should be returned
@@ -122,6 +126,15 @@ def substructure_search(db, comp_structure, search_projection=default_projection
     return quick_search(db, inchi_key, search_projection)
 
 def substructure_search(db, comp_structure, limit, search_projection=default_projection):
+    """
+    Returns compounds in the indicated database which contain the provided structure
+
+    :param db: A Mongo Database, DB to search
+    :param comp_structure: String, A molecule in Molfile or or SMILES format
+    :param limit: Integer, the maximum number of compounds to return
+    :param search_projection: Dictionary, The fields which should be returned
+    :return:
+    """
     substructure_search_results = []
     if "\n" in comp_structure:
         mol = AllChem.MolFromMolBlock(str(comp_structure))
