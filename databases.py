@@ -34,7 +34,7 @@ class MINE:
     def __init__(self, name):
         client = establish_db_client()
         db = client[name]
-        self.db = db
+        self._db = db
         self.name = name
         self.meta_data = self.meta_data
         self.compounds = db.compounds
