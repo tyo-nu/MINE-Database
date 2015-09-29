@@ -5,11 +5,11 @@ __author__ = 'JGJeffryes'
 
 from pymongo import DESCENDING
 from rdkit.Chem import AllChem
-from Databases import MINE
-import Utils
+from databases import MINE
+import utils
 import sys
 import hashlib
-
+import os
 
 def export_sdf(mine_db, target):
     """
@@ -34,6 +34,34 @@ def export_sdf(mine_db, target):
             mol.SetProp('Product_of', compound['Product_of'])
         w.write(mol)
     w.close()
+
+
+def export_mol(mine_db, target, name_field='_id'):
+    """
+    Exports compounds from the database as MDL molfiles
+    :param mine_db: The database to export
+    :type mine_db: a MINE object
+    :param target: a directory in which to place the files
+    :type target: string
+    :param name_field: the field to provide names for the mol files. Must be unique & universal
+    :type name_field: string
+    :return:
+    :rtype:
+    """
+    if not os.path.exists(target):
+        os.mkdirs(target)
+
+    if mine_db.compounds.find().count() != mine_db.compounds.find({name_field: {'$exists': 1}}).count():
+        raise ValueError('%s does not exist for every compound in the database' % name_field)
+
+    for compound in mine_db.compounds.find({'_id': {'$regex': '^C'}}):
+        mol = AllChem.MolFromSmiles(compound['SMILES'], True, {'CoA': '*', 'R': "*"})
+        if "." in name_field:
+            compound[name_field] = utils.get_dotted_field(compound, name_field)
+        if isinstance(compound[name_field], list):
+            compound[name_field] = ','.join(compound[name_field])
+        AllChem.MolToMolFile(mol, os.path.join(target, compound[name_field]+'.mol'))
+
 
 def import_sdf(mine_db, target, id_db='UniversalMINE'):
     """
@@ -95,5 +123,10 @@ if __name__ == '__main__':
     database = MINE(db_name)
     if task == 'export-sdf':
         export_sdf(database, path)
+    if task == 'export-mol':
+        if len(sys.argv) == 5:
+            export_mol(database, path, sys.argv[4])
+        else:
+            export_mol(database, path)
     if task == 'import-sdf':
         import_sdf(database, path)

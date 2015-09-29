@@ -12,3 +12,10 @@ def convert_sets_to_lists(obj):
         for key in obj:
             obj[key] = convert_sets_to_lists(obj[key])
     return obj
+
+def get_dotted_field(input_dict, accessor_string):
+    """Gets data from a dictionary using a dotted accessor-string"""
+    current_data = input_dict
+    for chunk in accessor_string.split('.'):
+        current_data = current_data.get(chunk, {})
+    return current_data
