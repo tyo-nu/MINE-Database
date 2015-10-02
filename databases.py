@@ -36,7 +36,7 @@ class MINE:
         db = client[name]
         self._db = db
         self.name = name
-        self.meta_data = self.meta_data
+        self.meta_data = db.meta_data
         self.compounds = db.compounds
         self.reactions = db.reactions
         self.operators = db.operators

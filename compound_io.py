@@ -49,7 +49,7 @@ def export_mol(mine_db, target, name_field='_id'):
     :rtype:
     """
     if not os.path.exists(target):
-        os.mkdirs(target)
+        os.mkdir(target)
 
     if mine_db.compounds.find().count() != mine_db.compounds.find({name_field: {'$exists': 1}}).count():
         raise ValueError('%s does not exist for every compound in the database' % name_field)
