@@ -17,6 +17,7 @@ def quick_search(db, query, search_projection=default_projection):
     :param search_projection: Dictionary, The fields which should be returned
     :return:
     """
+    results = []
     #check if query already is a _id
     if (len(query) == 41) and (query[0] == 'C'):
         query_field = '_id'
@@ -46,8 +47,6 @@ def quick_search(db, query, search_projection=default_projection):
     else:
         results = [x for x in db.compounds.find({query_field: query}, search_projection).limit(500)
                    if x['_id'][0] == "C"]
-    if not results:
-        raise ValueError("%s was not found in the database." % query)
 
     return results
 
@@ -121,7 +120,7 @@ def structure_search(db, comp_structure, search_projection=default_projection):
         mol = AllChem.MolFromSmiles(str(comp_structure))
 
     inchi = AllChem.MolToInchi(mol)
-    inchi_key = AllChem.InchiToInchiKey(inchi).split('=')[1]
+    inchi_key = AllChem.InchiToInchiKey(inchi)
     # sure, we could look for a matching SMILES but this is faster
     return quick_search(db, inchi_key, search_projection)
 
