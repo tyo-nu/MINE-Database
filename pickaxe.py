@@ -5,13 +5,25 @@ from itertools import chain, combinations
 from collections import defaultdict
 from utils import memoize
 
+from line_profiler import LineProfiler
+def do_profile(func):
+        def profiled_func(*args, **kwargs):
+            try:
+                profiler = LineProfiler()
+                profiler.add_function(func)
+                profiler.enable_by_count()
+                return func(*args, **kwargs)
+            finally:
+                profiler.print_stats()
+        return profiled_func
+
 class Pickaxe:
     """
         This class generates new compounds from user-specified starting compounds using a set of SMARTS-based reaction
         rules. it may be initialized with a text file containing the reaction rules and cofactors or this may be
         done on an ad hock basis.
     """
-    def __init__(self, rule_list=None, cofactor_list=None, explicit_h=True, strip_cof=False, kekulize=True):
+    def __init__(self, rule_list=None, cofactor_list=None, explicit_h=True, strip_cof=True, kekulize=True, errors=True):
         self.rxn_rules = {}
         self.cofactors = {}
         self.cof_set = {'[H+]'}
@@ -29,6 +41,10 @@ class Pickaxe:
                     if rule[0] == "#":
                         continue
                     self.load_rxn_rule(rule)
+        from rdkit import RDLogger
+        lg = RDLogger.logger()
+        if not errors:
+            lg.setLevel(4)
 
     def _load_cofactor(self, cofactor_text):
         """
@@ -45,6 +61,8 @@ class Pickaxe:
             mol = AllChem.AddHs(mol)
         if self.kekulize:
             AllChem.Kekulize(mol)
+            for atom in mol.GetAtoms():
+                atom.SetIsAromatic(False)
         self.cofactors[split_text[0]] = mol
         self.cof_set.add(split_text[1])
 
@@ -68,7 +86,7 @@ class Pickaxe:
             raise ValueError("Number of cofactors does not match supplied reaction rule")
         self.rxn_rules[split_text[0]] = (reactant_names, rxn)
 
-    def transform_compound(self, compound_SMILES, rules=None):
+    def transform_compound(self, compound_SMILES, rules=None, reactions=False):
         """
         Perform transformations to a compound returning the products and the roles predicting the conversion
         :param compound_SMILES: The compound on which to operate represented as SMILES
@@ -78,41 +96,79 @@ class Pickaxe:
         :return: Transformed compounds as SMILES string and predicting rules as a list of strings
         :rtype: list of tuples
         """
-        n_rxns = 0
+        n_compounds = 0
         if not rules:
             rules = self.rxn_rules.keys()
         mol = AllChem.MolFromSmiles(compound_SMILES)
-        if self.explicit_h:
-            mol = AllChem.AddHs(mol)
         if self.kekulize:
             AllChem.Kekulize(mol)
-        print(AllChem.MolToSmiles(mol, kekuleSmiles=True))
+            for atom in mol.GetAtoms():
+                atom.SetIsAromatic(False)
+        if self.explicit_h:
+            mol = AllChem.AddHs(mol)
         self.cofactors['Any'] = mol
         products = defaultdict(set)
+        rxns = []
         for rule_name in rules:
             rule = self.rxn_rules[rule_name]
             comps = tuple([self.cofactors[x] for x in rule[0]])
-            ps = rule[1].RunReactants(comps)
+            try:
+                ps = rule[1].RunReactants(comps)
+            except RuntimeError:
+                print("Runtime ERROR!"+rule_name)
+                continue
             for compound in chain.from_iterable(ps):
+                n_compounds += 1
                 try:
-                    smiles = AllChem.MolToSmiles(AllChem.RemoveHs(compound))
-                except (RuntimeError, ValueError):
-                    smiles = AllChem.MolToSmiles(compound)
+                    compound = AllChem.RemoveHs(compound)
+                    smiles = AllChem.MolToSmiles(compound, True)
+                except ValueError:
+                    smiles = AllChem.MolToSmiles(compound, True)
+                    print("Product ERROR!:%s %s" % (rule_name, smiles))
                 if not self.strip_cof or smiles not in self.cof_set:
                     products[smiles].add(rule_name)
-        print("%s reactions" % n_rxns)
-        return [x for x in products.items()]
+            if reactions:
+                reactants = tuple(self._make_compound_tups(comps))
+                rxns.extend([(reactants, tuple(self._make_compound_tups(prods))) for prods in ps])
+        print("%s compounds" % n_compounds)
+        if reactions:
+            return [x for x in products.items()], rxns
+        else:
+            return [x for x in products.items()]
 
     def _make_compound_tups(self, mols):
         comps = defaultdict(int)
         for m in mols:
-            inchikey = AllChem.InchiToInchiKey(AllChem.MolToInchi(m))
-            comps[inchikey] += 1
+            try:
+                AllChem.RemoveHs(m)
+                inchikey = AllChem.InchiToInchiKey(AllChem.MolToInchi(m))
+                comps[inchikey] += 1
+            except (RuntimeError, ValueError):
+                return ()
         return [(y, x) for x, y in comps.items()]
 
 if __name__ == "__main__":
     pk = Pickaxe(cofactor_list="Cofactor_SMILES.tsv", rule_list="operators_smarts.tsv")
-    operators = set()
-    for prod in pk.transform_compound('OC(=O)c1ccccc1'):
-        operators.update(prod[1])
-    print(sorted(operators))
+    operators = defaultdict(int)
+    predicted_rxns = set()
+    compounds = defaultdict(set)
+    with open('iAF1260.tsv') as infile:
+        for i,line in enumerate(infile):
+            mol = AllChem.MolFromInchi(line.split('\t')[6])
+            smi = AllChem.MolToSmiles(mol, True)
+            print(i)
+            prod = pk.transform_compound(smi)
+            for c in prod:
+                compounds[c[0]].update(c[1])
+                for op in c[1]:
+                    operators[op] += 1
+            #for r in rxns:
+                #predicted_rxns.add(r)
+    with open('compounds', 'w') as outfile:
+        for compound in compounds:
+            outfile.write('%s\t"%s"\n' %(compound, compounds[compound]))
+    for x in sorted(operators.keys()):
+        print(x, operators[x])
+    #with open('flat_reactions', 'w') as outfile:
+        #for rxn in predicted_rxns:
+            #outfile.write('+'.join([" ".join(x) for x in rxn[0]])+'-->'+'+'.join([" ".join(x) for x in rxn[1]])+'\n')
