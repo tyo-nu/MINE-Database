@@ -62,6 +62,7 @@ class Pickaxe:
         split_text = cofactor_text.strip().split('\t')
         # add input validation
         mol = AllChem.MolFromSmiles(split_text[1])
+        self.compounds[AllChem.MolToInchi(mol)] = split_text[0]
         if self.explicit_h:
             mol = AllChem.AddHs(mol)
         if self.kekulize:
@@ -112,7 +113,6 @@ class Pickaxe:
         if self.explicit_h:
             mol = AllChem.AddHs(mol)
         self.cofactors['Any'] = mol
-        products = defaultdict(set)
         rxns = []
         for rule_name in rules:
             rule = self.rxn_rules[rule_name]
@@ -131,6 +131,7 @@ class Pickaxe:
         return [x for x in self.compounds.values()], rxns
 
     def _make_compound_tups(self, mols, rule_name):
+        """takes a list of mol objects and returns (stoichometric, id) tuples"""
         comps = defaultdict(int)
         for m in mols:
             smiles = AllChem.MolToSmiles(m, True)
@@ -147,20 +148,18 @@ class Pickaxe:
                     mols = self._racemization(mol_obj)
                 else:
                     mols = [mol_obj]
-                smiles = []
-                for m in mols:
-                    smiles.append(AllChem.MolToSmiles(m, True))
+                smiles = [AllChem.MolToInchi(m) for m in mols]
             except ValueError:  # primarily seems to be caused by valence errors
                 print("Product ERROR!: %s %s" % (rule_name, raw))
                 raise ValueError
             self.raw_compounds[raw] = smiles
             for s in smiles:
                 if s not in self.compounds:
-                    self.compounds[s] = str(len(self.compounds)+1)
+                    self.compounds[s] = str(len(self.compounds)+1).zfill(7)
         smiles = self.raw_compounds[raw]
         return tuple([self.compounds[x] for x in smiles])
 
-    def _racemization(self, compound, carbon_only=True):
+    def _racemization(self, compound, max_centers=3, carbon_only=True):
         """
         Enumerates all possible stereoisomers for unassigned chiral centers.
         :param compound: A compound
@@ -172,7 +171,7 @@ class Pickaxe:
         unassigned_centers = [c[0] for c in AllChem.FindMolChiralCenters(compound, includeUnassigned=True) if c[1] == "?"]
         if carbon_only:
             unassigned_centers = list(filter(lambda x: compound.GetAtomWithIdx(x).GetAtomicNum() == 6, unassigned_centers))
-        if not unassigned_centers:
+        if not unassigned_centers or len(unassigned_centers) > max_centers:
             return [compound]
         for seq in product([1, 0], repeat=len(unassigned_centers)):
             for atomId, cw in zip(unassigned_centers, seq):
@@ -190,21 +189,25 @@ if __name__ == "__main__":
     operators = defaultdict(int)
     predicted_rxns = set()
     predicted_comps = set()
-    with open('test.tsv') as infile:
+    seed_comps =[]
+    with open('iAF1260.tsv') as infile:
         for i, line in enumerate(infile):
             mol = AllChem.MolFromInchi(line.split('\t')[6])
             smi = AllChem.MolToSmiles(mol, True)
-            print(i)
-            prod, rxns = pk.transform_compound(smi)
-            for r in rxns:
-                operators[r[0]] += 1
-                predicted_rxns.add(r)
-    with open('testcompounds', 'w') as outfile:
-        for c in sorted(pk.compounds.items(), key=lambda x: int(x[1])):
+            pk.compounds[line.split('\t')[6]] = line.split('\t')[0]
+            seed_comps.append(smi)
+    for i, smi in enumerate(seed_comps):
+        print(i)
+        prod, rxns = pk.transform_compound(smi)
+        for r in rxns:
+            operators[r[0]] += 1
+            predicted_rxns.add(r)
+    with open('compounds', 'w') as outfile:
+        for c in sorted(pk.compounds.items(), key=lambda x: x[1]):
             outfile.write('%s\t"%s"\n' % (c[1], c[0]))
     for tup in sorted(operators.items(), key=lambda x: -x[1]):
         print(tup[0], tup[1])
-    with open('testreactions', 'w') as outfile:
+    with open('reactions', 'w') as outfile:
         for i, rxn in enumerate(predicted_rxns):
             text_rxn = ' + '.join(['%s "%s"' % (x[0], x[1]) for x in rxn[1]])+' --> '+' + '.join(['%s "%s"' % (x[0], x[1]) for x in rxn[2]])
             outfile.write("\t".join([str(i), text_rxn, rxn[0]])+'\n')

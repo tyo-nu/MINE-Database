@@ -111,9 +111,9 @@ def import_sdf(mine_db, target, id_db='UniversalMINE'):
             elif compound['_id'][0] == 'C':
                 last_cid += 1
                 compound['MINE_id'] = last_cid
-                uni_mine.compounds.insert(Utils.convert_sets_to_lists(compound))
+                uni_mine.compounds.insert(utils.convert_sets_to_lists(compound))
 
-        mine_db.compounds.save(Utils.convert_sets_to_lists(compound))
+        mine_db.compounds.save(utils.convert_sets_to_lists(compound))
 
 
 if __name__ == '__main__':
