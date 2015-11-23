@@ -5,6 +5,8 @@ from itertools import product
 from collections import defaultdict
 import time
 from copy import deepcopy
+import sys
+import utils
 
 from line_profiler import LineProfiler
 def do_profile(func):
@@ -25,12 +27,14 @@ class Pickaxe:
         done on an ad hock basis.
     """
     def __init__(self, rule_list=None, cofactor_list=None, explicit_h=True, strip_cof=True, kekulize=True, errors=True,
-                 raceimze=False):
+                 raceimze=False, mine=None):
         self.rxn_rules = {}
         self.cofactors = {}
         self.raw_compounds = {}
         self.compounds = {}
         self.cof_set = {'[H+]'}
+        self.mine = mine
+        self.generation = 1
         self.explicit_h = explicit_h
         self.strip_cof = strip_cof
         self.kekulize = kekulize
@@ -62,7 +66,7 @@ class Pickaxe:
         split_text = cofactor_text.strip().split('\t')
         # add input validation
         mol = AllChem.MolFromSmiles(split_text[1])
-        self.compounds[AllChem.MolToInchi(mol)] = split_text[0]
+        self.compounds[split_text[1]] = {'_id': split_text[0], 'SMILES': split_text[1], 'Generation': 0}
         if self.explicit_h:
             mol = AllChem.AddHs(mol)
         if self.kekulize:
@@ -95,13 +99,13 @@ class Pickaxe:
 
     def transform_compound(self, compound_SMILES, rules=None):
         """
-        Perform transformations to a compound returning the products and the roles predicting the conversion
+        Perform transformations to a compound returning the products and the predicted reactions
         :param compound_SMILES: The compound on which to operate represented as SMILES
         :type compound_SMILES: string
         :param rules: The names of the reaction rules to apply. If none, all rules in the pickaxe's dict will be used.
         :type rules: list
-        :return: Transformed compounds as SMILES string and predicting rules as a list of strings
-        :rtype: list of tuples
+        :return: Transformed compounds as tuple of id abd SMILES string and reactions as a tuple of reactants & products
+        :rtype: tuple of lists
         """
         if not rules:
             rules = self.rxn_rules.keys()
@@ -135,12 +139,13 @@ class Pickaxe:
         comps = defaultdict(int)
         for m in mols:
             smiles = AllChem.MolToSmiles(m, True)
-            comp_ids = self._calculate_compound_information(smiles, m, rule_name)
-            comps[comp_ids] += 1
+            if smiles not in self.raw_compounds:
+                self._calculate_compound_information(smiles, m, rule_name)
+            comps[self.raw_compounds[smiles]] += 1
         return [(y, x) for x, y in comps.items()]
 
     def _calculate_compound_information(self, raw, mol_obj, rule_name):
-        if raw not in self.raw_compounds:
+        if not self.mine:
             try:
                 if self.explicit_h:
                     mol_obj = AllChem.RemoveHs(mol_obj) # this step slows down the process quite a bit
@@ -148,16 +153,15 @@ class Pickaxe:
                     mols = self._racemization(mol_obj)
                 else:
                     mols = [mol_obj]
-                smiles = [AllChem.MolToInchi(m) for m in mols]
+                smiles = [AllChem.MolToSmiles(m, True) for m in mols]
             except ValueError:  # primarily seems to be caused by valence errors
                 print("Product ERROR!: %s %s" % (rule_name, raw))
                 raise ValueError
-            self.raw_compounds[raw] = smiles
             for s in smiles:
                 if s not in self.compounds:
-                    self.compounds[s] = str(len(self.compounds)+1).zfill(7)
-        smiles = self.raw_compounds[raw]
-        return tuple([self.compounds[x] for x in smiles])
+                    cid = str(len(self.compounds)+1).zfill(7)
+                    self.compounds[s] = {'_id': cid, "SMILES": s, 'Generation': self.generation}
+            self.raw_compounds[raw] = tuple([self.compounds[s]['_id'] for s in smiles])
 
     def _racemization(self, compound, max_centers=3, carbon_only=True):
         """
@@ -182,6 +186,22 @@ class Pickaxe:
             new_comps.append(deepcopy(compound))
         return new_comps
 
+    def write_compound_output_file(self, path, delimiter='\t'):
+        """
+        Writes all compound data to the specified path.
+        :param path: path to output
+        :type path: basestring
+        :param delimiter: the charicter with which to separate data entries
+        :type delimiter: basestring
+        :return:
+        :rtype:
+        """
+        #utils.prevent_overwrite(path)
+        with open(path, 'w') as outfile:
+            # TODO: use CSV dictwriter
+            for c in sorted(pk.compounds.values(), key=lambda x: x['_id']):
+                outfile.write('%s\t"%s"\n' % (c['_id'], c['SMILES']))
+
 
 if __name__ == "__main__":
     t1 = time.time()
@@ -189,12 +209,12 @@ if __name__ == "__main__":
     operators = defaultdict(int)
     predicted_rxns = set()
     predicted_comps = set()
-    seed_comps =[]
-    with open('iAF1260.tsv') as infile:
+    seed_comps = []
+    with open('test.tsv') as infile:
         for i, line in enumerate(infile):
             mol = AllChem.MolFromInchi(line.split('\t')[6])
             smi = AllChem.MolToSmiles(mol, True)
-            pk.compounds[line.split('\t')[6]] = line.split('\t')[0]
+            pk.compounds[smi] = {'_id': line.split('\t')[0], "SMILES": smi, 'Genration': 0}
             seed_comps.append(smi)
     for i, smi in enumerate(seed_comps):
         print(i)
@@ -202,12 +222,10 @@ if __name__ == "__main__":
         for r in rxns:
             operators[r[0]] += 1
             predicted_rxns.add(r)
-    with open('compounds', 'w') as outfile:
-        for c in sorted(pk.compounds.items(), key=lambda x: x[1]):
-            outfile.write('%s\t"%s"\n' % (c[1], c[0]))
     for tup in sorted(operators.items(), key=lambda x: -x[1]):
         print(tup[0], tup[1])
-    with open('reactions', 'w') as outfile:
+    pk.write_compound_output_file('testcompounds')
+    with open('testreactions', 'w') as outfile:
         for i, rxn in enumerate(predicted_rxns):
             text_rxn = ' + '.join(['%s "%s"' % (x[0], x[1]) for x in rxn[1]])+' --> '+' + '.join(['%s "%s"' % (x[0], x[1]) for x in rxn[2]])
             outfile.write("\t".join([str(i), text_rxn, rxn[0]])+'\n')
