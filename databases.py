@@ -96,6 +96,7 @@ class MINE:
         pass
 
     def insert_compound(self, mol_object, compound_dict):
+
         compound_dict['SMILES'] = AllChem.MolToSmiles(mol_object)
         compound_dict['Inchi'] = AllChem.MolToInchi(mol_object)
         compound_dict['Inchikey'] = AllChem.InchiToInchiKey(compound_dict['Inchi'])
@@ -106,7 +107,7 @@ class MINE:
         compound_dict['len_MACCS'] = len(compound_dict['MACCS'])
         compound_dict['RDKit'] = [i for i, bit in enumerate(AllChem.RDKFingerprint(mol_object)) if bit]
         compound_dict['len_RDKit'] = len(compound_dict['RDKit'])
-        comphash = hashlib.sha1(compound_dict['SMILES']).hexdigest()
+        comphash = hashlib.sha1(compound_dict['SMILES'].encode('utf-8')).hexdigest()
         if '_id' in compound_dict:
             if "X" in compound_dict['_id']:
                     compound_dict = self.fix_rxn_pointers('X' + comphash, compound_dict)

@@ -1,24 +1,12 @@
 __author__ = 'JGJeffryes'
 
 from rdkit.Chem import AllChem, Draw
-from itertools import product
-from collections import defaultdict
+import itertools
+from collections import Counter, defaultdict, namedtuple
 import time
 import utils
 from copy import deepcopy
 from databases import MINE
-
-from line_profiler import LineProfiler
-def do_profile(func):
-        def profiled_func(*args, **kwargs):
-            try:
-                profiler = LineProfiler()
-                profiler.add_function(func)
-                profiler.enable_by_count()
-                return func(*args, **kwargs)
-            finally:
-                profiler.print_stats()
-        return profiled_func
 
 class Pickaxe:
     """
@@ -113,6 +101,7 @@ class Pickaxe:
         mol = AllChem.MolFromSmiles(compound_SMILES)
         if self.kekulize:
             AllChem.Kekulize(mol)
+            # also need to unset the aromatic flags in case the ring is hydrolysed (else will throw errors)
             for atom in mol.GetAtoms():
                 atom.SetIsAromatic(False)
         if self.explicit_h:
@@ -127,27 +116,35 @@ class Pickaxe:
             except RuntimeError:  # I need to do more to untangle the causes of this error
                 print("Runtime ERROR!"+rule_name)
                 continue
-            reactants = self._make_compound_tups(comps, rule_name)
+            reactants = next(self._make_compound_tups(comps, rule_name))  # no enumeration for reactants
             for prods in ps:
                 try:
-                    products = self._make_compound_tups(prods, rule_name)
-                    rid = str(len(self.reactions)+1).zfill(7)
-                    reaction_data = {"_id":rid, "Reactants": reactants, "Products": products, "Operators": [rule_name]}
-                    self.reactions.append(reaction_data)
-                    rxns.append(reaction_data)
+                    for stereo_prods in self._make_compound_tups(prods, rule_name, split_stereoisomers=True):
+                        rid = str(len(self.reactions)+1).zfill(7)
+                        reaction_data = {"_id": rid, "Reactants": reactants, "Products": stereo_prods, "Operators": [rule_name]}
+                        self.reactions.append(reaction_data)
+                        rxns.append(reaction_data)
                 except ValueError:
                     continue
         return [x for x in self.compounds.values()], rxns
 
-    def _make_compound_tups(self, mols, rule_name):
-        """takes a list of mol objects and returns (stoichometric, id) tuples"""
-        comps = defaultdict(int)
+    def _make_compound_tups(self, mols, rule_name, split_stereoisomers=False):
+        """takes a list of mol objects and returns (stoich, compound) tuples"""
+        comp_tuple = namedtuple("stoich_tuple", 'stoich,compound')
+        comps = []
+        products = []
         for m in mols:
             smiles = AllChem.MolToSmiles(m, True)
             if smiles not in self.raw_compounds:
                 self._calculate_compound_information(smiles, m, rule_name)
-            comps[self.raw_compounds[smiles]] += 1
-        return [(y, x) for x, y in comps.items()]
+            comps.append(self.raw_compounds[smiles])
+        if split_stereoisomers:
+            for subrxn in itertools.product(*comps):
+                products.append(Counter(subrxn))
+        else:
+            products = [Counter(comps)]
+        for rxn in products:
+            yield [comp_tuple(y, x) if len(x) > 1 else comp_tuple(y, x[0]) for x, y in rxn.items()]
 
     def _calculate_compound_information(self, raw, mol_obj, rule_name):
         if not self.mine:
@@ -182,7 +179,7 @@ class Pickaxe:
             unassigned_centers = list(filter(lambda x: compound.GetAtomWithIdx(x).GetAtomicNum() == 6, unassigned_centers))
         if not unassigned_centers or len(unassigned_centers) > max_centers:
             return [compound]
-        for seq in product([1, 0], repeat=len(unassigned_centers)):
+        for seq in itertools.product([1, 0], repeat=len(unassigned_centers)):
             for atomId, cw in zip(unassigned_centers, seq):
                 if cw:
                     compound.GetAtomWithIdx(atomId).SetChiralTag(AllChem.rdchem.ChiralType.CHI_TETRAHEDRAL_CW)
@@ -203,9 +200,9 @@ class Pickaxe:
         """
         path = utils.prevent_overwrite(path)
         with open(path, 'w') as outfile:
-            # TODO: use CSV dictwriter
+            outfile.write('_id\tSMILES\n')
             for c in sorted(pk.compounds.values(), key=lambda x: x['_id']):
-                outfile.write('%s\t"%s"\n' % (c['_id'], c['SMILES']))
+                outfile.write('%s\t%s\n' % (c['_id'], c['SMILES']))
 
     def write_reaction_output_file(self, path, delimiter='\t'):
         """
@@ -219,12 +216,11 @@ class Pickaxe:
         """
         path = utils.prevent_overwrite(path)
         with open(path, 'w') as outfile:
-            # TODO: use CSV dictwriter
+            outfile.write('_id\tText Rxn\tOperator\n')
             for rxn in sorted(pk.reactions, key=lambda x: x['_id']):
                 text_rxn = ' + '.join(['%s "%s"' % (x[0], x[1]) for x in rxn["Reactants"]]) + ' --> ' + \
                            ' + '.join(['%s "%s"' % (x[0], x[1]) for x in rxn["Products"]])
-                outfile.write(delimiter.join([str(rxn['_id']), text_rxn, rxn['Operators'][0], str(rxn['Reactants']),
-                                              str(rxn['Products'])])+'\n')
+                outfile.write(delimiter.join([str(rxn['_id']), text_rxn, rxn['Operators'][0]])+'\n')
 
     def save_to_MINE(self, db_id):
         db = MINE(db_id)
@@ -248,10 +244,10 @@ if __name__ == "__main__":
     for i, smi in enumerate(seed_comps):
         print(i)
         prod, rxns = pk.transform_compound(smi)
-        for r in rxns:
-            operators[r["Operators"][0]] += 1
-    for tup in sorted(operators.items(), key=lambda x: -x[1]):
+        operators = Counter([r["Operators"][0] for r in rxns])
+    for tup in operators.most_common():
         print(tup[0], tup[1])
     pk.write_compound_output_file('testcompounds')
     pk.write_reaction_output_file('testreactions')
+    #pk.save_to_MINE("MINE_test")
     print(time.time()-t1)

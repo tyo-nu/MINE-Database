@@ -50,3 +50,16 @@ def prevent_overwrite(write_path):
         else:
             write_path += '_new'
     return write_path
+
+def do_profile(func):
+    from line_profiler import LineProfiler
+
+    def profiled_func(*args, **kwargs):
+        try:
+            profiler = LineProfiler()
+            profiler.add_function(func)
+            profiler.enable_by_count()
+            return func(*args, **kwargs)
+        finally:
+            profiler.print_stats()
+    return profiled_func
