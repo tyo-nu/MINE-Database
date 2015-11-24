@@ -5,8 +5,7 @@ from itertools import product
 from collections import defaultdict
 import time
 from copy import deepcopy
-import sys
-import utils
+from databases import MINE
 
 from line_profiler import LineProfiler
 def do_profile(func):
@@ -225,6 +224,13 @@ class Pickaxe:
                            ' + '.join(['%s "%s"' % (x[0], x[1]) for x in rxn["Products"]])
                 outfile.write(delimiter.join([str(rxn['_id']), text_rxn, rxn['Operators'][0], str(rxn['Reactants']),
                                               str(rxn['Products'])])+'\n')
+
+    def save_to_MINE(self, db_id):
+        db = MINE(db_id)
+        for smi, comp_dict in self.compounds.items():
+            db.insert_compound(AllChem.MolFromSmiles(smi), comp_dict)
+        for rxn in self.reactions:
+            db.reactions.save(rxn)
 
 
 if __name__ == "__main__":
