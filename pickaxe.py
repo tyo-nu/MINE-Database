@@ -236,10 +236,10 @@ class Pickaxe:
 
 if __name__ == "__main__":
     t1 = time.time()
-    pk = Pickaxe(cofactor_list="Cofactor_SMILES.tsv", rule_list="operators_smarts.tsv", raceimze=True)
+    pk = Pickaxe(cofactor_list="Tests/Cofactor_SMILES.tsv", rule_list="Tests/operators_smarts.tsv", raceimze=True)
     operators = defaultdict(int)
     seed_comps = []
-    with open('test.tsv') as infile:
+    with open('Test/test_compounds.tsv') as infile:
         for i, line in enumerate(infile):
             mol = AllChem.MolFromInchi(line.split('\t')[6])
             smi = AllChem.MolToSmiles(mol, True)
