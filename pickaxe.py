@@ -32,6 +32,7 @@ class Pickaxe:
         self.cofactors = {}
         self.raw_compounds = {}
         self.compounds = {}
+        self.reactions = []  # TODO: convert to dict with rxn hashing
         self.cof_set = {'[H+]'}
         self.mine = mine
         self.generation = 1
@@ -126,10 +127,14 @@ class Pickaxe:
             except RuntimeError:  # I need to do more to untangle the causes of this error
                 print("Runtime ERROR!"+rule_name)
                 continue
-            reactants = tuple(self._make_compound_tups(comps, rule_name))
+            reactants = self._make_compound_tups(comps, rule_name)
             for prods in ps:
                 try:
-                    rxns.append((rule_name, reactants, tuple(self._make_compound_tups(prods, rule_name))))
+                    products = self._make_compound_tups(prods, rule_name)
+                    rid = str(len(self.reactions)+1).zfill(7)
+                    reaction_data = {"_id":rid, "Reactants": reactants, "Products": products, "Operators": [rule_name]}
+                    self.reactions.append(reaction_data)
+                    rxns.append(reaction_data)
                 except ValueError:
                     continue
         return [x for x in self.compounds.values()], rxns
@@ -191,7 +196,7 @@ class Pickaxe:
         Writes all compound data to the specified path.
         :param path: path to output
         :type path: basestring
-        :param delimiter: the charicter with which to separate data entries
+        :param delimiter: the character with which to separate data entries
         :type delimiter: basestring
         :return:
         :rtype:
@@ -202,13 +207,30 @@ class Pickaxe:
             for c in sorted(pk.compounds.values(), key=lambda x: x['_id']):
                 outfile.write('%s\t"%s"\n' % (c['_id'], c['SMILES']))
 
+    def write_reaction_output_file(self, path, delimiter='\t'):
+        """
+        Writes all reaction data to the specified path.
+        :param path: path to output
+        :type path: basestring
+        :param delimiter: the character with which to separate data entries
+        :type delimiter: basestring
+        :return:
+        :rtype:
+        """
+        #utils.prevent_overwrite(path)
+        with open(path, 'w') as outfile:
+            # TODO: use CSV dictwriter
+            for rxn in sorted(pk.reactions, key=lambda x: x['_id']):
+                text_rxn = ' + '.join(['%s "%s"' % (x[0], x[1]) for x in rxn["Reactants"]]) + ' --> ' + \
+                           ' + '.join(['%s "%s"' % (x[0], x[1]) for x in rxn["Products"]])
+                outfile.write(delimiter.join([str(rxn['_id']), text_rxn, rxn['Operators'][0], str(rxn['Reactants']),
+                                              str(rxn['Products'])])+'\n')
+
 
 if __name__ == "__main__":
     t1 = time.time()
     pk = Pickaxe(cofactor_list="Cofactor_SMILES.tsv", rule_list="operators_smarts.tsv", raceimze=True)
     operators = defaultdict(int)
-    predicted_rxns = set()
-    predicted_comps = set()
     seed_comps = []
     with open('test.tsv') as infile:
         for i, line in enumerate(infile):
@@ -220,13 +242,9 @@ if __name__ == "__main__":
         print(i)
         prod, rxns = pk.transform_compound(smi)
         for r in rxns:
-            operators[r[0]] += 1
-            predicted_rxns.add(r)
+            operators[r["Operators"][0]] += 1
     for tup in sorted(operators.items(), key=lambda x: -x[1]):
         print(tup[0], tup[1])
     pk.write_compound_output_file('testcompounds')
-    with open('testreactions', 'w') as outfile:
-        for i, rxn in enumerate(predicted_rxns):
-            text_rxn = ' + '.join(['%s "%s"' % (x[0], x[1]) for x in rxn[1]])+' --> '+' + '.join(['%s "%s"' % (x[0], x[1]) for x in rxn[2]])
-            outfile.write("\t".join([str(i), text_rxn, rxn[0]])+'\n')
+    pk.write_reaction_output_file('testreactions')
     print(time.time()-t1)
