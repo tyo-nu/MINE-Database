@@ -3,6 +3,7 @@ __author__ = 'JGJeffryes'
 
 from rdkit.Chem import AllChem
 import hashlib
+from os import path
 
 def convert_sets_to_lists(obj):
     """Recursively converts dictionaries that contain sets to lists"""
@@ -28,8 +29,24 @@ def memoize(f):
     class memodict(dict):
         def __getitem__(self, *key):
             return dict.__getitem__(self, key)
+
         def __missing__(self, key):
             ret = self[key] = f(*key)
             return ret
     return memodict().__getitem__
 
+def prevent_overwrite(write_path):
+    """
+    Prevents overwrite of existing output files by appending "_new" when needed
+    :param write_path: potential write path
+    :type write_path: string
+    :return:
+    :rtype:
+    """
+    while path.exists(write_path):
+        sp = write_path.split('.')
+        if len(sp) > 1:
+            write_path = sp[0]+'_new'+sp[1]
+        else:
+            write_path += '_new'
+    return write_path

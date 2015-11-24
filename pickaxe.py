@@ -4,6 +4,7 @@ from rdkit.Chem import AllChem, Draw
 from itertools import product
 from collections import defaultdict
 import time
+import utils
 from copy import deepcopy
 from databases import MINE
 
@@ -200,7 +201,7 @@ class Pickaxe:
         :return:
         :rtype:
         """
-        #utils.prevent_overwrite(path)
+        path = utils.prevent_overwrite(path)
         with open(path, 'w') as outfile:
             # TODO: use CSV dictwriter
             for c in sorted(pk.compounds.values(), key=lambda x: x['_id']):
@@ -216,7 +217,7 @@ class Pickaxe:
         :return:
         :rtype:
         """
-        #utils.prevent_overwrite(path)
+        path = utils.prevent_overwrite(path)
         with open(path, 'w') as outfile:
             # TODO: use CSV dictwriter
             for rxn in sorted(pk.reactions, key=lambda x: x['_id']):

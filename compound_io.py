@@ -23,6 +23,7 @@ def export_sdf(mine_db, target):
         mine_db.add_rxn_pointers()
 
     print("Exporting %s compounds from %s as an SDF file") %(mine_db.compounds.count(), mine_db.name)
+    target = utils.prevent_overwrite(target)
     w = AllChem.SDWriter(target)
     for compound in mine_db.compounds.find():
         mol = AllChem.MolFromSmiles(compound['SMILES'], True, {'CoA': '*', 'R': "*"})
