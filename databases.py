@@ -6,6 +6,9 @@ __author__ = 'JGJeffryes'
 
 import pymongo
 import platform
+import hashlib
+import utils
+from rdkit.Chem import AllChem
 
 def establish_db_client():
     """This establishes a mongo database client in various environments"""
@@ -41,6 +44,7 @@ class MINE:
         self.reactions = db.reactions
         self.operators = db.operators
         self.models = db.models
+        self.id_db = client['UniversalMINE']
 
     def add_rxn_pointers(self):
         """Add links to the reactions that each compound participates in allowing for users to follow paths in the
@@ -90,3 +94,34 @@ class MINE:
         :return:
         """
         pass
+
+    def insert_compound(self, mol_object, compound_dict):
+        compound_dict['SMILES'] = AllChem.MolToSmiles(mol_object)
+        compound_dict['Inchi'] = AllChem.MolToInchi(mol_object)
+        compound_dict['Inchikey'] = AllChem.InchiToInchiKey(compound_dict['Inchi'])
+        compound_dict['Mass'] = AllChem.CalcExactMolWt(mol_object)
+        compound_dict['Formula'] = AllChem.CalcMolFormula(mol_object)
+        compound_dict['Charge'] = AllChem.GetFormalCharge(mol_object)
+        compound_dict['MACCS'] = [i for i, bit in enumerate(AllChem.GetMACCSKeysFingerprint(mol_object)) if bit]
+        compound_dict['len_MACCS'] = len(compound_dict['MACCS'])
+        compound_dict['RDKit'] = [i for i, bit in enumerate(AllChem.RDKFingerprint(mol_object)) if bit]
+        compound_dict['len_RDKit'] = len(compound_dict['RDKit'])
+        comphash = hashlib.sha1(compound_dict['SMILES']).hexdigest()
+        if '_id' in compound_dict :
+            if "X" in compound_dict['_id']:
+                    compound_dict = self.fix_rxn_pointers('X' + comphash, compound_dict)
+            else:
+                compound_dict = self.fix_rxn_pointers( 'C' + comphash, compound_dict)
+        else:
+            compound_dict['_id'] = 'C' + comphash
+
+        compound_dict['DB_links'] = {}
+        # TODO: insert DB_links
+        if self.id_db:
+            mine_comp = self.id_db.compounds.find_one({"_id": compound_dict['_id']})
+            if mine_comp:
+                compound_dict['MINE_id'] = mine_comp['MINE_id']
+            elif compound_dict['_id'][0] == 'C':
+                compound_dict['MINE_id'] = self.id_db.compounds.count()
+                self.id_db.compounds.insert(utils.convert_sets_to_lists(compound_dict))
+        self.compounds.save(utils.convert_sets_to_lists(compound_dict))

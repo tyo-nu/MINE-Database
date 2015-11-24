@@ -63,57 +63,19 @@ def export_mol(mine_db, target, name_field='_id'):
         AllChem.MolToMolFile(mol, os.path.join(target, compound[name_field]+'.mol'))
 
 
-def import_sdf(mine_db, target, id_db='UniversalMINE'):
+def import_sdf(mine_db, target,):
     """
     Imports a SDF file as a MINE database
     :param mine_db: a MINE object, the database to insert the compound into
     :param target: a path, the SDF file to be loaded
-    :param id_db: string, name of the db which coordinates MINE_ids
     :return:
     """
-    last_cid = None
-    if id_db:
-        uni_mine = MINE(id_db)
-        last_cid = [int(x['MINE_id']) for x in uni_mine.compounds.find().sort([("MINE_id", DESCENDING)]).limit(1)][0]
-
     sdf_gen = AllChem.SDMolSupplier(target)
     for mol in sdf_gen:
         compound = {}
         for key in mol.GetPropNames():
             compound[key] = mol.GetProp(key)
-        compound['SMILES'] = AllChem.MolToSmiles(mol)
-        compound['Inchikey'] = AllChem.MolToInchikey(mol)
-        compound['Inchi'] = AllChem.MolToInchi(mol)
-        compound['Mass'] = AllChem.CalcExactMolWt(mol)
-        compound['Formula'] = AllChem.CalcMolFormula(mol)
-        compound['Charge'] = AllChem.GetFormalCharge(mol)
-        compound['MACCS'] = [i for i, bit in enumerate(AllChem.GetMACCSKeysFingerprint(mol)) if bit]
-        compound['len_MACCS'] = len(compound['MACCS'])
-        compound['RDKit'] = [i for i, bit in enumerate(AllChem.RDKFingerprint(mol)) if bit]
-        compound['len_RDKit'] = len(compound['RDKit'])
-
-        comphash = hashlib.sha1(compound['SMILES']).hexdigest()
-        if '_id' in compound:
-            if "X" in compound['_id']:
-                compound = mine_db.fix_rxn_pointers(mine_db, 'X' + comphash, compound)
-            else:
-                compound = mine_db.fix_rxn_pointers(mine_db, 'C' + comphash, compound)
-        else:
-            compound['_id'] = 'C' + comphash
-
-        compound['DB_links'] = {}
-        #TODO: insert DB_links
-
-        if id_db:
-            mine_comp = uni_mine.compounds.find_one({"_id": compound['_id']})
-            if mine_comp:
-                compound['MINE_id'] = mine_comp['MINE_id']
-            elif compound['_id'][0] == 'C':
-                last_cid += 1
-                compound['MINE_id'] = last_cid
-                uni_mine.compounds.insert(utils.convert_sets_to_lists(compound))
-
-        mine_db.compounds.save(utils.convert_sets_to_lists(compound))
+        mine_db.insert_compound(mol, compound)
 
 
 if __name__ == '__main__':
