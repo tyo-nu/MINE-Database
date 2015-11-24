@@ -10,6 +10,7 @@ import utils
 import sys
 import hashlib
 import os
+import datetime
 
 def export_sdf(mine_db, target):
     """
@@ -77,6 +78,7 @@ def import_sdf(mine_db, target,):
         for key in mol.GetPropNames():
             compound[key] = mol.GetProp(key)
         mine_db.insert_compound(mol, compound)
+    mine_db.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "SDF Imported", "Filepath": target})
 
 
 if __name__ == '__main__':

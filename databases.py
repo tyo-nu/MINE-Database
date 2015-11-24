@@ -8,6 +8,7 @@ import pymongo
 import platform
 import hashlib
 import utils
+import datetime
 from rdkit.Chem import AllChem
 
 def establish_db_client():
@@ -56,6 +57,7 @@ class MINE:
                 self.compounds.update({"_id": compound[1]}, {'$push': {"Reactant_in": reaction['_id']}})
             for compound in reaction['Products']:
                 self.compounds.update({"_id": compound[1]}, {'$push': {"Product_of": reaction['_id']}})
+        self.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "Add Reaction Pointers"})
 
     def fix_rxn_pointers(self, new_id, comp_dict):
         if new_id != comp_dict['_id']:

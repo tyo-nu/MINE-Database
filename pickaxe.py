@@ -7,6 +7,7 @@ import time
 import utils
 from copy import deepcopy
 from databases import MINE
+import datetime
 
 class Pickaxe:
     """
@@ -227,8 +228,10 @@ class Pickaxe:
         db = MINE(db_id)
         for smi, comp_dict in self.compounds.items():
             db.insert_compound(AllChem.MolFromSmiles(smi), comp_dict)
+        db.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "Compounds Inserted"})
         for rxn in self.reactions:
             db.reactions.save(rxn)
+        db.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "Reactions Inserted"})
 
 
 if __name__ == "__main__":
@@ -250,5 +253,5 @@ if __name__ == "__main__":
         print(tup[0], tup[1])
     pk.write_compound_output_file('testcompounds')
     pk.write_reaction_output_file('testreactions')
-    #pk.save_to_MINE("MINE_test")
+    pk.save_to_MINE("MINE_test")
     print(time.time()-t1)
