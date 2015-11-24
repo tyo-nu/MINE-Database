@@ -129,8 +129,8 @@ class Pickaxe:
         return [x for x in self.compounds.values()], rxns
 
     def _make_compound_tups(self, mols, rule_name, split_stereoisomers=False):
-        """takes a list of mol objects and returns (stoich, compound) tuples"""
-        comp_tuple = namedtuple("stoich_tuple", 'stoich,compound')
+        """takes a list of mol objects and returns (compound, stoich) tuples"""
+        comp_tuple = namedtuple("stoich_tuple", 'compound,stoich')
         comps = []
         products = []
         for m in mols:
@@ -144,9 +144,10 @@ class Pickaxe:
         else:
             products = [Counter(comps)]
         for rxn in products:
-            yield [comp_tuple(y, x) if len(x) > 1 else comp_tuple(y, x[0]) for x, y in rxn.items()]
+            yield [comp_tuple(x, y) if len(x) > 1 else comp_tuple(x[0], y) for x, y in rxn.items()]
 
     def _calculate_compound_information(self, raw, mol_obj, rule_name):
+        """Calculate the standard data for a compound and store in compound dict as a dict"""
         if not self.mine:
             try:
                 if self.explicit_h:
@@ -218,8 +219,8 @@ class Pickaxe:
         with open(path, 'w') as outfile:
             outfile.write('_id\tText Rxn\tOperator\n')
             for rxn in sorted(pk.reactions, key=lambda x: x['_id']):
-                text_rxn = ' + '.join(['%s "%s"' % (x[0], x[1]) for x in rxn["Reactants"]]) + ' --> ' + \
-                           ' + '.join(['%s "%s"' % (x[0], x[1]) for x in rxn["Products"]])
+                text_rxn = ' + '.join(['%s "%s"' % (x.stoich, x.compound) for x in rxn["Reactants"]]) + ' --> ' + \
+                           ' + '.join(['%s "%s"' % (x.stoich, x.compound) for x in rxn["Products"]])
                 outfile.write(delimiter.join([str(rxn['_id']), text_rxn, rxn['Operators'][0]])+'\n')
 
     def save_to_MINE(self, db_id):

@@ -126,3 +126,6 @@ class MINE:
                 compound_dict['MINE_id'] = self.id_db.compounds.count()
                 self.id_db.compounds.insert(utils.convert_sets_to_lists(compound_dict))
         self.compounds.save(utils.convert_sets_to_lists(compound_dict))
+
+    def insert_reaction(self, reaction_dict):
+        pass
