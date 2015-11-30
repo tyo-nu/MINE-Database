@@ -2,12 +2,13 @@ __author__ = 'JGJeffryes'
 
 from rdkit.Chem import AllChem, Draw
 import itertools
-from collections import Counter, defaultdict, namedtuple
+import collections
 import time
 import utils
 from copy import deepcopy
 from databases import MINE
 import datetime
+import hashlib
 
 class Pickaxe:
     """
@@ -20,8 +21,8 @@ class Pickaxe:
         self.rxn_rules = {}
         self.cofactors = {}
         self._raw_compounds = {}
-        self.compounds = {}
-        self.reactions = []  # TODO: convert to dict with rxn hashing
+        self.compounds = collections.OrderedDict()
+        self.reactions = collections.OrderedDict()
         self.mine = mine
         self.generation = 1
         self.explicit_h = explicit_h
@@ -107,7 +108,7 @@ class Pickaxe:
         if self.explicit_h:
             mol = AllChem.AddHs(mol)
         self.cofactors['Any'] = mol
-        rxns = []
+        rxns = set()
         products = set()
         for rule_name in rules:
             rule = self.rxn_rules[rule_name]
@@ -122,17 +123,23 @@ class Pickaxe:
                 try:
                     for stereo_prods in self._make_compound_tups(prods, rule_name, split_stereoisomers=True):
                         products.update(x.compound for x in stereo_prods)
-                        rid = str(len(self.reactions)+1).zfill(7)
-                        reaction_data = {"_id": rid, "Reactants": reactants, "Products": stereo_prods, "Operators": [rule_name]}
-                        self.reactions.append(reaction_data)
-                        rxns.append(reaction_data)
+                        rid = self._calculate_rxn_hash(reactants, stereo_prods)
+                        text_rxn = ' + '.join(['%s "%s"' % (x.stoich, x.compound) for x in reactants]) + ' --> ' + \
+                           ' + '.join(['%s "%s"' % (x.stoich, x.compound) for x in stereo_prods])
+                        rxns.add(text_rxn)
+                        if rid not in self.reactions:
+                            reaction_data = {"_id": rid, "Reactants": reactants, "Products": stereo_prods,
+                                         "Text_rxn": text_rxn, "Operators": {rule_name}}
+                            self.reactions[rid] = reaction_data
+                        else:
+                            self.reactions[rid]['Operators'].add(rule_name)
                 except ValueError:
                     continue
         return products, rxns
 
     def _make_compound_tups(self, mols, rule_name, split_stereoisomers=False):
         """Takes a list of mol objects and returns an generator for (compound, stoich) tuples"""
-        comp_tuple = namedtuple("stoich_tuple", 'compound,stoich')
+        comp_tuple = collections.namedtuple("stoich_tuple", 'compound,stoich')
         comps = []
         products = []
         for m in mols:
@@ -140,9 +147,9 @@ class Pickaxe:
             comps.append(self._calculate_compound_information(r_smiles, m, rule_name))
         if split_stereoisomers:
             for subrxn in itertools.product(*comps):
-                products.append(Counter(subrxn))
+                products.append(collections.Counter(subrxn))
         else:
-            products = [Counter(comps)]
+            products = [collections.Counter(comps)]
         for rxn in products:
             yield [comp_tuple(x, y) if len(x) > 1 else comp_tuple(x[0], y) for x, y in rxn.items()]
 
@@ -195,6 +202,25 @@ class Pickaxe:
             new_comps.append(deepcopy(compound))
         return new_comps
 
+    def _calculate_rxn_hash(self, reactants, products):
+        def __get_blocks(tups):
+            first_block, second_block = [], []
+            for x in tups:
+                split_inchikey = self.compounds[x.compound]["Inchikey"].split('-')
+                if len(split_inchikey) > 1:
+                    first_block.append("%s,%s" % (x.stoich, split_inchikey[0]))
+                    second_block.append("%s,%s" % (x.stoich, split_inchikey[1]))
+            return "+".join(first_block), "+".join(first_block)
+
+        reactants.sort()
+        products.sort()
+        r_1, r_2 = __get_blocks(reactants)
+        p_1, p_2 = __get_blocks(products)
+        first_block = r_1+'<==>'+p_1
+        second_block = r_2+'<==>'+p_2
+
+        return hashlib.sha256(first_block.encode()).hexdigest()+"-"+hashlib.md5(second_block.encode()).hexdigest()
+
     def write_compound_output_file(self, path, delimiter='\t'):
         """
         Writes all compound data to the specified path.
@@ -224,17 +250,16 @@ class Pickaxe:
         path = utils.prevent_overwrite(path)
         with open(path, 'w') as outfile:
             outfile.write('_id\tText Rxn\tOperator\n')
-            for rxn in sorted(self.reactions, key=lambda x: x['_id']):
-                text_rxn = ' + '.join(['%s "%s"' % (x.stoich, x.compound) for x in sorted(rxn["Reactants"])]) + ' --> ' + \
-                           ' + '.join(['%s "%s"' % (x.stoich, x.compound) for x in sorted(rxn["Products"])])
-                outfile.write(delimiter.join([str(rxn['_id']), text_rxn, rxn['Operators'][0]])+'\n')
+            for rxn in self.reactions.values():
+                outfile.write(delimiter.join([rxn['_id'], rxn["Text_rxn"], ';'.join(rxn['Operators'])])+'\n')
 
     def save_to_MINE(self, db_id):
         db = MINE(db_id)
         for comp_dict in self.compounds.values():
             db.insert_compound(AllChem.MolFromSmiles(comp_dict['SMILES']), comp_dict)
         db.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "Compounds Inserted"})
-        for rxn in self.reactions:
+        for rxn in self.reactions.values():
+            rxn = utils.convert_sets_to_lists(rxn)
             db.reactions.save(rxn)
         db.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "Reactions Inserted"})
 
@@ -242,7 +267,7 @@ class Pickaxe:
 if __name__ == "__main__":
     t1 = time.time()
     pk = Pickaxe(cofactor_list="Tests/Cofactor_SMILES.tsv", rule_list="Tests/operators_smarts.tsv", raceimze=True)
-    operators = defaultdict(int)
+    operators = collections.defaultdict(int)
     seed_comps = []
     with open('iAF1260.tsv') as infile:
         for i, line in enumerate(infile):
@@ -256,7 +281,7 @@ if __name__ == "__main__":
     for i, smi in enumerate(seed_comps):
         print(i)
         prod, rxns = pk.transform_compound(smi, rules=[])
-        operators = Counter([r["Operators"][0] for r in rxns])
+        operators = collections.Counter([r["Operators"][0] for r in rxns])
     for tup in operators.most_common():
         print(tup[0], tup[1])
     pk.write_compound_output_file('testcompounds')

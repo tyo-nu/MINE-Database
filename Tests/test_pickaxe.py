@@ -32,13 +32,11 @@ def test_product_racimization():
     pk2 = pickaxe.Pickaxe(raceimze=False, rule_list='Tests/test_operators.tsv')
     comps, rxns = pk2.transform_compound(meh, rules=['2.6.1.a'])
     assert len(comps) == 2
+    assert len(rxns) == 1
     pk2 = pickaxe.Pickaxe(raceimze=True, rule_list='Tests/test_operators.tsv')
     rcomps, rrxns = pk2.transform_compound(meh, rules=['2.6.1.a'])
     assert len(rcomps) == 3
-    # TODO: reaction # checking
-
-def test_reaction_hashing():
-    raise NotImplementedError
+    assert len(rrxns) == 2
 
 def test_compound_output_writing():
     pk.write_compound_output_file('Tests/testcompounds')
@@ -61,7 +59,7 @@ def test_save_as_MINE():
     mine_db = MINE('MINE_test')
     try:
         assert mine_db.compounds.count() == 10
-        assert mine_db.reactions.count() == 14
+        assert mine_db.reactions.count() == 7
     finally:
         mine_db.compounds.drop()
         mine_db.reactions.drop()
