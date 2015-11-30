@@ -55,7 +55,7 @@ class Pickaxe:
         split_text = cofactor_text.strip().split('\t')
         # TODO: add input validation
         mol = AllChem.MolFromSmiles(split_text[1])
-        self.compounds[split_text[0]] = {'_id': split_text[0], 'SMILES': split_text[1], 'Generation': -1}
+        self.compounds[split_text[0]] = {'_id': split_text[0], 'SMILES': split_text[1], "Inchikey": 'None', 'Generation': -1}
         if self.explicit_h:
             mol = AllChem.AddHs(mol)
         if self.kekulize:
@@ -160,10 +160,14 @@ class Pickaxe:
             except ValueError:  # primarily seems to be caused by valence errors
                 print("Product ERROR!: %s %s" % (rule_name, raw))
                 raise ValueError
-            for s in smiles:
+            for s, m in zip(smiles, mols):
                 if s not in self._raw_compounds:
                     cid = str(len(self.compounds)+1).zfill(7)
-                    self.compounds[cid] = {'_id': cid, "SMILES": s, 'Generation': self.generation}
+                    try:
+                        i_key = AllChem.InchiToInchiKey(AllChem.MolToInchi(m))
+                        self.compounds[cid] = {'_id': cid, "SMILES": s, 'Inchikey': i_key, 'Generation': self.generation}
+                    except ValueError:
+                        self.compounds[cid] = {'_id': cid, "SMILES": s, 'Inchikey': "None", 'Generation': self.generation}
                     self._raw_compounds[s] = cid
             self._raw_compounds[raw] = tuple([self._raw_compounds[s] for s in smiles])
         return self._raw_compounds[raw]
@@ -205,7 +209,7 @@ class Pickaxe:
         with open(path, 'w') as outfile:
             outfile.write('_id\tSMILES\n')
             for c in sorted(self.compounds.values(), key=lambda x: x['_id']):
-                outfile.write('%s\t%s\n' % (c['_id'], c['SMILES']))
+                outfile.write('%s\t%s\t%s\n' % (c['_id'], c['Inchikey'], c['SMILES']))
 
     def write_reaction_output_file(self, path, delimiter='\t'):
         """
@@ -245,7 +249,8 @@ if __name__ == "__main__":
             mol = AllChem.MolFromInchi(line.split('\t')[6])
             smi = AllChem.MolToSmiles(mol, True)
             id = line.split('\t')[0]
-            pk.compounds[id] = {'_id': id, "SMILES": smi, 'Genration': 0}
+            i_key = AllChem.InchiToInchiKey(line.split('\t')[6])
+            pk.compounds[id] = {'_id': id, "SMILES": smi, 'Inchikey':i_key, 'Genration': 0}
             pk._raw_compounds[smi] = id
             seed_comps.append(smi)
     for i, smi in enumerate(seed_comps):
