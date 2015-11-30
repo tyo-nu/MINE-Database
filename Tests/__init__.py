@@ -8,7 +8,8 @@ def setup_package():
     testdb = MINE("mongotest")
     with open('Tests/testing_db.json') as infile:
         comps = json.load(infile)
-    testdb.compounds.insert(comps)
+    for doc in comps:
+        testdb.compounds.save(doc)
 
 
 def teardown_package():
