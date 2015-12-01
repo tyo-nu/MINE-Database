@@ -14,7 +14,7 @@ import hashlib
 class Pickaxe:
     """
         This class generates new compounds from user-specified starting compounds using a set of SMARTS-based reaction
-        rules. it may be initialized with a text file containing the reaction rules and cofactors or this may be
+        rules. It may be initialized with a text file containing the reaction rules and cofactors or this may be
         done on an ad hock basis.
     """
     def __init__(self, rule_list=None, cofactor_list=None, explicit_h=True, strip_cof=True, kekulize=True, errors=True,
@@ -99,6 +99,8 @@ class Pickaxe:
         :return: Transformed compounds as tuple of id abd SMILES string and reactions as a tuple of reactants & products
         :rtype: tuple of lists
         """
+        pred_rxns = set()
+        pred_compounds = set()
         if not rules:
             rules = self.rxn_rules.keys()
         mol = AllChem.MolFromSmiles(compound_SMILES)
@@ -110,25 +112,23 @@ class Pickaxe:
         if self.explicit_h:
             mol = AllChem.AddHs(mol)
         self.cofactors['Any'] = mol
-        rxns = set()
-        products = set()
         for rule_name in rules:
             rule = self.rxn_rules[rule_name]
-            comps = tuple([self.cofactors[x] for x in rule[0]])
+            reactant_mols = tuple([self.cofactors[x] for x in rule[0]])
             try:
-                ps = rule[1].RunReactants(comps)
+                product_sets = rule[1].RunReactants(reactant_mols)
             except RuntimeError:  # I need to do more to untangle the causes of this error
                 print("Runtime ERROR!"+rule_name)
                 continue
-            reactants = next(self._make_compound_tups(comps, rule_name))  # no enumeration for reactants
-            for prods in ps:
+            reactants = next(self._make_compound_tups(reactant_mols, rule_name))  # no enumeration for reactants
+            for product_mols in product_sets:
                 try:
-                    for stereo_prods in self._make_compound_tups(prods, rule_name, split_stereoisomers=True):
-                        products.update(x.compound for x in stereo_prods)
+                    for stereo_prods in self._make_compound_tups(product_mols, rule_name, split_stereoisomers=True):
+                        pred_compounds.update(x.compound for x in stereo_prods)
                         rid = self._calculate_rxn_hash(reactants, stereo_prods)
                         text_rxn = ' + '.join(['%s "%s"' % (x.stoich, x.compound) for x in reactants]) + ' --> ' + \
                            ' + '.join(['%s "%s"' % (x.stoich, x.compound) for x in stereo_prods])
-                        rxns.add(text_rxn)
+                        pred_rxns.add(text_rxn)
                         if rid not in self.reactions:
                             reaction_data = {"_id": rid, "Reactants": reactants, "Products": stereo_prods,
                                          "Text_rxn": text_rxn, "Operators": {rule_name}}
@@ -137,7 +137,7 @@ class Pickaxe:
                             self.reactions[rid]['Operators'].add(rule_name)
                 except ValueError:
                     continue
-        return products, rxns
+        return pred_compounds, pred_rxns
 
     def _make_compound_tups(self, mols, rule_name, split_stereoisomers=False):
         """Takes a list of mol objects and returns an generator for (compound, stoich) tuples"""
@@ -146,7 +146,11 @@ class Pickaxe:
         products = []
         for m in mols:
             r_smiles = AllChem.MolToSmiles(m, True)
-            comps.append(self._calculate_compound_information(r_smiles, m, rule_name))
+            try:
+                comps.append(self._calculate_compound_information(r_smiles, m))
+            except ValueError:
+                print("Product ERROR!: %s %s" % (rule_name, r_smiles))
+                raise ValueError
         if split_stereoisomers:
             for subrxn in itertools.product(*comps):
                 products.append(collections.Counter(subrxn))
@@ -155,20 +159,17 @@ class Pickaxe:
         for rxn in products:
             yield [comp_tuple(x, y) if len(x) > 1 else comp_tuple(x[0], y) for x, y in rxn.items()]
 
-    def _calculate_compound_information(self, raw, mol_obj, rule_name):
-        """Calculate the standard data for a compound. Memoized with _raw_compound dict"""
+    def _calculate_compound_information(self, raw, mol_obj):
+        """Calculate the standard data for a compound & return a tuple with compound_ids. Memoized with _raw_compound
+        dict"""
         if raw not in self._raw_compounds:
-            try:
-                if self.explicit_h:
-                    mol_obj = AllChem.RemoveHs(mol_obj) # this step slows down the process quite a bit
-                if self.raceimize:
-                    mols = self._racemization(mol_obj)
-                else:
-                    mols = [mol_obj]
-                smiles = [AllChem.MolToSmiles(m, True) for m in mols]
-            except ValueError:  # primarily seems to be caused by valence errors
-                print("Product ERROR!: %s %s" % (rule_name, raw))
-                raise ValueError
+            if self.explicit_h:
+                mol_obj = AllChem.RemoveHs(mol_obj) # this step slows down the process quite a bit
+            if self.raceimize:
+                mols = self._racemization(mol_obj)
+            else:
+                mols = [mol_obj]
+            smiles = [AllChem.MolToSmiles(m, True) for m in mols]
             for s, m in zip(smiles, mols):
                 if s not in self._raw_compounds:
                     cid = str(len(self.compounds)+1).zfill(7)
@@ -228,6 +229,8 @@ class Pickaxe:
         second_block = r_2+'<==>'+p_2
 
         return hashlib.sha256(first_block.encode()).hexdigest()+"-"+hashlib.md5(second_block.encode()).hexdigest()
+
+    def
 
     def write_compound_output_file(self, path, delimiter='\t'):
         """
