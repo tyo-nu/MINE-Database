@@ -179,7 +179,7 @@ class Pickaxe:
                         self.compounds[cid] = {'_id': cid, "SMILES": s, 'Inchikey': "None", 'Generation': self.generation}
                     self._raw_compounds[s] = cid
             self._raw_compounds[raw] = tuple([self._raw_compounds[s] for s in smiles])
-        return self._raw_compounds[raw]
+        return self._raw_compounds[raw] if isinstance(self._raw_compounds[raw], tuple) else (self._raw_compounds[raw],)
 
     def _racemization(self, compound, max_centers=3, carbon_only=True):
         """
@@ -298,7 +298,6 @@ if __name__ == "__main__":
 
     pk = Pickaxe(cofactor_list=options.cofactor_list, rule_list=options.rule_list, raceimze=options.raceimize,
                  errors=options.verbose, explicit_h=options.bnice, kekulize=options.bnice)
-    operators = collections.defaultdict(int)
     seed_comps = []
     with open('iAF1260.tsv') as infile:
         for i, line in enumerate(infile):
@@ -312,11 +311,8 @@ if __name__ == "__main__":
     for i, smi in enumerate(seed_comps):
         print(i)
         prod, rxns = pk.transform_compound(smi, rules=[])
-        operators = collections.Counter([r["Operators"][0] for r in rxns])
-    for tup in operators.most_common():
-        print(tup[0], tup[1])
     pk.write_compound_output_file(options.output_dir+'/compounds.tsv')
-    pk.write_reaction_output_file(options.output_dir+'/testreactions.tsv')
+    pk.write_reaction_output_file(options.output_dir+'/reactions.tsv')
     if options.database:
         pk.save_to_MINE(options.database)
-    print("Exicution took %s seconds." % time.time()-t1)
+    print("Exicution took %s seconds." % (time.time()-t1))
