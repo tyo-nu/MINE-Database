@@ -1,12 +1,13 @@
 __author__ = 'JGJeffryes'
 
-from rdkit.Chem import AllChem, Draw
+from rdkit.Chem import AllChem
+from databases import MINE
+from argparse import ArgumentParser
 import itertools
 import collections
 import time
 import utils
 from copy import deepcopy
-from databases import MINE
 import datetime
 import hashlib
 
@@ -75,6 +76,7 @@ class Pickaxe:
         :return:
         :rtype:
         """
+        # TODO: add input validation
         split_text = rule_text.strip().split('\t')
         reactant_names = split_text[1].split(';')
         for name in reactant_names:
@@ -184,6 +186,10 @@ class Pickaxe:
         Enumerates all possible stereoisomers for unassigned chiral centers.
         :param compound: A compound
         :type compound: rdMol object
+        :param max_centers: The maximum number of unspecified stereocenters to enumerate. Sterioisomers grow 2^n_centers
+        :type max_centers: int
+        :param carbon_only: Only enumerate unspecified carbon centers. (other centers are often not tautomeric artifacts)
+        :type carbon_only:  bool
         :return: list of stereoisomers
         :rtype: list of rdMol objects
         """
@@ -203,6 +209,8 @@ class Pickaxe:
         return new_comps
 
     def _calculate_rxn_hash(self, reactants, products):
+        """Calculates a unique reaction hash using inchikeys. First block is connectivity only, second block is sterio
+        only"""
         def __get_blocks(tups):
             first_block, second_block = [], []
             for x in tups:
@@ -235,7 +243,7 @@ class Pickaxe:
         with open(path, 'w') as outfile:
             outfile.write('_id\tSMILES\n')
             for c in sorted(self.compounds.values(), key=lambda x: x['_id']):
-                outfile.write('%s\t%s\t%s\n' % (c['_id'], c['Inchikey'], c['SMILES']))
+                outfile.write(delimiter.join([c['_id'], c['Inchikey'], c['SMILES']])+'\n')
 
     def write_reaction_output_file(self, path, delimiter='\t'):
         """
@@ -254,6 +262,13 @@ class Pickaxe:
                 outfile.write(delimiter.join([rxn['_id'], rxn["Text_rxn"], ';'.join(rxn['Operators'])])+'\n')
 
     def save_to_MINE(self, db_id):
+        """
+        Save compounds to a MINE database.
+        :param db_id: The name of the target database
+        :type db_id: basestring
+        :return:
+        :rtype:
+        """
         db = MINE(db_id)
         for comp_dict in self.compounds.values():
             db.insert_compound(AllChem.MolFromSmiles(comp_dict['SMILES']), comp_dict)
@@ -266,7 +281,23 @@ class Pickaxe:
 
 if __name__ == "__main__":
     t1 = time.time()
-    pk = Pickaxe(cofactor_list="Tests/Cofactor_SMILES.tsv", rule_list="Tests/operators_smarts.tsv", raceimze=True)
+    parser = ArgumentParser()
+    parser.add_argument('-c', '--cofactor_list', default="Tests/Cofactor_SMILES.tsv", help="Specify a list of cofactors"
+                                                                                           " as a tab-separated file")
+    parser.add_argument('-r', '--rule_list', default="Tests/operators_smarts.tsv", help="Specify a list of reaction "
+                                                                                        "rules as a tab-separated file")
+    parser.add_argument('-o', '--output_dir', default="./", help="The directory in which to place files")
+    parser.add_argument('-d', '--database', default=None, help="The name of the database in which to store output. If "
+                                                               "not specified, data is still written as tsv files")
+    parser.add_argument('-R', '--raceimize', action='store_true', default=False, help="Enumerate the possible chiral "
+                        "forms for all unassigned steriocenters in compounds & reactions")
+    parser.add_argument('-v', '--verbose', action='store_true', default=False, help="Display RDKit errors & warnings")
+    parser.add_argument('--bnice', action='store_true', default=False, help="Set several options to enable "
+                                                                            "compatability with bnice operators.")
+    options = parser.parse_args()
+
+    pk = Pickaxe(cofactor_list=options.cofactor_list, rule_list=options.rule_list, raceimze=options.raceimize,
+                 errors=options.verbose, explicit_h=options.bnice, kekulize=options.bnice)
     operators = collections.defaultdict(int)
     seed_comps = []
     with open('iAF1260.tsv') as infile:
@@ -284,7 +315,8 @@ if __name__ == "__main__":
         operators = collections.Counter([r["Operators"][0] for r in rxns])
     for tup in operators.most_common():
         print(tup[0], tup[1])
-    pk.write_compound_output_file('testcompounds')
-    pk.write_reaction_output_file('testreactions')
-    pk.save_to_MINE("MINE_test")
-    print(time.time()-t1)
+    pk.write_compound_output_file(options.output_dir+'/compounds.tsv')
+    pk.write_reaction_output_file(options.output_dir+'/testreactions.tsv')
+    if options.database:
+        pk.save_to_MINE(options.database)
+    print("Exicution took %s seconds." % time.time()-t1)
