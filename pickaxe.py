@@ -286,7 +286,7 @@ if __name__ == "__main__":
                                                                                            " as a tab-separated file")
     parser.add_argument('-r', '--rule_list', default="Tests/operators_smarts.tsv", help="Specify a list of reaction "
                                                                                         "rules as a tab-separated file")
-    parser.add_argument('-o', '--output_dir', default="./", help="The directory in which to place files")
+    parser.add_argument('-o', '--output_dir', default=".", help="The directory in which to place files")
     parser.add_argument('-d', '--database', default=None, help="The name of the database in which to store output. If "
                                                                "not specified, data is still written as tsv files")
     parser.add_argument('-R', '--raceimize', action='store_true', default=False, help="Enumerate the possible chiral "

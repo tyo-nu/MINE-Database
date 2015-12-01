@@ -46,7 +46,8 @@ def prevent_overwrite(write_path):
     while path.exists(write_path):
         sp = write_path.split('.')
         if len(sp) > 1:
-            write_path = sp[0]+'_new'+sp[1]
+            sp[-2] += '_new'
+            write_path = '.'.join(sp)
         else:
             write_path += '_new'
     return write_path
