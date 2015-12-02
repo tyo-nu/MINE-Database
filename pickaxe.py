@@ -11,6 +11,7 @@ from copy import deepcopy
 import datetime
 import hashlib
 import csv
+import multiprocessing
 
 class Pickaxe:
     """
@@ -336,16 +337,26 @@ if __name__ == "__main__":
     parser.add_argument('-v', '--verbose', action='store_true', default=False, help="Display RDKit errors & warnings")
     parser.add_argument('--bnice', action='store_true', default=False, help="Set several options to enable "
                                                                             "compatability with bnice operators.")
+    parser.add_argument('-m', '--multiprocess', default=None, help="Set several options to enable "
+                                                                            "compatability with bnice operators.")
     options = parser.parse_args()
 
     pk = Pickaxe(cofactor_list=options.cofactor_list, rule_list=options.rule_list, raceimze=options.raceimize,
                  errors=options.verbose, explicit_h=options.bnice, kekulize=options.bnice)
     compound_smiles = pk.load_compound_set(compound_file=options.compound_file)
-    for i, smi in enumerate(compound_smiles):
-        print(i)
-        prod, rxns = pk.transform_compound(smi)
+    if options.multiprocess:
+        pool = multiprocessing.Pool(processes=int(options.multiprocess))
+        for i, res in enumerate(pool.imap_unordered(pk.transform_compound, compound_smiles)):
+            if not i % round(.05 * len(compound_smiles)):
+                print("%s percent complete" % round((i / len(compound_smiles)) * 100))
+    else:
+        for i, smi in enumerate(compound_smiles):
+            prod, rxns = pk.transform_compound(smi)
+            if not i % round(.05 * len(compound_smiles)):
+                print("%s percent complete" % round((i / len(compound_smiles)) * 100))
     pk.write_compound_output_file(options.output_dir+'/compounds.tsv')
     pk.write_reaction_output_file(options.output_dir+'/reactions.tsv')
     if options.database:
+        print("Saving results to ")
         pk.save_to_MINE(options.database)
     print("Execution took %s seconds." % (time.time()-t1))

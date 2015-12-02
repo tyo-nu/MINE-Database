@@ -21,6 +21,9 @@ def test_reaction_rule_loading():
     assert isinstance(rule[1], rdkit.Chem.rdChemReactions.ChemicalReaction)
     assert "Any" in rule[0]
 
+def test_compound_loading():
+    raise NotImplementedError
+
 def test_transform_compounds():
     pk._load_cofactor('ATP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
     pk.load_rxn_rule('2.7.1.a	ATP;Any	[#6;H2D4:8][#8;H0D2:7][#15;H0D4:6][#8;H0D2:5][#15;H0D4:4][#8;H0D2:3]'
