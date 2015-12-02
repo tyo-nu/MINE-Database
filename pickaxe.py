@@ -18,8 +18,8 @@ class Pickaxe:
         rules. It may be initialized with a text file containing the reaction rules and cofactors or this may be
         done on an ad hock basis.
     """
-    def __init__(self, rule_list=None, cofactor_list=None, explicit_h=True, strip_cof=True, kekulize=True, errors=True,
-                 raceimze=False, mine=None):
+    def __init__(self, rule_list=None, cofactor_list=None, explicit_h=True, kekulize=True, errors=True,
+                 raceimze=False, split_stereoisomers=True, mine=None):
         self.rxn_rules = {}
         self.cofactors = {}
         self._raw_compounds = {}
@@ -28,7 +28,7 @@ class Pickaxe:
         self.mine = mine
         self.generation = 1
         self.explicit_h = explicit_h
-        self.strip_cof = strip_cof
+        self.split_stereoisomers = split_stereoisomers
         self.kekulize = kekulize
         self.raceimize = raceimze
         if cofactor_list:
@@ -162,7 +162,7 @@ class Pickaxe:
             reactants = next(self._make_compound_tups(reactant_mols, rule_name))  # no enumeration for reactants
             for product_mols in product_sets:
                 try:
-                    for stereo_prods in self._make_compound_tups(product_mols, rule_name, split_stereoisomers=True):
+                    for stereo_prods in self._make_compound_tups(product_mols, rule_name, split_stereoisomers=self.split_stereoisomers):
                         pred_compounds.update(x.compound for x in stereo_prods)
                         rid = self._calculate_rxn_hash(reactants, stereo_prods)
                         text_rxn = ' + '.join(['%s "%s"' % (x.stoich, x.compound) for x in reactants]) + ' --> ' + \
@@ -340,10 +340,10 @@ if __name__ == "__main__":
 
     pk = Pickaxe(cofactor_list=options.cofactor_list, rule_list=options.rule_list, raceimze=options.raceimize,
                  errors=options.verbose, explicit_h=options.bnice, kekulize=options.bnice)
-    seed_comps = pk.load_compound_set(compound_file=options.compound_file)
-    for i, smi in enumerate(seed_comps):
+    compound_smiles = pk.load_compound_set(compound_file=options.compound_file)
+    for i, smi in enumerate(compound_smiles):
         print(i)
-        prod, rxns = pk.transform_compound(smi, rules=[])
+        prod, rxns = pk.transform_compound(smi)
     pk.write_compound_output_file(options.output_dir+'/compounds.tsv')
     pk.write_reaction_output_file(options.output_dir+'/reactions.tsv')
     if options.database:
