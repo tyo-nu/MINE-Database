@@ -10,6 +10,7 @@ import utils
 from copy import deepcopy
 import datetime
 import hashlib
+import csv
 
 class Pickaxe:
     """
@@ -88,6 +89,44 @@ class Pickaxe:
         if rxn.GetNumReactantTemplates() != len(reactant_names):
             raise ValueError("Number of cofactors does not match supplied reaction rule")
         self.rxn_rules[split_text[0]] = (reactant_names, rxn)
+
+    def load_compound_set(self, compound_file=None, structure_field='structure', id_field='id'):
+        """
+        If a compound file is provided, this function loads the compounds into it's internal dictionary. If not, it
+        attempts to find the compounds in it's associated MINE database.
+        :param compound_file: Path to a file containing compounds as tsv
+        :type compound_file: basestring
+        :param structure_field: the name of the column containing the structure incarnation as Inchi or SMILES (Default:
+        'structure')
+        :type structure_field: str
+        :param id_field: the name of the column containing the desired compound ID (Default: 'id)
+        :type id_field: str
+        :return: compound SMILES
+        :rtype: list
+        """
+        compound_smiles = []
+        if compound_file:
+            with open(compound_file) as infile:
+                reader = csv.DictReader(infile.readlines(), delimiter="\t")
+                for line in reader:
+                    if "InChI=" in line[structure_field]:
+                        mol = AllChem.MolFromInchi(line[structure_field])
+                    else:
+                        mol = AllChem.MolFromSmiles(line[structure_field])
+                    if not mol:
+                        print("Unable to Parse %s" % line[structure_field])
+                        continue
+                    smi = AllChem.MolToSmiles(mol, True)
+                    id = line[id_field]
+                    i_key = AllChem.InchiToInchiKey(AllChem.MolToInchi(mol))
+                    pk.compounds[id] = {'_id': id, "SMILES": smi, 'Inchikey':i_key, 'Genration': 0}
+                    pk._raw_compounds[smi] = id
+                    compound_smiles.append(smi)
+        else:
+            # TODO: MINE compound loading
+            raise NotImplementedError
+        print("%s compounds loaded" % len(compound_smiles))
+        return compound_smiles
 
     def transform_compound(self, compound_SMILES, rules=None):
         """
@@ -230,8 +269,6 @@ class Pickaxe:
 
         return hashlib.sha256(first_block.encode()).hexdigest()+"-"+hashlib.md5(second_block.encode()).hexdigest()
 
-    def
-
     def write_compound_output_file(self, path, delimiter='\t'):
         """
         Writes all compound data to the specified path.
@@ -285,10 +322,12 @@ class Pickaxe:
 if __name__ == "__main__":
     t1 = time.time()
     parser = ArgumentParser()
-    parser.add_argument('-c', '--cofactor_list', default="Tests/Cofactor_SMILES.tsv", help="Specify a list of cofactors"
+    parser.add_argument('-C', '--cofactor_list', default="Tests/Cofactor_SMILES.tsv", help="Specify a list of cofactors"
                                                                                            " as a tab-separated file")
     parser.add_argument('-r', '--rule_list', default="Tests/operators_smarts.tsv", help="Specify a list of reaction "
                                                                                         "rules as a tab-separated file")
+    parser.add_argument('-c', '--compound_file', default="Tests/test_compounds.tsv", help="Specify a list of starting "
+                        "compounds as a tab-separated file")
     parser.add_argument('-o', '--output_dir', default=".", help="The directory in which to place files")
     parser.add_argument('-d', '--database', default=None, help="The name of the database in which to store output. If "
                                                                "not specified, data is still written as tsv files")
@@ -301,16 +340,7 @@ if __name__ == "__main__":
 
     pk = Pickaxe(cofactor_list=options.cofactor_list, rule_list=options.rule_list, raceimze=options.raceimize,
                  errors=options.verbose, explicit_h=options.bnice, kekulize=options.bnice)
-    seed_comps = []
-    with open('iAF1260.tsv') as infile:
-        for i, line in enumerate(infile):
-            mol = AllChem.MolFromInchi(line.split('\t')[6])
-            smi = AllChem.MolToSmiles(mol, True)
-            id = line.split('\t')[0]
-            i_key = AllChem.InchiToInchiKey(line.split('\t')[6])
-            pk.compounds[id] = {'_id': id, "SMILES": smi, 'Inchikey':i_key, 'Genration': 0}
-            pk._raw_compounds[smi] = id
-            seed_comps.append(smi)
+    seed_comps = pk.load_compound_set(compound_file=options.compound_file)
     for i, smi in enumerate(seed_comps):
         print(i)
         prod, rxns = pk.transform_compound(smi, rules=[])
@@ -318,4 +348,4 @@ if __name__ == "__main__":
     pk.write_reaction_output_file(options.output_dir+'/reactions.tsv')
     if options.database:
         pk.save_to_MINE(options.database)
-    print("Exicution took %s seconds." % (time.time()-t1))
+    print("Execution took %s seconds." % (time.time()-t1))
