@@ -32,6 +32,7 @@ class Pickaxe:
         self.split_stereoisomers = split_stereoisomers
         self.kekulize = kekulize
         self.raceimize = raceimze
+        self.errors = errors
         if cofactor_list:
             with open(cofactor_list) as infile:
                 for cofactor in infile:
@@ -115,7 +116,8 @@ class Pickaxe:
                     else:
                         mol = AllChem.MolFromSmiles(line[structure_field])
                     if not mol:
-                        print("Unable to Parse %s" % line[structure_field])
+                        if self.errors:
+                            print("Unable to Parse %s" % line[structure_field])
                         continue
                     smi = AllChem.MolToSmiles(mol, True)
                     id = line[id_field]
