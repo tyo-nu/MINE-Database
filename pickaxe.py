@@ -183,7 +183,6 @@ class Pickaxe:
 
     def _make_compound_tups(self, mols, rule_name, split_stereoisomers=False):
         """Takes a list of mol objects and returns an generator for (compound, stoich) tuples"""
-        comp_tuple = collections.namedtuple("stoich_tuple", 'compound,stoich')
         comps = []
         products = []
         for m in mols:
@@ -199,7 +198,7 @@ class Pickaxe:
         else:
             products = [collections.Counter(comps)]
         for rxn in products:
-            yield [comp_tuple(x, y) if len(x) > 1 else comp_tuple(x[0], y) for x, y in rxn.items()]
+            yield [stoich_tuple(x, y) if len(x) > 1 else stoich_tuple(x[0], y) for x, y in rxn.items()]
 
     def _calculate_compound_information(self, raw, mol_obj):
         """Calculate the standard data for a compound & return a tuple with compound_ids. Memoized with _raw_compound
@@ -284,7 +283,7 @@ class Pickaxe:
         """
         path = utils.prevent_overwrite(path)
         with open(path, 'w') as outfile:
-            outfile.write('_id\tSMILES\n')
+            outfile.write('_id\tInChIKey\tSMILES\n')
             for c in sorted(self.compounds.values(), key=lambda x: x['_id']):
                 outfile.write(delimiter.join([c['_id'], c['Inchikey'], c['SMILES']])+'\n')
 
@@ -324,6 +323,7 @@ class Pickaxe:
 
 if __name__ == "__main__":
     t1 = time.time()
+    stoich_tuple = collections.namedtuple("stoich_tuple", 'compound,stoich')
     parser = ArgumentParser()
     parser.add_argument('-C', '--cofactor_list', default="Tests/Cofactor_SMILES.tsv", help="Specify a list of cofactors"
                                                                                            " as a tab-separated file")
@@ -348,6 +348,9 @@ if __name__ == "__main__":
     compound_smiles = pk.load_compound_set(compound_file=options.compound_file)
     if options.multiprocess:
         pool = multiprocessing.Pool(processes=int(options.multiprocess))
+        manager = multiprocessing.Manager()
+        pk.compounds = manager.dict(pk.compounds)
+        pk.reactions = manager.dict(pk.reactions)
         for i, res in enumerate(pool.imap_unordered(pk.transform_compound, compound_smiles)):
             if not i % round(.05 * len(compound_smiles)):
                 print("%s percent complete" % round((i / len(compound_smiles)) * 100))
@@ -359,6 +362,6 @@ if __name__ == "__main__":
     pk.write_compound_output_file(options.output_dir+'/compounds.tsv')
     pk.write_reaction_output_file(options.output_dir+'/reactions.tsv')
     if options.database:
-        print("Saving results to ")
+        print("Saving results to %s" % options.database)
         pk.save_to_MINE(options.database)
     print("Execution took %s seconds." % (time.time()-t1))
