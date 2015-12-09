@@ -122,8 +122,8 @@ class Pickaxe:
                     smi = AllChem.MolToSmiles(mol, True)
                     id = line[id_field]
                     i_key = AllChem.InchiToInchiKey(AllChem.MolToInchi(mol))
-                    pk.compounds[id] = {'_id': id, "SMILES": smi, 'Inchikey':i_key, 'Genration': 0}
-                    pk._raw_compounds[smi] = id
+                    self.compounds[id] = {'_id': id, "SMILES": smi, 'Inchikey':i_key, 'Genration': 0}
+                    self._raw_compounds[smi] = id
                     compound_smiles.append(smi)
         else:
             # TODO: MINE compound loading
@@ -183,6 +183,7 @@ class Pickaxe:
 
     def _make_compound_tups(self, mols, rule_name, split_stereoisomers=False):
         """Takes a list of mol objects and returns an generator for (compound, stoich) tuples"""
+        stoich_tuple = collections.namedtuple("stoich_tuple", 'compound,stoich')
         comps = []
         products = []
         for m in mols:

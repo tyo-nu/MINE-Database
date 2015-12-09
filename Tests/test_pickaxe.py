@@ -22,7 +22,8 @@ def test_reaction_rule_loading():
     assert "Any" in rule[0]
 
 def test_compound_loading():
-    raise NotImplementedError
+    compound_smiles = pk.load_compound_set(compound_file='Tests/test_compounds.tsv')
+    assert len(compound_smiles) == 15
 
 def test_transform_compounds():
     pk._load_cofactor('ATP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
@@ -42,26 +43,26 @@ def test_product_racimization():
     assert len(rrxns) == 2
 
 def test_compound_output_writing():
-    pk.write_compound_output_file('Tests/testcompounds')
+    pk.write_compound_output_file('Tests/testcompoundsout')
+    assert os.path.exists('Tests/testcompoundsout_new')
     try:
-        assert os.path.exists('Tests/testcompounds_new')
-        assert filecmp.cmp('Tests/testcompounds', 'Tests/testcompounds_new')
+        assert filecmp.cmp('Tests/testcompoundsout', 'Tests/testcompoundsout_new')
     finally:
-        os.remove('Tests/testcompounds_new')
+        os.remove('Tests/testcompoundsout_new')
 
 def test_reaction_output_writing():
-    pk.write_reaction_output_file('Tests/testreactions')
-    assert os.path.exists('Tests/testreactions_new')
+    pk.write_reaction_output_file('Tests/testreactionsout')
+    assert os.path.exists('Tests/testreactionsout_new')
     try:
-        assert filecmp.cmp('Tests/testreactions', 'Tests/testreactions_new')
+        assert filecmp.cmp('Tests/testreactionsout', 'Tests/testreactionsout_new')
     finally:
-        os.remove('Tests/testreactions_new')
+        os.remove('Tests/testreactionsout_new')
 
 def test_save_as_MINE():
     pk.save_to_MINE("MINE_test")
     mine_db = MINE('MINE_test')
     try:
-        assert mine_db.compounds.count() == 10
+        assert mine_db.compounds.count() == 25
         assert mine_db.reactions.count() == 7
     finally:
         mine_db.compounds.drop()
