@@ -32,6 +32,7 @@ class Pickaxe:
         self.split_stereoisomers = split_stereoisomers
         self.kekulize = kekulize
         self.raceimize = raceimze
+        self.stoich_tuple = collections.namedtuple("stoich_tuple", 'compound,stoich')
         self.errors = errors
         if cofactor_list:
             with open(cofactor_list) as infile:
@@ -183,7 +184,6 @@ class Pickaxe:
 
     def _make_compound_tups(self, mols, rule_name, split_stereoisomers=False):
         """Takes a list of mol objects and returns an generator for (compound, stoich) tuples"""
-        stoich_tuple = collections.namedtuple("stoich_tuple", 'compound,stoich')
         comps = []
         products = []
         for m in mols:
@@ -199,7 +199,7 @@ class Pickaxe:
         else:
             products = [collections.Counter(comps)]
         for rxn in products:
-            yield [stoich_tuple(x, y) if len(x) > 1 else stoich_tuple(x[0], y) for x, y in rxn.items()]
+            yield [self.stoich_tuple(x, y) if len(x) > 1 else self.stoich_tuple(x[0], y) for x, y in rxn.items()]
 
     def _calculate_compound_information(self, raw, mol_obj):
         """Calculate the standard data for a compound & return a tuple with compound_ids. Memoized with _raw_compound
@@ -324,7 +324,6 @@ class Pickaxe:
 
 if __name__ == "__main__":
     t1 = time.time()
-    stoich_tuple = collections.namedtuple("stoich_tuple", 'compound,stoich')
     parser = ArgumentParser()
     parser.add_argument('-C', '--cofactor_list', default="Tests/Cofactor_SMILES.tsv", help="Specify a list of cofactors"
                                                                                            " as a tab-separated file")
@@ -343,11 +342,11 @@ if __name__ == "__main__":
     parser.add_argument('-m', '--multiprocess', default=None, help="Set several options to enable "
                                                                             "compatability with bnice operators.")
     options = parser.parse_args()
-
     pk = Pickaxe(cofactor_list=options.cofactor_list, rule_list=options.rule_list, raceimze=options.raceimize,
                  errors=options.verbose, explicit_h=options.bnice, kekulize=options.bnice)
     compound_smiles = pk.load_compound_set(compound_file=options.compound_file)
     if options.multiprocess:
+        stoich_tuple = pk.stoich_tuple
         pool = multiprocessing.Pool(processes=int(options.multiprocess))
         manager = multiprocessing.Manager()
         pk.compounds = manager.dict(pk.compounds)
