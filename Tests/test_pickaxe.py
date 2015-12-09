@@ -24,6 +24,9 @@ def test_reaction_rule_loading():
 def test_compound_loading():
     compound_smiles = pk.load_compound_set(compound_file='Tests/test_compounds.tsv')
     assert len(compound_smiles) == 15
+    pk2 = pickaxe.Pickaxe(mine='mongotest')
+    compound_smiles = pk2.load_compound_set()
+    assert len(compound_smiles) == 37
 
 def test_transform_compounds():
     pk._load_cofactor('ATP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')

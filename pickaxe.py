@@ -123,12 +123,20 @@ class Pickaxe:
                     smi = AllChem.MolToSmiles(mol, True)
                     id = line[id_field]
                     i_key = AllChem.InchiToInchiKey(AllChem.MolToInchi(mol))
-                    self.compounds[id] = {'_id': id, "SMILES": smi, 'Inchikey':i_key, 'Genration': 0}
+                    self.compounds[id] = {'_id': id, "SMILES": smi, 'Inchikey':i_key, 'Generation': 0}
                     self._raw_compounds[smi] = id
                     compound_smiles.append(smi)
         else:
-            # TODO: MINE compound loading
-            raise NotImplementedError
+            if not self.mine:
+                raise ValueError('MINE database not specified')
+            db = MINE(self.mine)
+            for compound in db.compounds.find():
+                id = compound['_id']
+                smi = compound['SMILES']
+                self.compounds[id] = {'_id': id, "SMILES": smi, 'Inchikey': compound['Inchikey'], 'Generation': 0}
+                self._raw_compounds[smi] = id
+                compound_smiles.append(smi)
+
         print("%s compounds loaded" % len(compound_smiles))
         return compound_smiles
 
