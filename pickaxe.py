@@ -177,8 +177,8 @@ class Pickaxe:
                     for stereo_prods in self._make_compound_tups(product_mols, rule_name, split_stereoisomers=self.split_stereoisomers):
                         pred_compounds.update(x.compound for x in stereo_prods)
                         rid = self._calculate_rxn_hash(reactants, stereo_prods)
-                        text_rxn = ' + '.join(['%s "%s"' % (x.stoich, x.compound) for x in reactants]) + ' --> ' + \
-                           ' + '.join(['%s "%s"' % (x.stoich, x.compound) for x in stereo_prods])
+                        text_rxn = ' + '.join(['(%s) %s[c0]' % (x.stoich, x.compound) for x in reactants]) + ' => ' + \
+                           ' + '.join(['(%s) %s[c0]' % (x.stoich, x.compound) for x in stereo_prods])
                         pred_rxns.add(text_rxn)
                         if rid not in self.reactions:
                             reaction_data = {"_id": rid, "Reactants": reactants, "Products": stereo_prods,
@@ -308,9 +308,10 @@ class Pickaxe:
         """
         path = utils.prevent_overwrite(path)
         with open(path, 'w') as outfile:
-            outfile.write('_id\tText Rxn\tOperator\n')
-            for rxn in self.reactions.values():
-                outfile.write(delimiter.join([rxn['_id'], rxn["Text_rxn"], ';'.join(rxn['Operators'])])+'\n')
+            outfile.write('ID\tName\tEquation\tRxn Hash\tOperator\n')
+            for i, rxn in enumerate(self.reactions.values()):
+                outfile.write(delimiter.join(['MINErxn'+str(i).zfill(7), '', rxn["Text_rxn"], rxn['_id'],
+                                              ';'.join(rxn['Operators'])])+'\n')
 
     def save_to_MINE(self, db_id):
         """
