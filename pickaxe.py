@@ -125,8 +125,7 @@ class Pickaxe:
                     smi = AllChem.MolToSmiles(mol, True)
                     id = line[id_field]
                     i_key = AllChem.InchiToInchiKey(AllChem.MolToInchi(mol))
-                    self.compounds[id] = {'_id': id, "SMILES": smi, 'Inchikey':i_key, 'Generation': 0}
-                    self._raw_compounds[smi] = id
+                    self._add_compound(i_key, id, smi)
                     compound_smiles.append(smi)
         else:
             if not self.mine:
@@ -135,12 +134,15 @@ class Pickaxe:
             for compound in db.compounds.find():
                 id = compound['_id']
                 smi = compound['SMILES']
-                self.compounds[id] = {'_id': id, "SMILES": smi, 'Inchikey': compound['Inchikey'], 'Generation': 0}
-                self._raw_compounds[smi] = id
+                self._add_compound(compound['Inchikey'], id, smi)
                 compound_smiles.append(smi)
 
         print("%s compounds loaded" % len(compound_smiles))
         return compound_smiles
+
+    def _add_compound(self, i_key, id, smi):
+        self.compounds[id] = {'_id': id, "SMILES": smi, 'Inchikey': i_key, 'Generation': 0}
+        self._raw_compounds[smi] = id
 
     def transform_compound(self, compound_SMILES, rules=None):
         """
@@ -368,6 +370,7 @@ if __name__ == "__main__":
                                                                                         "rules as a tab-separated file")
     parser.add_argument('-c', '--compound_file', default="Tests/test_compounds.tsv", help="Specify a list of starting "
                         "compounds as a tab-separated file")
+    parser.add_argument('-s', '--smiles', default=None, help="Specify a starting compound as SMILES.")
     parser.add_argument('-o', '--output_dir', default=".", help="The directory in which to place files")
     parser.add_argument('-d', '--database', default=None, help="The name of the database in which to store output. If "
                                                                "not specified, data is still written as tsv files")
@@ -383,7 +386,10 @@ if __name__ == "__main__":
     options = parser.parse_args()
     pk = Pickaxe(cofactor_list=options.cofactor_list, rule_list=options.rule_list, raceimze=options.raceimize,
                  errors=options.verbose, explicit_h=options.bnice, kekulize=options.bnice)
-    pk.load_compound_set(compound_file=options.compound_file)
+    if options.smiles:
+        pk._add_compound("", "Start", options.smiles)
+    else:
+        pk.load_compound_set(compound_file=options.compound_file)
     pk.transform_all(max_generations=options.generations, num_workers=options.max_workers)
     pk.write_compound_output_file(options.output_dir+'/compounds.tsv')
     pk.write_reaction_output_file(options.output_dir+'/reactions.tsv')
