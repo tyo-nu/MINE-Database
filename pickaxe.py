@@ -13,6 +13,8 @@ import hashlib
 import csv
 import multiprocessing
 
+stoich_tuple = collections.namedtuple("stoich_tuple", 'compound,stoich')
+
 class Pickaxe:
     """
         This class generates new compounds from user-specified starting compounds using a set of SMARTS-based reaction
@@ -27,12 +29,12 @@ class Pickaxe:
         self.compounds = collections.OrderedDict()
         self.reactions = collections.OrderedDict()
         self.mine = mine
-        self.generation = 1
+        self.generation = 0
         self.explicit_h = explicit_h
         self.split_stereoisomers = split_stereoisomers
         self.kekulize = kekulize
         self.raceimize = raceimze
-        self.stoich_tuple = collections.namedtuple("stoich_tuple", 'compound,stoich')
+        self.stoich_tuple = stoich_tuple
         self.errors = errors
         if cofactor_list:
             with open(cofactor_list) as infile:
@@ -280,6 +282,32 @@ class Pickaxe:
 
         return hashlib.sha256(first_block.encode()).hexdigest()+"-"+hashlib.md5(second_block.encode()).hexdigest()
 
+    def transform_all(self, num_workers=1, max_generations=1):
+        while self.generation < max_generations:
+            self.generation += 1
+            ti = time.time()
+            n_comps = len(self.compounds)
+            n_rxns = len(self.reactions)
+            compound_smiles = [c['SMILES'] for c in self.compounds.values() if c['Generation'] == self.generation - 1]
+            if compound_smiles:
+                if num_workers > 1:
+                    pool = multiprocessing.Pool(processes=num_workers)
+                    manager = multiprocessing.Manager()
+                    self.compounds = manager.dict(self.compounds)
+                    self.reactions = manager.dict(self.reactions)
+                    for i, res in enumerate(pool.imap_unordered(self.transform_compound, compound_smiles)):
+                        pct = (i+1) * 100 // len(compound_smiles)
+                        if not pct % 5:
+                            print("Generation %s: %s percent complete" % (self.generation, pct))
+                else:
+                    for i, smi in enumerate(compound_smiles):
+                        self.transform_compound(smi)
+                        pct = ((i+1) * 100 // len(compound_smiles))
+                        if not pct % 5:
+                            print("Generation %s: %s percent complete" % (self.generation, pct))
+            print("Generation %s produced %s new compounds and %s new reactions in %s sec" % (self.generation,
+                len(self.compounds)-n_comps, len(self.reactions) - n_rxns, time.time()-ti))
+
     def write_compound_output_file(self, path, delimiter='\t'):
         """
         Writes all compound data to the specified path.
@@ -348,26 +376,15 @@ if __name__ == "__main__":
     parser.add_argument('-v', '--verbose', action='store_true', default=False, help="Display RDKit errors & warnings")
     parser.add_argument('--bnice', action='store_true', default=False, help="Set several options to enable "
                                                                             "compatability with bnice operators.")
-    parser.add_argument('-m', '--multiprocess', default=None, help="Set several options to enable "
-                                                                            "compatability with bnice operators.")
+    parser.add_argument('-m', '--max_workers', default=1, type=int, help="Set the nax number of processes to spawn to "
+                                                                         "perform calculations.")
+    parser.add_argument('-g', '--generations', default=1, type=int, help="Set the numbers of time to apply the reaction"
+                                                                         " rules to the compound set.")
     options = parser.parse_args()
     pk = Pickaxe(cofactor_list=options.cofactor_list, rule_list=options.rule_list, raceimze=options.raceimize,
                  errors=options.verbose, explicit_h=options.bnice, kekulize=options.bnice)
-    compound_smiles = pk.load_compound_set(compound_file=options.compound_file)
-    if options.multiprocess:
-        stoich_tuple = pk.stoich_tuple
-        pool = multiprocessing.Pool(processes=int(options.multiprocess))
-        manager = multiprocessing.Manager()
-        pk.compounds = manager.dict(pk.compounds)
-        pk.reactions = manager.dict(pk.reactions)
-        for i, res in enumerate(pool.imap_unordered(pk.transform_compound, compound_smiles)):
-            if not i % round(.05 * len(compound_smiles)):
-                print("%s percent complete" % round((i / len(compound_smiles)) * 100))
-    else:
-        for i, smi in enumerate(compound_smiles):
-            prod, rxns = pk.transform_compound(smi)
-            if not i % round(.05 * len(compound_smiles)):
-                print("%s percent complete" % round((i / len(compound_smiles)) * 100))
+    pk.load_compound_set(compound_file=options.compound_file)
+    pk.transform_all(max_generations=options.generations, num_workers=options.max_workers)
     pk.write_compound_output_file(options.output_dir+'/compounds.tsv')
     pk.write_reaction_output_file(options.output_dir+'/reactions.tsv')
     if options.database:
