@@ -291,6 +291,7 @@ class Pickaxe:
             n_comps = len(self.compounds)
             n_rxns = len(self.reactions)
             compound_smiles = [c['SMILES'] for c in self.compounds.values() if c['Generation'] == self.generation - 1]
+            print_on = max(round(.05 * len(compound_smiles)), 1)
             if compound_smiles:
                 if num_workers > 1:
                     pool = multiprocessing.Pool(processes=num_workers)
@@ -298,15 +299,13 @@ class Pickaxe:
                     self.compounds = manager.dict(self.compounds)
                     self.reactions = manager.dict(self.reactions)
                     for i, res in enumerate(pool.imap_unordered(self.transform_compound, compound_smiles)):
-                        pct = (i+1) * 100 // len(compound_smiles)
-                        if not pct % 5:
-                            print("Generation %s: %s percent complete" % (self.generation, pct))
+                        if not (i+1) % print_on:
+                            print("Generation %s: %s percent complete" % (self.generation, round((i+1) * 100 / len(compound_smiles))))
                 else:
                     for i, smi in enumerate(compound_smiles):
                         self.transform_compound(smi)
-                        pct = ((i+1) * 100 // len(compound_smiles))
-                        if not pct % 5:
-                            print("Generation %s: %s percent complete" % (self.generation, pct))
+                        if not (i+1) % print_on:
+                            print("Generation %s: %s percent complete" % (self.generation, round((i+1) * 100 / len(compound_smiles))))
             print("Generation %s produced %s new compounds and %s new reactions in %s sec" % (self.generation,
                 len(self.compounds)-n_comps, len(self.reactions) - n_rxns, time.time()-ti))
 
