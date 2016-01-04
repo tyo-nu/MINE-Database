@@ -36,6 +36,10 @@ class Pickaxe:
         self.raceimize = raceimze
         self.stoich_tuple = stoich_tuple
         self.errors = errors
+        from rdkit import RDLogger
+        lg = RDLogger.logger()
+        if not errors:
+            lg.setLevel(4)
         if cofactor_list:
             with open(cofactor_list) as infile:
                 for cofactor in infile:
@@ -47,10 +51,6 @@ class Pickaxe:
                     if rule[0] == "#":
                         continue
                     self.load_rxn_rule(rule)
-        from rdkit import RDLogger
-        lg = RDLogger.logger()
-        if not errors:
-            lg.setLevel(4)
 
     def _load_cofactor(self, cofactor_text):
         """
@@ -63,7 +63,9 @@ class Pickaxe:
         split_text = cofactor_text.strip().split('\t')
         # TODO: add input validation
         mol = AllChem.MolFromSmiles(split_text[1])
-        self.compounds[split_text[0]] = {'_id': split_text[0], 'SMILES': split_text[1], "Inchikey": 'None', 'Generation': -1}
+        smi = AllChem.MolToSmiles(mol, True)
+        i_key = AllChem.InchiToInchiKey(AllChem.MolToInchi(mol))
+        self.compounds[split_text[0]] = {'ID': split_text[0], '_id': smi,  'SMILES': smi, "Inchikey": i_key, 'Generation': -1}
         if self.explicit_h:
             mol = AllChem.AddHs(mol)
         if self.kekulize:
@@ -141,8 +143,8 @@ class Pickaxe:
         return compound_smiles
 
     def _add_compound(self, i_key, id, smi):
-        self.compounds[id] = {'_id': id, "SMILES": smi, 'Inchikey': i_key, 'Generation': 0}
-        self._raw_compounds[smi] = id
+        self.compounds[smi] = {"ID": id, '_id': smi, "SMILES": smi, 'Inchikey': i_key, 'Generation': 0}
+        self._raw_compounds[smi] = smi
 
     def transform_compound(self, compound_SMILES, rules=None):
         """
@@ -180,16 +182,16 @@ class Pickaxe:
                 try:
                     for stereo_prods in self._make_compound_tups(product_mols, rule_name, split_stereoisomers=self.split_stereoisomers):
                         pred_compounds.update(x.compound for x in stereo_prods)
-                        rid = self._calculate_rxn_hash(reactants, stereo_prods)
+                        rhash = self._calculate_rxn_hash(reactants, stereo_prods)
                         text_rxn = ' + '.join(['(%s) %s[c0]' % (x.stoich, x.compound) for x in reactants]) + ' => ' + \
                            ' + '.join(['(%s) %s[c0]' % (x.stoich, x.compound) for x in stereo_prods])
                         pred_rxns.add(text_rxn)
-                        if rid not in self.reactions:
-                            reaction_data = {"_id": rid, "Reactants": reactants, "Products": stereo_prods,
-                                         "Text_rxn": text_rxn, "Operators": {rule_name}}
-                            self.reactions[rid] = reaction_data
+                        if rhash not in self.reactions:
+                            reaction_data = {"_id": rhash, "Reactants": reactants, "Products": stereo_prods,
+                                             "Operators": {rule_name}, "SMILES_rxn": text_rxn}
+                            self.reactions[rhash] = reaction_data
                         else:
-                            self.reactions[rid]['Operators'].add(rule_name)
+                            self.reactions[rhash]['Operators'].add(rule_name)
                 except ValueError:
                     continue
         return pred_compounds, pred_rxns
@@ -218,7 +220,7 @@ class Pickaxe:
         dict"""
         if raw not in self._raw_compounds:
             if self.explicit_h:
-                mol_obj = AllChem.RemoveHs(mol_obj) # this step slows down the process quite a bit
+                mol_obj = AllChem.RemoveHs(mol_obj)  # this step slows down the process quite a bit
             if self.raceimize:
                 mols = self._racemization(mol_obj)
             else:
@@ -226,13 +228,12 @@ class Pickaxe:
             smiles = [AllChem.MolToSmiles(m, True) for m in mols]
             for s, m in zip(smiles, mols):
                 if s not in self._raw_compounds:
-                    cid = str(len(self.compounds)+1).zfill(7)
                     try:
                         i_key = AllChem.InchiToInchiKey(AllChem.MolToInchi(m))
-                        self.compounds[cid] = {'_id': cid, "SMILES": s, 'Inchikey': i_key, 'Generation': self.generation}
+                        self.compounds[s] = {'ID': None, '_id': s, "SMILES": s, 'Inchikey': i_key, 'Generation': self.generation}
                     except ValueError:
-                        self.compounds[cid] = {'_id': cid, "SMILES": s, 'Inchikey': "None", 'Generation': self.generation}
-                    self._raw_compounds[s] = cid
+                        self.compounds[s] = {'ID': None, '_id': s, "SMILES": s, 'Inchikey': "None", 'Generation': self.generation}
+                    self._raw_compounds[s] = s
             self._raw_compounds[raw] = tuple([self._raw_compounds[s] for s in smiles])
         return self._raw_compounds[raw] if isinstance(self._raw_compounds[raw], tuple) else (self._raw_compounds[raw],)
 
@@ -284,6 +285,20 @@ class Pickaxe:
 
         return hashlib.sha256(first_block.encode()).hexdigest()+"-"+hashlib.md5(second_block.encode()).hexdigest()
 
+    def _assign_ids(self):
+        self.compounds = dict(self.compounds)
+        self.reactions = dict(self.reactions)
+        i = 1
+        for comp in self.compounds.values():
+            if not comp['ID']:
+                comp['ID'] = '_cpd'+str(i).zfill(7)
+                i += 1
+                self.compounds[comp['_id']] = comp
+        for rxn in self.reactions.values():
+            rxn['ID_rxn'] = ' + '.join(['(%s) %s[c0]' % (x.stoich, self.compounds[x.compound]["ID"]) for x in rxn["Reactants"]]) \
+                            + ' => ' + ' + '.join(['(%s) %s[c0]' % (x.stoich, self.compounds[x.compound]["ID"]) for x in rxn["Products"]])
+            self.reactions[rxn['_id']] = rxn
+
     def transform_all(self, num_workers=1, max_generations=1):
         while self.generation < max_generations:
             self.generation += 1
@@ -308,6 +323,7 @@ class Pickaxe:
                             print("Generation %s: %s percent complete" % (self.generation, round((i+1) * 100 / len(compound_smiles))))
             print("Generation %s produced %s new compounds and %s new reactions in %s sec" % (self.generation,
                 len(self.compounds)-n_comps, len(self.reactions) - n_rxns, time.time()-ti))
+        self._assign_ids()
 
     def write_compound_output_file(self, path, delimiter='\t'):
         """
@@ -321,9 +337,9 @@ class Pickaxe:
         """
         path = utils.prevent_overwrite(path)
         with open(path, 'w') as outfile:
-            outfile.write('_id\tInChIKey\tSMILES\n')
-            for c in sorted(self.compounds.values(), key=lambda x: x['_id']):
-                outfile.write(delimiter.join([c['_id'], c['Inchikey'], c['SMILES']])+'\n')
+            outfile.write('ID\tInChIKey\tSMILES\n')
+            for c in sorted(self.compounds.values(), key=lambda x: x['ID']):
+                outfile.write(delimiter.join([c['ID'], str(c['Inchikey']), c['SMILES']])+'\n')
 
     def write_reaction_output_file(self, path, delimiter='\t'):
         """
@@ -337,9 +353,9 @@ class Pickaxe:
         """
         path = utils.prevent_overwrite(path)
         with open(path, 'w') as outfile:
-            outfile.write('ID\tName\tEquation\tRxn Hash\tOperator\n')
+            outfile.write('ID\tName\tID Equation\tSMILES Equation\tRxn Hash\tOperators\n')
             for i, rxn in enumerate(self.reactions.values()):
-                outfile.write(delimiter.join(['MINErxn'+str(i).zfill(7), '', rxn["Text_rxn"], rxn['_id'],
+                outfile.write(delimiter.join(['_rxn'+str(i).zfill(7), '', rxn['ID_rxn'], rxn["SMILES_rxn"], rxn['_id'],
                                               ';'.join(rxn['Operators'])])+'\n')
 
     def save_to_MINE(self, db_id):
