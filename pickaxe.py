@@ -176,6 +176,7 @@ class Pickaxe:
                 product_sets = rule[1].RunReactants(reactant_mols)
             except RuntimeError:  # I need to do more to untangle the causes of this error
                 print("Runtime ERROR!"+rule_name)
+                print(compound_SMILES)
                 continue
             reactants = next(self._make_compound_tups(reactant_mols, rule_name))  # no enumeration for reactants
             for product_mols in product_sets:
@@ -183,8 +184,8 @@ class Pickaxe:
                     for stereo_prods in self._make_compound_tups(product_mols, rule_name, split_stereoisomers=self.split_stereoisomers):
                         pred_compounds.update(x.compound for x in stereo_prods)
                         rhash = self._calculate_rxn_hash(reactants, stereo_prods)
-                        text_rxn = ' + '.join(['(%s) %s[c0]' % (x.stoich, x.compound) for x in reactants]) + ' => ' + \
-                           ' + '.join(['(%s) %s[c0]' % (x.stoich, x.compound) for x in stereo_prods])
+                        text_rxn = ' + '.join(['(%s) %s' % (x.stoich, x.compound) for x in reactants]) + ' => ' + \
+                           ' + '.join(['(%s) %s' % (x.stoich, x.compound) for x in stereo_prods])
                         pred_rxns.add(text_rxn)
                         if rhash not in self.reactions:
                             reaction_data = {"_id": rhash, "Reactants": reactants, "Products": stereo_prods,
