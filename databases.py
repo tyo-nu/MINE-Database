@@ -97,9 +97,20 @@ class MINE:
         """
         pass
 
-    def insert_compound(self, mol_object, compound_dict):
+    def insert_compound(self, mol_object, compound_dict={}):
+        """
+        This class saves a RDKit Molecule as a compound entry in the MINE. Calculates necessary fields for API and
+        includes additional information passed in the compound dict. Overwrites preexisting compounds in MINE on _id
+        collision.
+        :param mol_object: The compound to be stored
+        :type mol_object: RDKit Mol object
+        :param compound_dict: Additional information about the compound to be stored. Overwritten by calculated values.
+        :type compound_dict: dict
+        :return:
+        :rtype:
+        """
 
-        compound_dict['SMILES'] = AllChem.MolToSmiles(mol_object)
+        compound_dict['SMILES'] = AllChem.MolToSmiles(mol_object, True)
         compound_dict['Inchi'] = AllChem.MolToInchi(mol_object)
         compound_dict['Inchikey'] = AllChem.InchiToInchiKey(compound_dict['Inchi'])
         compound_dict['Mass'] = AllChem.CalcExactMolWt(mol_object)
