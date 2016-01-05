@@ -270,10 +270,13 @@ class Pickaxe:
         def __get_blocks(tups):
             first_block, second_block = [], []
             for x in tups:
-                split_inchikey = self.compounds[x.compound]["Inchikey"].split('-')
-                if len(split_inchikey) > 1:
-                    first_block.append("%s,%s" % (x.stoich, split_inchikey[0]))
-                    second_block.append("%s,%s" % (x.stoich, split_inchikey[1]))
+                if self.compounds[x.compound]["Inchikey"]:
+                    split_inchikey = self.compounds[x.compound]["Inchikey"].split('-')
+                    if len(split_inchikey) > 1:
+                        first_block.append("%s,%s" % (x.stoich, split_inchikey[0]))
+                        second_block.append("%s,%s" % (x.stoich, split_inchikey[1]))
+                else:
+                    print("No Inchikey for %s" % x.compound)
             return "+".join(first_block), "+".join(first_block)
 
         reactants.sort()
