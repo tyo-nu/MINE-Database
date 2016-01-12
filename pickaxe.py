@@ -61,10 +61,14 @@ class Pickaxe:
         :rtype:
         """
         split_text = cofactor_text.strip().split('\t')
-        # TODO: add input validation
-        mol = AllChem.MolFromSmiles(split_text[1])
-        smi = AllChem.MolToSmiles(mol, True)
-        i_key = AllChem.InchiToInchiKey(AllChem.MolToInchi(mol))
+        try:
+            mol = AllChem.MolFromSmiles(split_text[1])
+            if not mol:
+                raise ValueError
+            smi = AllChem.MolToSmiles(mol, True)
+            i_key = AllChem.InchiToInchiKey(AllChem.MolToInchi(mol))
+        except (IndexError, ValueError):
+            raise ValueError("Unable to load cofactor: %s" % cofactor_text)
         self.compounds[split_text[0]] = {'ID': split_text[0], '_id': smi,  'SMILES': smi, "Inchikey": i_key, 'Generation': -1}
         if self.explicit_h:
             mol = AllChem.AddHs(mol)
@@ -84,8 +88,11 @@ class Pickaxe:
         :return:
         :rtype:
         """
-        # TODO: add input validation
+        if rule_text[0] == "#":
+            return
         split_text = rule_text.strip().split('\t')
+        if len(split_text) < 3:
+            raise ValueError("Unable to parse reaction rule: %s" % rule_text)
         reactant_names = split_text[1].split(';')
         for name in reactant_names:
             if name == "Any":
@@ -94,7 +101,7 @@ class Pickaxe:
                 self._load_cofactor(name+"\t"+name)
         rxn = AllChem.ReactionFromSmarts(split_text[2])
         if rxn.GetNumReactantTemplates() != len(reactant_names):
-            raise ValueError("Number of cofactors does not match supplied reaction rule")
+            raise ValueError("Number of cofactors does not match supplied reaction rule: %s" % rule_text)
         self.rxn_rules[split_text[0]] = (reactant_names, rxn)
 
     def load_compound_set(self, compound_file=None, structure_field='structure', id_field='id'):
@@ -161,6 +168,12 @@ class Pickaxe:
         if not rules:
             rules = self.rxn_rules.keys()
         mol = AllChem.MolFromSmiles(compound_SMILES)
+        if not mol:
+            if self.errors:
+                raise ValueError('Unable to parse: %s' % compound_SMILES)
+            else:
+                print('Unable to parse: %s' % compound_SMILES)
+                return
         if self.kekulize:
             AllChem.Kekulize(mol)
             # also need to unset the aromatic flags in case the ring is hydrolysed (else will throw errors)
@@ -222,6 +235,7 @@ class Pickaxe:
         if raw not in self._raw_compounds:
             if self.explicit_h:
                 mol_obj = AllChem.RemoveHs(mol_obj)  # this step slows down the process quite a bit
+            AllChem.SanitizeMol(mol_obj)
             if self.raceimize:
                 mols = self._racemization(mol_obj)
             else:
