@@ -36,8 +36,8 @@ class MINE:
     structure.
     """
     def __init__(self, name):
-        client = establish_db_client()
-        db = client[name]
+        self.client = establish_db_client()
+        db = self.client[name]
         self._db = db
         self.name = name
         self.meta_data = db.meta_data
@@ -45,7 +45,7 @@ class MINE:
         self.reactions = db.reactions
         self.operators = db.operators
         self.models = db.models
-        self.id_db = client['UniversalMINE']
+        self.id_db = self.client['UniversalMINE']
 
     def add_rxn_pointers(self):
         """Add links to the reactions that each compound participates in allowing for users to follow paths in the
@@ -97,7 +97,7 @@ class MINE:
         """
         pass
 
-    def insert_compound(self, mol_object, compound_dict={}):
+    def insert_compound(self, mol_object, compound_dict={}, kegg_db="KEGG", pubchem_db='PubChem-8-28-2015', modelseed_db='ModelSEED'):
         """
         This class saves a RDKit Molecule as a compound entry in the MINE. Calculates necessary fields for API and
         includes additional information passed in the compound dict. Overwrites preexisting compounds in MINE on _id
@@ -125,12 +125,31 @@ class MINE:
             if "X" in compound_dict['_id']:
                     compound_dict = self.fix_rxn_pointers('X' + comphash, compound_dict)
             else:
-                compound_dict = self.fix_rxn_pointers( 'C' + comphash, compound_dict)
+                compound_dict = self.fix_rxn_pointers('C' + comphash, compound_dict)
         else:
             compound_dict['_id'] = 'C' + comphash
 
         compound_dict['DB_links'] = {}
-        # TODO: insert DB_links
+        if compound_dict['Inchikey']:
+            if kegg_db:
+                kegg_comps = self.client[kegg_db].compounds.find({"Inchikey": compound_dict['Inchikey']},
+                                                    {'Pathways': 1, 'Names': 1, 'DB_links': 1, 'Enzymes': 1, '_id': 0})
+                for kcomp in kegg_comps:
+                    utils.dict_merge(compound_dict, kcomp)
+
+            if pubchem_db:
+                pubchem_comps = self.client[pubchem_db].compounds.find({"Inchikey": compound_dict['Inchikey']},
+                                                                       {'COMPOUND_CID': 1, "IUPAC_NAME": 1})
+                if pubchem_comps.count() and "PubChem" not in compound_dict['DB_links']:
+                    compound_dict['DB_links']['PubChem'] = [x['COMPOUND_CID'] for x in pubchem_comps]
+
+            if modelseed_db:
+                for seed_comp in self.client[modelseed_db].compounds.find({"_id": compound_dict['_id']},
+                                                                          {'DB_links.Model_SEED': 1}):
+                    if 'Model_SEED' not in compound_dict['DB_links']:
+                        compound_dict['DB_links']['Model_SEED'] = []
+                    compound_dict['DB_links']['Model_SEED'].extend(seed_comp['DB_links']['Model_SEED'])
+
         if self.id_db:
             mine_comp = self.id_db.compounds.find_one({"_id": compound_dict['_id']})
             if mine_comp:

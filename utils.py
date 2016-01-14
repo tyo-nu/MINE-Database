@@ -52,6 +52,30 @@ def prevent_overwrite(write_path):
             write_path += '_new'
     return write_path
 
+def dict_merge(finaldict, sourcedict):
+    """Merges two dictionaries using sets to avoid duplication of values"""
+    for key, val in sourcedict.items():
+        if (key in finaldict) and isinstance(finaldict[key], list):
+            finaldict[key] = set(finaldict[key])
+        if isinstance(val, list):
+            if key in finaldict:
+                finaldict[key].update(val)
+            else:
+                finaldict[key] = set(val)
+        elif isinstance(val, str):
+            if key in finaldict:
+                finaldict[key].update(val)
+            else:
+                finaldict[key] = set(val)
+                finaldict[key].update(val)
+        elif isinstance(val, float):
+            if key not in finaldict:
+                finaldict[key] = val
+        elif isinstance(val, dict):
+            if not key in finaldict:
+                finaldict[key] = {}
+            dict_merge(finaldict[key], val)
+
 def do_profile(func):
     from line_profiler import LineProfiler
 
