@@ -1,6 +1,7 @@
 __author__ = 'JGJeffryes'
 
 from rdkit.Chem import AllChem
+from pymongo import ASCENDING
 from databases import MINE
 from argparse import ArgumentParser
 import itertools
@@ -175,10 +176,7 @@ class Pickaxe:
                 print('Unable to parse: %s' % compound_SMILES)
                 return
         if self.kekulize:
-            AllChem.Kekulize(mol)
-            # also need to unset the aromatic flags in case the ring is hydrolysed (else will throw errors)
-            for atom in mol.GetAtoms():
-                atom.SetIsAromatic(False)
+            AllChem.Kekulize(mol, clearAromaticFlags=True)
         if self.explicit_h:
             mol = AllChem.AddHs(mol)
         self.cofactors['Any'] = mol
@@ -389,9 +387,23 @@ class Pickaxe:
             db.insert_compound(AllChem.MolFromSmiles(comp_dict['SMILES']), comp_dict)
         db.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "Compounds Inserted"})
         for rxn in self.reactions.values():
+            rxn['Reactants'] = [tup._asdict() for tup in rxn['Reactants']]
+            rxn['Products'] = [tup._asdict() for tup in rxn['Products']]
             rxn = utils.convert_sets_to_lists(rxn)
             db.reactions.save(rxn)
         db.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "Reactions Inserted"})
+
+        db.compounds.ensure_index([('Mass', ASCENDING), ('Charge', ASCENDING), ('DB_links.Model_SEED', ASCENDING)])
+        db.compounds.ensure_index([('Names', 'text'), ('Enzymes', 'text'), ('Pathways', 'text')])
+        db.compounds.ensure_index("DB_links.Model_SEED")
+        db.compounds.ensure_index("DB_links.KEGG")
+        db.compounds.ensure_index("MACCS")
+        db.compounds.ensure_index("len_MACCS")
+        db.compounds.ensure_index("Inchikey")
+        db.compounds.ensure_index("MINE_id")
+
+        db.reactions.ensure_index("Reactants.compound")
+        db.reactions.ensure_index("Products.compound")
 
 
 if __name__ == "__main__":
