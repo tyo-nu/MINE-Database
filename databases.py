@@ -97,7 +97,8 @@ class MINE:
         """
         pass
 
-    def insert_compound(self, mol_object, compound_dict={}, kegg_db="KEGG", pubchem_db='PubChem-8-28-2015', modelseed_db='ModelSEED'):
+    def insert_compound(self, mol_object, compound_dict={}, kegg_db="KEGG", pubchem_db='PubChem-8-28-2015',
+                        modelseed_db='ModelSEED', legacy_db=False):
         """
         This class saves a RDKit Molecule as a compound entry in the MINE. Calculates necessary fields for API and
         includes additional information passed in the compound dict. Overwrites preexisting compounds in MINE on _id
@@ -121,13 +122,14 @@ class MINE:
         compound_dict['RDKit'] = [i for i, bit in enumerate(AllChem.RDKFingerprint(mol_object)) if bit]
         compound_dict['len_RDKit'] = len(compound_dict['RDKit'])
         comphash = hashlib.sha1(compound_dict['SMILES'].encode('utf-8')).hexdigest()
-        if '_id' in compound_dict:
-            if "X" in compound_dict['_id']:
-                    compound_dict = self.fix_rxn_pointers('X' + comphash, compound_dict)
+        if legacy_db:
+            if '_id' in compound_dict:
+                if "X" in compound_dict['_id']:
+                        compound_dict = self.fix_rxn_pointers('X' + comphash, compound_dict)
+                else:
+                    compound_dict = self.fix_rxn_pointers('C' + comphash, compound_dict)
             else:
-                compound_dict = self.fix_rxn_pointers('C' + comphash, compound_dict)
-        else:
-            compound_dict['_id'] = 'C' + comphash
+                compound_dict['_id'] = 'C' + comphash
 
         compound_dict['DB_links'] = {}
         if compound_dict['Inchikey']:
@@ -144,17 +146,17 @@ class MINE:
                     compound_dict['DB_links']['PubChem'] = [x['COMPOUND_CID'] for x in pubchem_comps]
 
             if modelseed_db:
-                for seed_comp in self.client[modelseed_db].compounds.find({"_id": compound_dict['_id']},
+                for seed_comp in self.client[modelseed_db].compounds.find({"Inchikey": compound_dict['Inchikey']},
                                                                           {'DB_links.Model_SEED': 1}):
                     if 'Model_SEED' not in compound_dict['DB_links']:
                         compound_dict['DB_links']['Model_SEED'] = []
                     compound_dict['DB_links']['Model_SEED'].extend(seed_comp['DB_links']['Model_SEED'])
 
         if self.id_db:
-            mine_comp = self.id_db.compounds.find_one({"_id": compound_dict['_id']})
+            mine_comp = self.id_db.compounds.find_one({"SMILES": compound_dict['SMILES']})
             if mine_comp:
                 compound_dict['MINE_id'] = mine_comp['MINE_id']
-            elif compound_dict['_id'][0] == 'C':
+            else:
                 compound_dict['MINE_id'] = self.id_db.compounds.count()
                 self.id_db.compounds.insert(utils.convert_sets_to_lists(compound_dict))
         self.compounds.save(utils.convert_sets_to_lists(compound_dict))
