@@ -30,6 +30,7 @@ def test_compound_loading():
 
 def test_transform_compounds():
     pk._load_cofactor('ATP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
+    pk._load_cofactor('ADP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
     pk.load_rxn_rule('2.7.1.a	ATP;Any	[#6;H2D4:8][#8;H0D2:7][#15;H0D4:6][#8;H0D2:5][#15;H0D4:4][#8;H0D2:3]'
                      '[#15;H0D4:2][#8;H1D2R0:1].[#1;D1R0:11][#8;H1D2R0:10][#6:9]>>[*:1]-[*:2]-[*:10]-[*:9].[*:8]-[*:7]'
                      '-[*:6]-[*:5]-[*:4]-[*:3]-[*:11]')
@@ -46,7 +47,7 @@ def test_product_racimization():
     assert len(rcomps) == 3
     assert len(rrxns) == 2
 
-"""def test_compound_output_writing():
+def test_compound_output_writing():
     pk.write_compound_output_file('Tests/testcompoundsout')
     assert os.path.exists('Tests/testcompoundsout_new')
     try:
@@ -60,7 +61,7 @@ def test_reaction_output_writing():
     try:
         assert filecmp.cmp('Tests/testreactionsout', 'Tests/testreactionsout_new')
     finally:
-        os.remove('Tests/testreactionsout_new')"""
+        os.remove('Tests/testreactionsout_new')
 
 def test_save_as_MINE():
     pk.save_to_MINE("MINE_test")
@@ -75,10 +76,12 @@ def test_save_as_MINE():
 def test_transform_all():
     pk3 = pickaxe.Pickaxe(errors=False)
     pk3.compounds[meh] = {'ID': None, '_id': meh, 'Inchikey': '', 'SMILES': meh, 'Generation': 0}
+    pk3.generation = 0
     pk3._load_cofactor('ATP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
+    pk3._load_cofactor('ADP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
     pk3.load_rxn_rule('2.7.1.a	ATP;Any	[#6;H2D4:8][#8;H0D2:7][#15;H0D4:6][#8;H0D2:5][#15;H0D4:4][#8;H0D2:3]'
                      '[#15;H0D4:2][#8;H1D2R0:1].[#1;D1R0:11][#8;H1D2R0:10][#6:9]>>[*:1]-[*:2]-[*:10]-[*:9].[*:8]-[*:7]'
                      '-[*:6]-[*:5]-[*:4]-[*:3]-[*:11]')
     pk3.transform_all(max_generations=2)
-    assert len(pk3.compounds) == 6
-    assert len(pk3.reactions) == 3
+    assert len(pk3.compounds) == 10
+    assert len(pk3.reactions) == 9

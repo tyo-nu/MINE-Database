@@ -27,8 +27,8 @@ class Pickaxe:
         self.rxn_rules = {}
         self.cofactors = {}
         self._raw_compounds = {}
-        self.compounds = collections.OrderedDict()
-        self.reactions = collections.OrderedDict()
+        self.compounds = {}
+        self.reactions = {}
         self.mine = mine
         self.generation = -1
         self.explicit_h = explicit_h
@@ -75,7 +75,6 @@ class Pickaxe:
         if self.kekulize:
             AllChem.Kekulize(mol, clearAromaticFlags=True)
         self.cofactors[split_text[0]] = mol
-        self._raw_compounds[AllChem.MolToSmiles(mol, True)] = smi
 
     def load_rxn_rule(self, rule_text):
         """
@@ -201,7 +200,7 @@ class Pickaxe:
                         pred_rxns.add(text_rxn)
                         if rhash not in self.reactions:
                             reaction_data = {"_id": rhash, "Reactants": reactants, "Products": stereo_prods,
-                                             "Operators": {rule_name}, "SMILES_rxn": text_rxn}
+                                             "Operators": {rule_name}, "SMILES_rxn": text_rxn, "Generation": self.generation}
                             self.reactions[rhash] = reaction_data
                         else:
                             self.reactions[rhash]['Operators'].add(rule_name)
@@ -301,14 +300,17 @@ class Pickaxe:
         self.compounds = dict(self.compounds)
         self.reactions = dict(self.reactions)
         i = 1
-        for comp in self.compounds.values():
+        for comp in sorted(self.compounds.values(), key=lambda x: (x['Generation'], x['_id'])):
             if not comp['ID']:
-                comp['ID'] = '_cpd'+str(i).zfill(7)
+                comp['ID'] = 'pk_cpd'+str(i).zfill(7)
                 i += 1
                 self.compounds[comp['_id']] = comp
-        for rxn in self.reactions.values():
+        i = 1
+        for rxn in sorted(self.reactions.values(), key=lambda x: (x['Generation'], x['_id'])):
             rxn['ID_rxn'] = ' + '.join(['(%s) %s[c0]' % (x.stoich, self.compounds[x.compound]["ID"]) for x in rxn["Reactants"]]) \
                             + ' => ' + ' + '.join(['(%s) %s[c0]' % (x.stoich, self.compounds[x.compound]["ID"]) for x in rxn["Products"]])
+            rxn['ID'] = 'pk_rxn'+str(i).zfill(7)
+            i += 1
             self.reactions[rxn['_id']] = rxn
 
     def transform_all(self, num_workers=1, max_generations=1):
@@ -366,8 +368,8 @@ class Pickaxe:
         path = utils.prevent_overwrite(path)
         with open(path, 'w') as outfile:
             outfile.write('ID\tName\tID Equation\tSMILES Equation\tRxn Hash\tOperators\n')
-            for i, rxn in enumerate(self.reactions.values()):
-                outfile.write(delimiter.join(['_rxn'+str(i).zfill(7), '', rxn['ID_rxn'], rxn["SMILES_rxn"], rxn['_id'],
+            for rxn in sorted(self.reactions.values(), key=lambda x: x['ID']):
+                outfile.write(delimiter.join([rxn['ID'], '', rxn['ID_rxn'], rxn["SMILES_rxn"], rxn['_id'],
                                               ';'.join(rxn['Operators'])])+'\n')
 
     def save_to_MINE(self, db_id):
