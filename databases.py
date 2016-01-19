@@ -122,14 +122,13 @@ class MINE:
         compound_dict['RDKit'] = [i for i, bit in enumerate(AllChem.RDKFingerprint(mol_object)) if bit]
         compound_dict['len_RDKit'] = len(compound_dict['RDKit'])
         comphash = hashlib.sha1(compound_dict['SMILES'].encode('utf-8')).hexdigest()
-        if legacy_db:
-            if '_id' in compound_dict:
-                if "X" in compound_dict['_id']:
-                        compound_dict = self.fix_rxn_pointers('X' + comphash, compound_dict)
-                else:
-                    compound_dict = self.fix_rxn_pointers('C' + comphash, compound_dict)
+        if '_id' in compound_dict:
+            if "X" in compound_dict['_id']:
+                    compound_dict = self.fix_rxn_pointers('X' + comphash, compound_dict)
             else:
-                compound_dict['_id'] = 'C' + comphash
+                compound_dict = self.fix_rxn_pointers('C' + comphash, compound_dict)
+        else:
+            compound_dict['_id'] = 'C' + comphash
 
         compound_dict['DB_links'] = {}
         if compound_dict['Inchikey']:
