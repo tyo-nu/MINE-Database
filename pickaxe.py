@@ -30,7 +30,7 @@ class Pickaxe:
         self.compounds = collections.OrderedDict()
         self.reactions = collections.OrderedDict()
         self.mine = mine
-        self.generation = 0
+        self.generation = -1
         self.explicit_h = explicit_h
         self.split_stereoisomers = split_stereoisomers
         self.kekulize = kekulize
@@ -67,19 +67,15 @@ class Pickaxe:
             if not mol:
                 raise ValueError
             smi = AllChem.MolToSmiles(mol, True)
-            i_key = AllChem.InchiToInchiKey(AllChem.MolToInchi(mol))
         except (IndexError, ValueError):
             raise ValueError("Unable to load cofactor: %s" % cofactor_text)
-        self.compounds[split_text[0]] = {'ID': split_text[0], '_id': smi,  'SMILES': smi, "Inchikey": i_key, 'Generation': -1}
+        self._add_compound(split_text[0], smi, mol=mol)
         if self.explicit_h:
             mol = AllChem.AddHs(mol)
         if self.kekulize:
-            AllChem.Kekulize(mol)
-            # also need to unset the aromatic flags in case the ring is hydrolysed (else will throw errors)
-            for atom in mol.GetAtoms():
-                atom.SetIsAromatic(False)
+            AllChem.Kekulize(mol, clearAromaticFlags=True)
         self.cofactors[split_text[0]] = mol
-        self._raw_compounds[split_text[1]] = split_text[0]
+        self._raw_compounds[AllChem.MolToSmiles(mol, True)] = smi
 
     def load_rxn_rule(self, rule_text):
         """
@@ -120,6 +116,7 @@ class Pickaxe:
         :rtype: list
         """
         compound_smiles = []
+        self.generation = 0
         if compound_file:
             with open(compound_file) as infile:
                 reader = csv.DictReader(infile.readlines(), delimiter="\t")
@@ -134,8 +131,7 @@ class Pickaxe:
                         continue
                     smi = AllChem.MolToSmiles(mol, True)
                     id = line[id_field]
-                    i_key = AllChem.InchiToInchiKey(AllChem.MolToInchi(mol))
-                    self._add_compound(i_key, id, smi)
+                    self._add_compound(id, smi, mol=mol)
                     compound_smiles.append(smi)
         else:
             if not self.mine:
@@ -144,14 +140,19 @@ class Pickaxe:
             for compound in db.compounds.find():
                 id = compound['_id']
                 smi = compound['SMILES']
-                self._add_compound(compound['Inchikey'], id, smi)
+                self._add_compound(id, smi)
                 compound_smiles.append(smi)
-
         print("%s compounds loaded" % len(compound_smiles))
         return compound_smiles
 
-    def _add_compound(self, i_key, id, smi):
-        self.compounds[smi] = {"ID": id, '_id': smi, "SMILES": smi, 'Inchikey': i_key, 'Generation': 0}
+    def _add_compound(self, id, smi, mol=None):
+        if not mol:
+            mol = AllChem.MolFromSmiles(smi)
+        try:
+            i_key = AllChem.InchiToInchiKey(AllChem.MolToInchi(mol))
+            self.compounds[smi] = {'ID': id, '_id': smi, "SMILES": smi, 'Inchikey': i_key, 'Generation': self.generation}
+        except ValueError:
+            self.compounds[smi] = {'ID': id, '_id': smi, "SMILES": smi, 'Inchikey': "None", 'Generation': self.generation}
         self._raw_compounds[smi] = smi
 
     def transform_compound(self, compound_SMILES, rules=None):
@@ -241,12 +242,7 @@ class Pickaxe:
             smiles = [AllChem.MolToSmiles(m, True) for m in mols]
             for s, m in zip(smiles, mols):
                 if s not in self._raw_compounds:
-                    try:
-                        i_key = AllChem.InchiToInchiKey(AllChem.MolToInchi(m))
-                        self.compounds[s] = {'ID': None, '_id': s, "SMILES": s, 'Inchikey': i_key, 'Generation': self.generation}
-                    except ValueError:
-                        self.compounds[s] = {'ID': None, '_id': s, "SMILES": s, 'Inchikey': "None", 'Generation': self.generation}
-                    self._raw_compounds[s] = s
+                    self._add_compound(None, s, mol=m)
             self._raw_compounds[raw] = tuple([self._raw_compounds[s] for s in smiles])
         return self._raw_compounds[raw] if isinstance(self._raw_compounds[raw], tuple) else (self._raw_compounds[raw],)
 
