@@ -98,7 +98,7 @@ class MINE:
         pass
 
     def insert_compound(self, mol_object, compound_dict={}, kegg_db="KEGG", pubchem_db='PubChem-8-28-2015',
-                        modelseed_db='ModelSEED', legacy_db=False):
+                        modelseed_db='ModelSEED'):
         """
         This class saves a RDKit Molecule as a compound entry in the MINE. Calculates necessary fields for API and
         includes additional information passed in the compound dict. Overwrites preexisting compounds in MINE on _id
@@ -152,7 +152,7 @@ class MINE:
                     compound_dict['DB_links']['Model_SEED'].extend(seed_comp['DB_links']['Model_SEED'])
 
         if self.id_db:
-            mine_comp = self.id_db.compounds.find_one({"SMILES": compound_dict['SMILES']})
+            mine_comp = self.id_db.compounds.find_one({"Inchikey": compound_dict['Inchikey']})
             if mine_comp:
                 compound_dict['MINE_id'] = mine_comp['MINE_id']
             else:
