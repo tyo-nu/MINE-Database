@@ -86,6 +86,7 @@ class MINE:
         return comp_dict
 
     def add_compound_sources(self):
+        #TODO Fix this method
         for compound in self.compounds.find({"Sources": {"$exists": 0}}):
             compound['Sources'] = []
             for reaction in self.reactions.find({"Products.compound": compound['_id'][1:]}):
