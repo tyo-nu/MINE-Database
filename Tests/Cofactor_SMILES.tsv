@@ -14,11 +14,9 @@ Coa	CC(C)(COP(=O)(O)OP(=O)(O)OC[C@H]1O[C@@H](n2cnc3c(N)ncnc32)[C@H](O)[C@@H]1OP(
 Bicarbonate	O=C(O)O
 Phenol	Oc1ccccc1
 Formaldehyde	C=O
-Phospho-Histidine	OP(O)(=O)N1C=NC=C1CC(NC(*)=O)C(=O)N*
 3-5-ADP	c1nc(c2c(n1)n(cn2)[C@H]3[C@@H]([C@@H]([C@H](O3)COP(=O)(O)[O-])OP(=O)(O)[O-])O)N
 Acetate	CC(=O)O
 5-Formyl-H4MPT	O=CN1C(C(Nc2ccc(cc2)CC(C(C(COC2OC(C(C2O)O)COP(=O)(OC(C(=O)O)CCC(=O)O)O)O)O)O)C)C(C)Nc2c1c(=O)[nH]c(n2)N
-Histidine	*NC(=O)C(Cc1c[nH]cn1)NC(=O)*
 HBr	Br
 Sulfite	OS(=O)O
 H2O2	OO
