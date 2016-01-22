@@ -232,7 +232,10 @@ class Pickaxe:
         dict"""
         if raw not in self._raw_compounds:
             if self.explicit_h:
-                mol_obj = AllChem.RemoveHs(mol_obj)  # this step slows down the process quite a bit
+                try:
+                    mol_obj = AllChem.RemoveHs(mol_obj)  # this step slows down the process quite a bit
+                except:
+                    raise ValueError
             AllChem.SanitizeMol(mol_obj)
             if self.raceimize:
                 mols = self._racemization(mol_obj)
@@ -430,7 +433,8 @@ if __name__ == "__main__":
     pk = Pickaxe(cofactor_list=options.cofactor_list, rule_list=options.rule_list, raceimze=options.raceimize,
                  errors=options.verbose, explicit_h=options.bnice, kekulize=options.bnice)
     if options.smiles:
-        pk._add_compound("", "Start", options.smiles)
+        pk.generation = 0
+        pk._add_compound("Start", options.smiles)
     else:
         pk.load_compound_set(compound_file=options.compound_file)
     pk.transform_all(max_generations=options.generations, num_workers=options.max_workers)
