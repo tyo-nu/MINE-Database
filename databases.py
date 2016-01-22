@@ -85,6 +85,18 @@ class MINE:
 
         return comp_dict
 
+    def add_compound_sources(self):
+        for compound in self.compounds.find({"Sources": {"$exists": 0}}):
+            compound['Sources'] = []
+            for reaction in self.reactions.find({"Products.compound": compound['_id'][1:]}):
+
+                    if 'Sources' not in compound:
+                        sources = [{"Compound": compound[compound_id], "Operators": [reaction["Operators"]]}]
+                    else:
+                        sources = [{"Compound": path['Compound'], "Operators": path['Operators']+reaction["Operators"]} for path in compound['Sources']]
+                    db.compounds.update({"_id": reaction['Products'][0][1]}, {"$push": {"Sources": sources}})
+        db.compounds.ensure_index([("Sources.Compound", ASCENDING), ("Sources.Operators", ASCENDING)])
+
     def link_to_external_database(self, external_database, match_field="Inchikey", fields_to_copy=None):
         """
         This function looks for matching compounds in other databases (i.e. PubChem) and adds links where found
@@ -157,7 +169,7 @@ class MINE:
                 compound_dict['MINE_id'] = mine_comp['MINE_id']
             else:
                 compound_dict['MINE_id'] = self.id_db.compounds.count()
-                self.id_db.compounds.insert(utils.convert_sets_to_lists(compound_dict))
+                self.id_db.compounds.save(utils.convert_sets_to_lists(compound_dict))
         self.compounds.save(utils.convert_sets_to_lists(compound_dict))
 
     def insert_reaction(self, reaction_dict):
