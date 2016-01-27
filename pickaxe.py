@@ -100,7 +100,7 @@ class Pickaxe:
             raise ValueError("Number of cofactors does not match supplied reaction rule: %s" % rule_text)
         self.rxn_rules[split_text[0]] = (reactant_names, rxn)
 
-    def load_compound_set(self, compound_file=None, structure_field='structure', id_field='id'):
+    def load_compound_set(self, compound_file=None, structure_field='structure', id_field='id', fragmented_mols=False):
         """
         If a compound file is provided, this function loads the compounds into it's internal dictionary. If not, it
         attempts to find the compounds in it's associated MINE database.
@@ -124,6 +124,8 @@ class Pickaxe:
                         mol = AllChem.MolFromInchi(line[structure_field])
                     else:
                         mol = AllChem.MolFromSmiles(line[structure_field])
+                    if not fragmented_mols and len(AllChem.GetMolFrags(mol)) > 1:
+                        continue
                     if not mol:
                         if self.errors:
                             print("Unable to Parse %s" % line[structure_field])
