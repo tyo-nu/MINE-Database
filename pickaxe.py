@@ -124,11 +124,11 @@ class Pickaxe:
                         mol = AllChem.MolFromInchi(line[structure_field])
                     else:
                         mol = AllChem.MolFromSmiles(line[structure_field])
-                    if not fragmented_mols and len(AllChem.GetMolFrags(mol)) > 1:
-                        continue
                     if not mol:
                         if self.errors:
                             print("Unable to Parse %s" % line[structure_field])
+                        continue
+                    if not fragmented_mols and len(AllChem.GetMolFrags(mol)) > 1:
                         continue
                     smi = AllChem.MolToSmiles(mol, True)
                     id = line[id_field]
