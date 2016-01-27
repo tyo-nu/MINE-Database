@@ -85,18 +85,14 @@ class MINE:
 
         return comp_dict
 
-    def add_compound_sources(self):
-        #TODO Fix this method
+    def add_compound_sources(self, rxn_key_type="_id"):
         for compound in self.compounds.find({"Sources": {"$exists": 0}}):
             compound['Sources'] = []
-            for reaction in self.reactions.find({"Products.compound": compound['_id'][1:]}):
-
-                    if 'Sources' not in compound:
-                        sources = [{"Compound": compound[compound_id], "Operators": [reaction["Operators"]]}]
-                    else:
-                        sources = [{"Compound": path['Compound'], "Operators": path['Operators']+reaction["Operators"]} for path in compound['Sources']]
-                    db.compounds.update({"_id": reaction['Products'][0][1]}, {"$push": {"Sources": sources}})
-        db.compounds.ensure_index([("Sources.Compound", ASCENDING), ("Sources.Operators", ASCENDING)])
+            for reaction in self.reactions.find({"Products.compound": compound[rxn_key_type]}):
+                compound['Sources'].append({"Compounds": [x['compound'] for x in reaction['Reactants']], "Operators": reaction["Operators"]})
+            if compound['Sources']:
+                self.compounds.save(compound)
+        self.compounds.ensure_index([("Sources.Compound", pymongo.ASCENDING), ("Sources.Operators", pymongo.ASCENDING)])
 
     def link_to_external_database(self, external_database, match_field="Inchikey", fields_to_copy=None):
         """
