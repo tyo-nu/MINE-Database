@@ -88,11 +88,12 @@ class MINE:
     def add_compound_sources(self, rxn_key_type="_id"):
         for compound in self.compounds.find({"Sources": {"$exists": 0}}):
             compound['Sources'] = []
-            for reaction in self.reactions.find({"Products.compound": compound[rxn_key_type]}):
-                compound['Sources'].append({"Compounds": [x['compound'] for x in reaction['Reactants']], "Operators": reaction["Operators"]})
+            for reaction in self.reactions.find({"Products.c_id": compound[rxn_key_type]}):
+                compound['Sources'].append({"Compounds": [x['c_id'] for x in reaction['Reactants']], "Operators": reaction["Operators"]})
             if compound['Sources']:
                 self.compounds.save(compound)
         self.compounds.ensure_index([("Sources.Compound", pymongo.ASCENDING), ("Sources.Operators", pymongo.ASCENDING)])
+        self.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "Add Compound Source field"})
 
     def link_to_external_database(self, external_database, match_field="Inchikey", fields_to_copy=None):
         """
