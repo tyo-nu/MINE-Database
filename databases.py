@@ -60,7 +60,7 @@ class MINE:
         self.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "Add Reaction Pointers"})
 
     def fix_rxn_pointers(self, new_id, comp_dict):
-        if new_id != comp_dict['_id']:
+        if self.reactions.count() and new_id != comp_dict['_id']:
             try:
                 for reaction in comp_dict['Product_of']:
                     rxn = self.reactions.find_one({'_id': str(reaction)}, {'Products': 1})
@@ -81,7 +81,7 @@ class MINE:
             except KeyError:
                 pass
 
-            comp_dict['_id'] = new_id
+        comp_dict['_id'] = new_id
 
         return comp_dict
 
