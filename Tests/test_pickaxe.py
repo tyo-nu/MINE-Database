@@ -8,6 +8,8 @@ from databases import MINE
 
 pk = pickaxe.Pickaxe()
 meh = 'CCC(=O)C(=O)O'
+l_ala = 'C[C@H](N)C(=O)O'
+d_ala = 'C[C@@H](N)C(=O)O'
 fadh = 'Cc1cc2c(cc1C)N(CC(O)C(O)C(O)COP(=O)(O)OP(=O)(O)OCC1OC(n3cnc4c(N)ncnc43)C(O)C1O)c1nc(O)nc(O)c1N2'
 
 def test_cofactor_loading():
@@ -36,6 +38,16 @@ def test_transform_compounds():
                      '-[*:6]-[*:5]-[*:4]-[*:3]-[*:11]')
     pk.transform_compound(fadh)
     pk._assign_ids()
+
+def test_hashing():
+    pk2 = pickaxe.Pickaxe(explicit_h=False, kekulize=False)
+    pk2._load_cofactor('S-Adenosylmethionine	C[S+](CC[C@H](N)C(=O)O)C[C@H]1O[C@@H](n2cnc3c(N)ncnc32)[C@H](O)[C@@H]1O')
+    #pk2.load_rxn_rule('Methylation_1	Any;S-Adenosylmethionine	[#6;R0:2]-[#7;R0;H1,H2:1].[#6H3:3]-[#16;D3:4]>>'
+    #                  '[#6:2]-[#7:1]-[#6:3].[#16:4]	Any;S-Adenosylhomocystine')
+    pk2.transform_compound(l_ala)
+    len_rxns = len(pk2.reactions)
+    pk2.transform_compound(d_ala)
+    assert len(pk2.reactions) == 2 * len_rxns
 
 def test_product_racimization():
     pk2 = pickaxe.Pickaxe(raceimze=False, rule_list='Tests/test_operators.tsv')

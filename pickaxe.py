@@ -290,7 +290,7 @@ class Pickaxe:
                         second_block.append("%s,%s" % (x.stoich, split_inchikey[1]))
                 else:
                     print("No Inchikey for %s" % x.compound)
-            return "+".join(first_block), "+".join(first_block)
+            return "+".join(first_block), "+".join(second_block)
 
         reactants.sort()
         products.sort()
