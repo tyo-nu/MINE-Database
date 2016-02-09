@@ -196,9 +196,11 @@ class Pickaxe:
                 try:
                     for stereo_prods in self._make_compound_tups(product_mols, rule_name, split_stereoisomers=self.split_stereoisomers):
                         pred_compounds.update(x.compound for x in stereo_prods)
-                        rhash = self._calculate_rxn_hash(reactants, stereo_prods)
-                        text_rxn = ' + '.join(['(%s) %s' % (x.stoich, x.compound) for x in reactants]) + ' => ' + \
-                           ' + '.join(['(%s) %s' % (x.stoich, x.compound) for x in stereo_prods])
+                        #rhash = self._calculate_rxn_hash(reactants, stereo_prods)
+
+                        text_rxn = ' + '.join(['(%s) %s' % (x.stoich, x.compound) for x in sorted(reactants)]) + ' => ' + \
+                           ' + '.join(['(%s) %s' % (x.stoich, x.compound) for x in sorted(stereo_prods)])
+                        rhash = hashlib.sha256(text_rxn.encode()).hexdigest()
                         pred_rxns.add(text_rxn)
                         if rhash not in self.reactions:
                             reaction_data = {"_id": rhash, "Reactants": reactants, "Products": stereo_prods,
