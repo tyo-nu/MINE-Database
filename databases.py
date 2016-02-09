@@ -91,7 +91,10 @@ class MINE:
             for reaction in self.reactions.find({"Products.c_id": compound[rxn_key_type]}):
                 compound['Sources'].append({"Compounds": [x['c_id'] for x in reaction['Reactants']], "Operators": reaction["Operators"]})
             if compound['Sources']:
-                self.compounds.save(compound)
+                try:
+                    self.compounds.save(compound)
+                except pymongo.errors.DocumentTooLarge:
+                    print("Too Many Sources for %s" % compound['SMILES'])
         self.compounds.ensure_index([("Sources.Compound", pymongo.ASCENDING), ("Sources.Operators", pymongo.ASCENDING)])
         self.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "Add Compound Source field"})
 
