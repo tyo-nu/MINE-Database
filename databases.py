@@ -54,9 +54,9 @@ class MINE:
         print("Linking compounds to %s reactions" % reactions_count)
         for reaction in self.reactions.find().batch_size(500):
             for compound in reaction['Reactants']:
-                self.compounds.update({"_id": compound[1]}, {'$push': {"Reactant_in": reaction['_id']}})
+                self.compounds.update({"_id": compound["c_id"]}, {'$push': {"Reactant_in": reaction['_id']}})
             for compound in reaction['Products']:
-                self.compounds.update({"_id": compound[1]}, {'$push': {"Product_of": reaction['_id']}})
+                self.compounds.update({"_id": compound["c_id"]}, {'$push': {"Product_of": reaction['_id']}})
         self.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "Add Reaction Pointers"})
 
     def fix_rxn_pointers(self, new_id, comp_dict):

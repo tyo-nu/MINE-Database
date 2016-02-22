@@ -7,9 +7,9 @@ Amine_MGlyoxal_Condensation	Any;MGlyoxal	[#6H2:2]-[#7H2:1].[#6:7]-[#6:3](=[O:6])
 Amine_MGlyoxal_Elimination	Any;MGlyoxal	[#6:1]-[#7H2:2].[#6:7]-[#6:3](=[O:6])-[#6H1:4]=[O:5]>>[#6H1:7]-[#6:3](=[O:6])-[#7H1:2]-[#6:1].[#6:4]=[O:5]	Any;Formaldehyde
 Amine_Pyridoxal_Condensation	Any;PyridoxalP	[#6H2,#8D2:2]-[#7H2:1].[#6:4]-[#6H1:5]=[O:6]>>[*:2]-[#7:1]=[#6:5]-[#6:4].[#8:6]	Any;Water
 Amino_Aldehyde_Transamination	Any;Glutamine	[O:1]=[#6;H1R0;@,@@:2]-[#6;R0:3]=[O:4].[#6:7]-[#6H1:6](-[#6:8])-[#7:5]>>[#7:5]-[#6:3]-[#6:2]=[O:4].[#6:7]-[#6H0:6](-[#6:8])=[O:1]	Any;Any
-Amino_Glyoxylate_Transamination	Any;Glyoxylate	[#6H1;@,@@:2]-[#7H2:1].[O:3]=[#6;H1R0:4]-[#6;R0:5]=[O:6]>>[#7:1]-[#6:4]-[#6H0:5]=[O:6].[#6;H0:2]=[O:3]	Any;Any
-Amino_Carbamylation	Any;Isocyanate	[#6:2]-[#7H2:1].[#7:5]=[C:4]=[O:3]>>[#6:2]-[#7:1]-[#6:4](-[#7:5])=[O:3]	Any
-Amino_Glycoaldehyde	Any;Glycoaldehyde	[#6H1:2]-[#7H2:1].[O:3]=[#6;H1R0:4]-[#6;R0:5]=[O:6]>>[#6:2]-[#7:1]-[#6:4](-[#8:3])-[#6:5]=[O:6]	Any
+Amino_Glyoxylate_Transamination	Any;Glyoxylate	[#6H1;@,@@:2]-[#7H:1].[O:3]=[#6;H1R0:4]-[#6;R0:5]=[O:6]>>[#7:1]-[#6:4]-[#6H0:5]=[O:6].[#6;H0:2]=[O:3]	Any;Any
+Amino_Carbamylation	Any;Isocyanate	[#6:2]-[#7H:1].[#7:5]=[C:4]=[O:3]>>[#6:2]-[#7:1]-[#6:4](-[#7:5])=[O:3]	Any
+Amino_Glycoaldehyde	Any;Glycoaldehyde	[#6H1:2]-[#7H:1].[O:3]=[#6;H1R0:4]-[#6;R0:5]=[O:6]>>[#6:2]-[#7:1]-[#6:4](-[#8:3])-[#6:5]=[O:6]	Any
 Amine_Glyoxal	Any;Glyoxal	[#6H2:2]-[#7H2].[O:5]=[#6H1:4]-[#6H1:3]=[O:6]>>[#6H2:2]-[#7H1]-[#6:3](-[#8H1:6])-[#6H1:4]=[O:5]	Any
 Guanine_Glyoxal_Cyclization	Any;Glyoxal	[#7H2:1]-[c:2](:[*:4]):[nH1:3].[O:5]=[#6H1:6]-[#6H1:7]=[O:8]>>[#8:5]-[#6H1:6]-1-[#7:1]-[c:2](:[*:4])[n:3]-[#6H1:7]-1-[#8:8]	Any
 Imine_Glyoxal_Cyclization	Any;Glyoxal	[#7;H1,H2:3]-[#6:2](-[#7:4])=[#7H1:1].[O:5]=[#6H1:6]-[#6H1:7]=[O:8]>>[#7:4]-[#6:2]-1=[#7:1]-[#6H1:6](-[#8:5])-[#6H1:7](-[#8:8])-[#7v3:3]-1	Any
