@@ -171,6 +171,7 @@ class Pickaxe:
         if not rules:
             rules = self.rxn_rules.keys()
         mol = AllChem.MolFromSmiles(compound_SMILES)
+        mol = AllChem.RemoveHs(mol)
         if not mol:
             if self.errors:
                 raise ValueError('Unable to parse: %s' % compound_SMILES)
