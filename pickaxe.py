@@ -149,11 +149,8 @@ class Pickaxe:
     def _add_compound(self, id, smi, mol=None):
         if not mol:
             mol = AllChem.MolFromSmiles(smi)
-        try:
-            i_key = AllChem.InchiToInchiKey(AllChem.MolToInchi(mol))
-            self.compounds[smi] = {'ID': id, '_id': smi, "SMILES": smi, 'Inchikey': i_key, 'Generation': self.generation}
-        except ValueError:
-            self.compounds[smi] = {'ID': id, '_id': smi, "SMILES": smi, 'Inchikey': "None", 'Generation': self.generation}
+        i_key = AllChem.InchiToInchiKey(AllChem.MolToInchi(mol))
+        self.compounds[smi] = {'ID': id, '_id': smi, "SMILES": smi, 'Inchikey': i_key, 'Generation': self.generation}
         self._raw_compounds[smi] = smi
 
     def transform_compound(self, compound_SMILES, rules=None):
@@ -193,20 +190,20 @@ class Pickaxe:
                 print(compound_SMILES)
                 continue
             reactants = next(self._make_compound_tups(reactant_mols, rule_name))  # no enumeration for reactants
+            reactants.sort()
             for product_mols in product_sets:
                 try:
                     for stereo_prods in self._make_compound_tups(product_mols, rule_name, split_stereoisomers=self.split_stereoisomers):
                         pred_compounds.update(x.compound for x in stereo_prods)
-                        inchi_hash = self._calculate_rxn_hash(reactants, stereo_prods)
-
-                        text_rxn = ' + '.join(['(%s) %s' % (x.stoich, x.compound) for x in sorted(reactants)]) + ' => ' + \
-                           ' + '.join(['(%s) %s' % (x.stoich, x.compound) for x in sorted(stereo_prods)])
+                        stereo_prods.sort()
+                        text_rxn = ' + '.join(['(%s) %s' % (x.stoich, x.compound) for x in reactants]) + ' => ' + \
+                           ' + '.join(['(%s) %s' % (x.stoich, x.compound) for x in stereo_prods])
                         rhash = hashlib.sha256(text_rxn.encode()).hexdigest()
                         pred_rxns.add(text_rxn)
                         if rhash not in self.reactions:
                             reaction_data = {"_id": rhash, "Reactants": reactants, "Products": stereo_prods,
                                              "Operators": {rule_name}, "SMILES_rxn": text_rxn,
-                                             "Generation": self.generation, "Inchikey_hash": inchi_hash}
+                                             "Generation": self.generation}
                             self.reactions[rhash] = reaction_data
                         else:
                             self.reactions[rhash]['Operators'].add(rule_name)
@@ -282,7 +279,7 @@ class Pickaxe:
         return new_comps
 
     def _calculate_rxn_hash(self, reactants, products):
-        """Calculates a unique reaction hash using inchikeys. First block is connectivity only, second block is sterio
+        """Calculates a unique reaction hash using inchikeys. First block is connectivity only, second block is stereo
         only"""
         def __get_blocks(tups):
             first_block, second_block = [], []

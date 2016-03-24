@@ -28,13 +28,13 @@ def test_database_query():
     assert queries.advanced_search(test_db, "{'MINE_id': 19160}", {'_id': 1}) == [glucose_id]
 
 def test_similarity_search():
-    raise NotImplemented
+    raise NotImplementedError
     #assert len(queries.similarity_search(test_db, 'OC1OC(O)C(C(C1O)O)O', 0.9, "FP2", 100)) == 28
     #print(len(queries.similarity_search(test_db, 'OCC1OC(O)C(C(C1O)O)O', 0.9, "FP2", 100)))
     #assert len(queries.similarity_search(test_db, test_molfile, 0.8, 'FP4', 100)) == 7
 
 def test_substructure_search():
-    raise NotImplemented
+    raise NotImplementedError
     #assert len(queries.substructure_search(test_db, 'cccccc', 100)) == 100
     #assert isinstance(queries.substructure_search(test_db, 'Nc1ncnc2[nH]cnc12', 100)[0], dict)
 
