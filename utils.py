@@ -24,6 +24,12 @@ def get_dotted_field(input_dict, accessor_string):
         current_data = current_data.get(chunk, {})
     return current_data
 
+def save_dotted_field(accessor_string, data):
+    """Gets data from a dictionary using a dotted accessor-string"""
+    for chunk in accessor_string.split('.')[::-1]:
+        data = {chunk: data}
+    return data
+
 def memoize(f):
     """ Memoization decorator for a function taking one or more arguments. """
     class memodict(dict):

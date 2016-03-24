@@ -98,17 +98,29 @@ class MINE:
         self.compounds.ensure_index([("Sources.Compound", pymongo.ASCENDING), ("Sources.Operators", pymongo.ASCENDING)])
         self.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "Add Compound Source field"})
 
-    def link_to_external_database(self, external_database, match_field="Inchikey", fields_to_copy=None):
+    def link_to_external_database(self, external_database, compound=None, match_field="Inchikey", fields_to_copy=None):
         """
-        This function looks for matching compounds in other databases (i.e. PubChem) and adds links where found
+        This function looks for matching compounds in other databases (i.e. PubChem) and adds links where found.
 
         :param external_database: String, the name of the database to search for matching compounds
+        :param compound: Dict, the compound to search for external links. If none, link all compounds in the database.
         :param match_field: String, The field to search on for matching compunds
         :param fields_to_copy: List of tuples, data to copy into the mine database. The first field is the field name in
         the external database. The second field is the field name in the MINE database where the data will be copied.
         :return:
         """
-        pass
+        if compound:
+            ext = MINE(external_database)
+            for ext_comp in ext.compounds.find({match_field: compound[match_field]}):
+                for field in fields_to_copy:
+                    if field[0] in ext_comp:
+                        utils.dict_merge(compound, utils.save_dotted_field(field[1], utils.get_dotted_field(ext_comp, field[0])))
+            return compound
+
+        else:
+            for comp in self.compounds.find():
+                self.compounds.save(self.link_to_external_database(external_database, compound=comp,
+                                                                   match_field=match_field, fields_to_copy=fields_to_copy))
 
     def insert_compound(self, mol_object, compound_dict={}, kegg_db="KEGG", pubchem_db='PubChem-8-28-2015',
                         modelseed_db='ModelSEED'):
@@ -143,26 +155,18 @@ class MINE:
         else:
             compound_dict['_id'] = 'C' + comphash
 
-        compound_dict['DB_links'] = {}
         if compound_dict['Inchikey']:
             if kegg_db:
-                kegg_comps = self.client[kegg_db].compounds.find({"Inchikey": compound_dict['Inchikey']},
-                                                    {'Pathways': 1, 'Names': 1, 'DB_links': 1, 'Enzymes': 1, '_id': 0})
-                for kcomp in kegg_comps:
-                    utils.dict_merge(compound_dict, kcomp)
+                compound_dict = self.link_to_external_database(kegg_db, compound=compound_dict, fields_to_copy=[
+                    ('Pathways', 'Pathways'), ('Names', 'Names'), ('DB_links', 'DB_links'), ('Enzymes', 'Enzymes')])
 
             if pubchem_db:
-                pubchem_comps = self.client[pubchem_db].compounds.find({"Inchikey": compound_dict['Inchikey']},
-                                                                       {'COMPOUND_CID': 1, "IUPAC_NAME": 1})
-                if pubchem_comps.count() and "PubChem" not in compound_dict['DB_links']:
-                    compound_dict['DB_links']['PubChem'] = [x['COMPOUND_CID'] for x in pubchem_comps]
+                compound_dict = self.link_to_external_database(pubchem_db, compound=compound_dict, fields_to_copy=[
+                    ('COMPOUND_CID', 'DB_links.PubChem')])
 
             if modelseed_db:
-                for seed_comp in self.client[modelseed_db].compounds.find({"Inchikey": compound_dict['Inchikey']},
-                                                                          {'DB_links.Model_SEED': 1}):
-                    if 'Model_SEED' not in compound_dict['DB_links']:
-                        compound_dict['DB_links']['Model_SEED'] = []
-                    compound_dict['DB_links']['Model_SEED'].extend(seed_comp['DB_links']['Model_SEED'])
+                compound_dict = self.link_to_external_database(modelseed_db, compound=compound_dict, fields_to_copy=[
+                    ('DB_links', 'DB_links')])
 
         if self.id_db:
             mine_comp = self.id_db.compounds.find_one({"Inchikey": compound_dict['Inchikey']})
