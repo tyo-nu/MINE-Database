@@ -16,4 +16,5 @@ def test_insert_compound():
     assert len(entry['RDKit'])
     assert len(entry['RDKit']) == entry['len_RDKit']
     assert len(entry['Names'])
+    assert entry["NP_likeness"]
     test_db.compounds.remove({"SMILES": smiles})

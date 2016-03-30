@@ -10,6 +10,7 @@ import hashlib
 import utils
 import datetime
 from rdkit.Chem import AllChem
+import NP_Score.npscorer as np
 
 def establish_db_client():
     """This establishes a mongo database client in various environments"""
@@ -45,6 +46,7 @@ class MINE:
         self.reactions = db.reactions
         self.operators = db.operators
         self.models = db.models
+        self.np_model = None
         self.id_db = self.client['UniversalMINE']
 
     def add_rxn_pointers(self):
@@ -167,6 +169,10 @@ class MINE:
             if modelseed_db:
                 compound_dict = self.link_to_external_database(modelseed_db, compound=compound_dict, fields_to_copy=[
                     ('DB_links', 'DB_links')])
+
+        if not self.np_model:
+            self.np_model = np.readNPModel('./NP_Score/publicnp.model.gz')
+        compound_dict["NP_likeness"] = np.scoreMol(mol_object, self.np_model)
 
         if self.id_db:
             mine_comp = self.id_db.compounds.find_one({"Inchikey": compound_dict['Inchikey']})
