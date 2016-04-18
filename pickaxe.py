@@ -400,7 +400,7 @@ class Pickaxe:
         db.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "Reactions Inserted"})
 
         db.compounds.ensure_index([('Mass', ASCENDING), ('Charge', ASCENDING), ('DB_links.Model_SEED', ASCENDING)])
-        db.compounds.ensure_index([('Names', 'text'), ('Enzymes', 'text'), ('Pathways', 'text')])
+        db.compounds.ensure_index([('Names', 'text'), ('Pathways', 'text')])
         db.compounds.ensure_index("DB_links.Model_SEED")
         db.compounds.ensure_index("DB_links.KEGG")
         db.compounds.ensure_index("MACCS")
