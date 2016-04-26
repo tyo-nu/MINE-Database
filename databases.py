@@ -171,7 +171,7 @@ class MINE:
                     ('DB_links', 'DB_links')])
 
         if not self.np_model:
-            self.np_model = np.readNPModel('./NP_Score/publicnp.model.gz')
+            self.np_model = np.readNPModel()
         compound_dict["NP_likeness"] = np.scoreMol(mol_object, self.np_model)
 
         if self.id_db:
