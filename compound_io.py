@@ -12,6 +12,7 @@ import hashlib
 import os
 import datetime
 
+
 def export_sdf(mine_db, target):
     """
     Exports compounds from the database as an MDL SDF file
@@ -74,10 +75,7 @@ def import_sdf(mine_db, target,):
     """
     sdf_gen = AllChem.SDMolSupplier(target)
     for mol in sdf_gen:
-        compound = {}
-        for key in mol.GetPropNames():
-            compound[key] = mol.GetProp(key)
-        mine_db.insert_compound(mol, compound)
+        mine_db.insert_compound(mol, compound_dict=mol.GetPropsAsDict(), pubchem_db=None, kegg_db=None, modelseed_db=None)
     mine_db.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "SDF Imported", "Filepath": target})
 
 
