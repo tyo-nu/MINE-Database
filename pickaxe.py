@@ -303,6 +303,7 @@ class Pickaxe:
         return hashlib.sha256(first_block.encode()).hexdigest()+"-"+hashlib.md5(second_block.encode()).hexdigest()
 
     def _assign_ids(self):
+        """Assigns a numerical ID to compounds for ease of reference. Unique only to the CURRENT run."""
         self.compounds = dict(self.compounds)
         self.reactions = dict(self.reactions)
         i = 1
@@ -320,6 +321,16 @@ class Pickaxe:
             self.reactions[rxn['_id']] = rxn
 
     def transform_all(self, num_workers=1, max_generations=1):
+        """
+        This function applies all of the reaction rules to all the compounds until the generation cap is reached.
+
+        :param num_workers: The number of CPUs to for the expansion process.
+        :type num_workers: int
+        :param max_generations: The maximum number of times an reaction rule may be applied
+        :type max_generations: int
+        :return:
+        :rtype:
+        """
         while self.generation < max_generations:
             self.generation += 1
             ti = time.time()
@@ -398,18 +409,9 @@ class Pickaxe:
             rxn = utils.convert_sets_to_lists(rxn)
             db.reactions.save(rxn)
         db.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "Reactions Inserted"})
-
-        db.compounds.ensure_index([('Mass', ASCENDING), ('Charge', ASCENDING), ('DB_links.Model_SEED', ASCENDING)])
-        db.compounds.ensure_index([('Names', 'text'), ('Pathways', 'text')])
-        db.compounds.ensure_index("DB_links.Model_SEED")
-        db.compounds.ensure_index("DB_links.KEGG")
-        db.compounds.ensure_index("MACCS")
-        db.compounds.ensure_index("len_MACCS")
-        db.compounds.ensure_index("Inchikey")
-        db.compounds.ensure_index("MINE_id")
-
-        db.reactions.ensure_index("Reactants.c_id")
-        db.reactions.ensure_index("Products.c_id")
+        db.add_rxn_pointers()
+        db.add_compound_sources()
+        db.build_indexes()
 
 
 if __name__ == "__main__":

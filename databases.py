@@ -61,33 +61,9 @@ class MINE:
                 self.compounds.update({"_id": compound["c_id"]}, {'$push': {"Product_of": reaction['_id']}})
         self.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "Add Reaction Pointers"})
 
-    def fix_rxn_pointers(self, new_id, comp_dict):
-        if self.reactions.count() and new_id != comp_dict['_id']:
-            try:
-                for reaction in comp_dict['Product_of']:
-                    rxn = self.reactions.find_one({'_id': str(reaction)}, {'Products': 1})
-                    for i, product in enumerate(rxn['Products']):
-                        if product[1] == comp_dict['_id']:
-                            rxn['Products'][i][1] = new_id
-                    self.reactions.update({'_id': str(reaction)}, {'$set': {'Products': rxn['Products']}})
-            except KeyError:
-                pass
-
-            try:
-                for reaction in comp_dict['Reactant_in']:
-                    rxn = self.reactions.find_one({'_id': str(reaction)}, {'Reactants': 1})
-                    for i, reactant in enumerate(rxn['Reactants']):
-                        if reactant[1] == comp_dict['_id']:
-                            rxn['Reactants'][i][1] = new_id
-                    self.reactions.update({'_id': str(reaction)}, {'$set': {'Reactants': rxn['Reactants']}})
-            except KeyError:
-                pass
-
-        comp_dict['_id'] = new_id
-
-        return comp_dict
-
     def add_compound_sources(self, rxn_key_type="_id"):
+        """Adds a field detailing the compounds and reactions from which a compound is produced. This enables
+        filtering search results to only include compounds which are relevant to a specified metabolic contex"""
         for compound in self.compounds.find({"Sources": {"$exists": 0}}):
             compound['Sources'] = []
             for reaction in self.reactions.find({"Products.c_id": compound[rxn_key_type]}):
@@ -99,6 +75,21 @@ class MINE:
                     print("Too Many Sources for %s" % compound['SMILES'])
         self.compounds.ensure_index([("Sources.Compound", pymongo.ASCENDING), ("Sources.Operators", pymongo.ASCENDING)])
         self.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "Add Compound Source field"})
+
+    def build_indexes(self):
+        """Builds indexes for efficient querying of MINE databases"""
+        self.compounds.ensure_index([('Mass', pymongo.ASCENDING), ('Charge', pymongo.ASCENDING),
+                                     ('DB_links.Model_SEED', pymongo.ASCENDING)])
+        self.compounds.ensure_index([('Names', 'text'), ('Pathways', 'text')])
+        self.compounds.ensure_index("DB_links.Model_SEED")
+        self.compounds.ensure_index("DB_links.KEGG")
+        self.compounds.ensure_index("MACCS")
+        self.compounds.ensure_index("len_MACCS")
+        self.compounds.ensure_index("Inchikey")
+        self.compounds.ensure_index("MINE_id")
+        self.reactions.ensure_index("Reactants.c_id")
+        self.reactions.ensure_index("Products.c_id")
+        self.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "Database indexes built"})
 
     def link_to_external_database(self, external_database, compound=None, match_field="Inchikey", fields_to_copy=None):
         """
