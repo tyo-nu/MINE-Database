@@ -20,8 +20,9 @@ def test_cofactor_loading():
 def test_reaction_rule_loading():
     pk2 = pickaxe.Pickaxe(rule_list='Tests/test_operators.tsv')
     rule = pk2.rxn_rules['2.7.1.a']
-    assert isinstance(rule[1], rdkit.Chem.rdChemReactions.ChemicalReaction)
-    assert "Any" in rule[0]
+    assert isinstance(rule[0], rdkit.Chem.rdChemReactions.ChemicalReaction)
+    assert isinstance(rule[1], dict)
+    assert rule[1]['Reactants'] == ['Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O', 'Any']
 
 def test_compound_loading():
     compound_smiles = pk.load_compound_set(compound_file='Tests/test_compounds.tsv')
@@ -109,6 +110,8 @@ def test_save_as_MINE():
     try:
         assert mine_db.compounds.count() == 25
         assert mine_db.reactions.count() == 7
+        assert mine_db.operators.count() == 1
     finally:
         mine_db.compounds.drop()
         mine_db.reactions.drop()
+        mine_db.operators.drop()

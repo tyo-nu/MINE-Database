@@ -98,7 +98,8 @@ class Pickaxe:
         rxn = AllChem.ReactionFromSmarts(split_text[2])
         if rxn.GetNumReactantTemplates() != len(reactant_names):
             raise ValueError("Number of cofactors does not match supplied reaction rule: %s" % rule_text)
-        self.rxn_rules[split_text[0]] = (reactant_names, rxn)
+        self.rxn_rules[split_text[0]] = (rxn, {'Reactants': reactant_names, 'SMARTS': split_text[2], 'Name': split_text[0],
+                                         "Reactions_predicted": 0, "_id": hashlib.sha256(split_text[0].encode()).hexdigest()})
 
     def load_compound_set(self, compound_file=None, structure_field='structure', id_field='id', fragmented_mols=False):
         """
@@ -182,9 +183,9 @@ class Pickaxe:
         self.cofactors['Any'] = mol
         for rule_name in rules:
             rule = self.rxn_rules[rule_name]
-            reactant_mols = tuple([self.cofactors[x] for x in rule[0]])
+            reactant_mols = tuple([self.cofactors[x] for x in rule[1]['Reactants']])
             try:
-                product_sets = rule[1].RunReactants(reactant_mols)
+                product_sets = rule[0].RunReactants(reactant_mols)
             except RuntimeError:  # I need to do more to untangle the causes of this error
                 print("Runtime ERROR!"+rule_name)
                 print(compound_SMILES)
@@ -318,6 +319,8 @@ class Pickaxe:
                             + ' => ' + ' + '.join(['(%s) %s[c0]' % (x.stoich, self.compounds[x.compound]["ID"]) for x in rxn["Products"]])
             rxn['ID'] = 'pk_rxn'+str(i).zfill(7)
             i += 1
+            for op in rxn['Operators']:
+                self.rxn_rules[op][1]['Reactions_predicted'] += 1
             self.reactions[rxn['_id']] = rxn
 
     def transform_all(self, num_workers=1, max_generations=1):
@@ -411,6 +414,7 @@ class Pickaxe:
         db.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "Reactions Inserted"})
         db.add_rxn_pointers()
         db.add_compound_sources()
+        db.operators.insert_many([x[1] for x in self.rxn_rules.values()])
         db.build_indexes()
 
 
