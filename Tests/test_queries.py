@@ -3,7 +3,7 @@ import queries
 import databases
 
 test_db = databases.MINE('mongotest')
-test_molfile = open("./Tests/xanthine.mol", "r").read()
+test_molfile = open("./Tests/glucose.mol", "r").read()
 glucose = {'Names': ['Hexose', 'D-Idose', 'Glucose', 'Mannose', 'D-Gulose', 'D-Allose', 'D-Hexose', 'Dextrose',
                      'Seminose', 'L-Gulose', 'D-Talose', 'D-Aldose', 'D-Mannose', 'D-Aldose2', 'D-Aldose1', 'D-Glucose',
                      'D-Altrose', 'Carubinose', 'Grape sugar', 'L-Galactose', 'D-Galactose', 'D-ido-Hexose',
@@ -15,10 +15,11 @@ glucose = {'Names': ['Hexose', 'D-Idose', 'Glucose', 'Mannose', 'D-Gulose', 'D-A
 glucose_id = {'_id': 'Cb5b3273ab083d77ed29fbef8f7e464929af29c13'}
 
 def test_quick_search():
-    assert queries.quick_search(test_db, 'WQZGKKKJIJFFOK-GASJEMHNSA-N') == [glucose]
-    assert queries.quick_search(test_db, 'C00031') == [glucose]
+    meh = queries.quick_search(test_db, 'WQZGKKKJIJFFOK-UHFFFAOYSA-N')
+    assert glucose in queries.quick_search(test_db, 'WQZGKKKJIJFFOK-UHFFFAOYSA-N')
+    assert glucose in queries.quick_search(test_db, 'C00031')
     assert glucose in queries.quick_search(test_db, 'Glucose')
-    assert queries.quick_search(test_db, 'WQZGKKKJIJFFOK-GASJEMHNSA-N', {'_id': 1}) == [glucose_id]
+    assert glucose_id in queries.quick_search(test_db, 'WQZGKKKJIJFFOK-UHFFFAOYSA-N', {'_id': 1})
 
 
 def test_database_query():
@@ -39,5 +40,5 @@ def test_substructure_search():
     #assert isinstance(queries.substructure_search(test_db, 'Nc1ncnc2[nH]cnc12', 100)[0], dict)
 
 def test_structure_search():
-    assert queries.structure_search(test_db, 'OCC1OC(O)C(C(C1O)O)O') == [glucose]
-    assert queries.structure_search(test_db, test_molfile, {'_id': 1}) == [{'_id': 'C84d297bb12c40a0996e449dfc54afd69ccc3dd54'}]
+    assert glucose in queries.structure_search(test_db, 'OCC1OC(O)C(C(C1O)O)O')
+    assert glucose in queries.structure_search(test_db, test_molfile)

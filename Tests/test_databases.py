@@ -3,6 +3,7 @@ from rdkit.Chem import AllChem
 
 test_db = databases.MINE('mongotest')
 
+
 def test_insert_compound():
     smiles = 'CC(=O)O'
     mol = AllChem.MolFromSmiles(smiles)
@@ -18,3 +19,11 @@ def test_insert_compound():
     assert len(entry['Names'])
     assert entry["NP_likeness"]
     test_db.compounds.remove({"SMILES": smiles})
+
+
+def test_add_rxn_pointers():
+    raise NotImplementedError
+
+
+def test_add_compound_sources():
+    raise NotImplementedError
