@@ -15,7 +15,6 @@ glucose = {'Names': ['Hexose', 'D-Idose', 'Glucose', 'Mannose', 'D-Gulose', 'D-A
 glucose_id = {'_id': 'Cb5b3273ab083d77ed29fbef8f7e464929af29c13'}
 
 def test_quick_search():
-    meh = queries.quick_search(test_db, 'WQZGKKKJIJFFOK-UHFFFAOYSA-N')
     assert glucose in queries.quick_search(test_db, 'WQZGKKKJIJFFOK-UHFFFAOYSA-N')
     assert glucose in queries.quick_search(test_db, 'C00031')
     assert glucose in queries.quick_search(test_db, 'Glucose')
