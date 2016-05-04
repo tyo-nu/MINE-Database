@@ -4,9 +4,15 @@ import pickaxe
 import rdkit
 import filecmp
 import os
+import re
 from databases import MINE
 
-pk = pickaxe.Pickaxe()
+def purge(dir, pattern):
+    for f in os.listdir(dir):
+        if re.search(pattern, f):
+            os.remove(os.path.join(dir, f))
+
+pk = pickaxe.Pickaxe(image_dir="Tests/")
 meh = 'CCC(=O)C(=O)O'
 l_ala = 'C[C@H](N)C(=O)O'
 d_ala = 'C[C@@H](N)C(=O)O'
@@ -32,13 +38,17 @@ def test_compound_loading():
     assert len(compound_smiles) == 26
 
 def test_transform_compounds():
-    pk._load_cofactor('ATP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
-    pk._load_cofactor('ADP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
-    pk.load_rxn_rule('2.7.1.a	ATP;Any	[#6;H2D4:8][#8;H0D2:7][#15;H0D4:6][#8;H0D2:5][#15;H0D4:4][#8;H0D2:3]'
-                     '[#15;H0D4:2][#8;H1D2R0:1].[#1;D1R0:11][#8;H1D2R0:10][#6:9]>>[*:1]-[*:2]-[*:10]-[*:9].[*:8]-[*:7]'
-                     '-[*:6]-[*:5]-[*:4]-[*:3]-[*:11]')
-    pk.transform_compound(fadh)
-    pk._assign_ids()
+    try:
+        pk._load_cofactor('ATP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
+        pk._load_cofactor('ADP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
+        pk.load_rxn_rule('2.7.1.a	ATP;Any	[#6;H2D4:8][#8;H0D2:7][#15;H0D4:6][#8;H0D2:5][#15;H0D4:4][#8;H0D2:3]'
+                         '[#15;H0D4:2][#8;H1D2R0:1].[#1;D1R0:11][#8;H1D2R0:10][#6:9]>>[*:1]-[*:2]-[*:10]-[*:9].[*:8]-[*:7]'
+                         '-[*:6]-[*:5]-[*:4]-[*:3]-[*:11]')
+        pk.transform_compound(fadh)
+        pk._assign_ids()
+        assert os.path.exists("Tests/pk_cpd0000001.png")
+    finally:
+        purge('Tests', ".*\.png$")
 
 def test_hashing():
     pk2 = pickaxe.Pickaxe(explicit_h=False, kekulize=False)
@@ -111,7 +121,9 @@ def test_save_as_MINE():
         assert mine_db.compounds.count() == 25
         assert mine_db.reactions.count() == 7
         assert mine_db.operators.count() == 1
+        assert os.path.exists("Tests/C9c69cbeb40f083118c1913599c12c7f4e5e68d03.svg")
     finally:
         mine_db.compounds.drop()
         mine_db.reactions.drop()
         mine_db.operators.drop()
+        purge('Tests', ".*\.svg$")

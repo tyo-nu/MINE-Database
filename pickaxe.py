@@ -1,7 +1,7 @@
 __author__ = 'JGJeffryes'
 
 from rdkit.Chem import AllChem
-from pymongo import ASCENDING
+from rdkit.Chem.Draw import MolToFile
 from databases import MINE
 from argparse import ArgumentParser
 import itertools
@@ -13,6 +13,7 @@ import datetime
 import hashlib
 import csv
 import multiprocessing
+import os
 
 stoich_tuple = collections.namedtuple("stoich_tuple", 'compound,stoich')
 
@@ -23,7 +24,7 @@ class Pickaxe:
         done on an ad hock basis.
     """
     def __init__(self, rule_list=None, cofactor_list=None, explicit_h=True, kekulize=True, errors=True,
-                 raceimze=False, split_stereoisomers=True, mine=None):
+                 raceimze=False, split_stereoisomers=True, mine=None, image_dir=None):
         self.rxn_rules = {}
         self.cofactors = {}
         self._raw_compounds = {}
@@ -35,6 +36,7 @@ class Pickaxe:
         self.split_stereoisomers = split_stereoisomers
         self.kekulize = kekulize
         self.raceimize = raceimze
+        self.image_dir = image_dir
         self.stoich_tuple = stoich_tuple
         self.errors = errors
         from rdkit import RDLogger
@@ -313,6 +315,12 @@ class Pickaxe:
                 comp['ID'] = 'pk_cpd'+str(i).zfill(7)
                 i += 1
                 self.compounds[comp['_id']] = comp
+                if self.image_dir and not self.mine:
+                    mol = AllChem.MolFromSmiles(comp['SMILES'])
+                    try:
+                        MolToFile(mol, os.path.join(self.image_dir, comp['ID'] + '.png'), fitImage=True, kekulize=False)
+                    except OSError:
+                        print("Unable to generate image for %s" % comp['SMILES'])
         i = 1
         for rxn in sorted(self.reactions.values(), key=lambda x: (x['Generation'], x['_id'])):
             rxn['ID_rxn'] = ' + '.join(['(%s) %s[c0]' % (x.stoich, self.compounds[x.compound]["ID"]) for x in rxn["Reactants"]]) \
@@ -402,7 +410,7 @@ class Pickaxe:
         """
         db = MINE(db_id)
         for comp_dict in self.compounds.values():
-            db.insert_compound(AllChem.MolFromSmiles(comp_dict['SMILES']), comp_dict)
+            db.insert_compound(AllChem.MolFromSmiles(comp_dict['SMILES']), comp_dict, image_directory=self.image_dir)
         db.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "Compounds Inserted"})
         for rxn in self.reactions.values():
             rxn['Reactants'] = [{"stoich": x.stoich, "c_id": "C"+hashlib.sha1(x.compound.encode('utf-8')).hexdigest()}
@@ -440,6 +448,8 @@ if __name__ == "__main__":
                                                                          "perform calculations.")
     parser.add_argument('-g', '--generations', default=1, type=int, help="Set the numbers of time to apply the reaction"
                                                                          " rules to the compound set.")
+    parser.add_argument('-i', '--image_dir', default=None, help="Specify a directory to store images of all created "
+                                                                "compounds")
     options = parser.parse_args()
     pk = Pickaxe(cofactor_list=options.cofactor_list, rule_list=options.rule_list, raceimze=options.raceimize,
                  errors=options.verbose, explicit_h=options.bnice, kekulize=options.bnice)

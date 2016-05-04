@@ -4,13 +4,15 @@
 
 __author__ = 'JGJeffryes'
 
+import NP_Score.npscorer as np
+from rdkit.Chem import AllChem
+from rdkit.Chem.Draw import MolToFile
 import pymongo
 import platform
 import hashlib
 import utils
 import datetime
-from rdkit.Chem import AllChem
-import NP_Score.npscorer as np
+import os
 
 def establish_db_client():
     """This establishes a mongo database client in various environments"""
@@ -116,7 +118,7 @@ class MINE:
                                                                    match_field=match_field, fields_to_copy=fields_to_copy))
 
     def insert_compound(self, mol_object, compound_dict={}, kegg_db="KEGG", pubchem_db='PubChem-8-28-2015',
-                        modelseed_db='ModelSEED'):
+                        modelseed_db='ModelSEED', image_directory=False):
         """
         This class saves a RDKit Molecule as a compound entry in the MINE. Calculates necessary fields for API and
         includes additional information passed in the compound dict. Overwrites preexisting compounds in MINE on _id
@@ -160,6 +162,9 @@ class MINE:
             self.np_model = np.readNPModel()
         compound_dict["NP_likeness"] = np.scoreMol(mol_object, self.np_model)
 
+        if image_directory:
+            MolToFile(mol_object, os.path.join(image_directory, compound_dict['_id']+'.svg'), kekulize=False)
+
         if self.id_db:
             mine_comp = self.id_db.compounds.find_one({"Inchikey": compound_dict['Inchikey']})
             if mine_comp:
@@ -170,4 +175,4 @@ class MINE:
         self.compounds.save(utils.convert_sets_to_lists(compound_dict))
 
     def insert_reaction(self, reaction_dict):
-        pass
+        raise NotImplementedError
