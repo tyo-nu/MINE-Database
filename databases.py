@@ -139,6 +139,7 @@ class MINE:
         compound_dict['len_MACCS'] = len(compound_dict['MACCS'])
         compound_dict['RDKit'] = [i for i, bit in enumerate(AllChem.RDKFingerprint(mol_object)) if bit]
         compound_dict['len_RDKit'] = len(compound_dict['RDKit'])
+        compound_dict['logP'] = AllChem.CalcCrippenDescriptors(mol_object)[0]
         comphash = hashlib.sha1(compound_dict['SMILES'].encode('utf-8')).hexdigest()
         compound_dict['_id'] = 'C' + comphash
 
