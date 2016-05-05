@@ -153,7 +153,14 @@ class Pickaxe:
         if not mol:
             mol = AllChem.MolFromSmiles(smi)
         i_key = AllChem.InchiToInchiKey(AllChem.MolToInchi(mol))
-        self.compounds[smi] = {'ID': id, '_id': smi, "SMILES": smi, 'Inchikey': i_key, 'Generation': self.generation}
+        _id = 'C' + hashlib.sha1(smi.encode('utf-8')).hexdigest()
+        self.compounds[smi] = {'ID': id, '_id': _id, "SMILES": smi, 'Inchikey': i_key, 'Generation': self.generation}
+        # if we are building a mine and generating images, do so here
+        if self.image_dir and self.mine:
+            try:
+                MolToFile(mol, os.path.join(self.image_dir, _id + '.svg'), kekulize=False)
+            except OSError:
+                print("Unable to generate image for %s" % smi)
         self._raw_compounds[smi] = smi
 
     def transform_compound(self, compound_SMILES, rules=None):
@@ -316,6 +323,7 @@ class Pickaxe:
                 comp['ID'] = 'pk_cpd'+str(i).zfill(7)
                 i += 1
                 self.compounds[comp['SMILES']] = comp
+                # if we are not loading into the mine, we generate the image here
                 if self.image_dir and not self.mine:
                     mol = AllChem.MolFromSmiles(comp['SMILES'])
                     try:
@@ -411,7 +419,7 @@ class Pickaxe:
         """
         db = MINE(db_id)
         for comp_dict in self.compounds.values():
-            db.insert_compound(AllChem.MolFromSmiles(comp_dict['SMILES']), comp_dict, image_directory=self.image_dir)
+            db.insert_compound(AllChem.MolFromSmiles(comp_dict['SMILES']), comp_dict)
         db.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "Compounds Inserted"})
         for rxn in self.reactions.values():
             rxn['Reactants'] = [{"stoich": x.stoich, "c_id": "C"+hashlib.sha1(x.compound.encode('utf-8')).hexdigest()}
