@@ -443,7 +443,7 @@ if __name__ == "__main__":
                         "forms for all unassigned steriocenters in compounds & reactions")
     parser.add_argument('-v', '--verbose', action='store_true', default=False, help="Display RDKit errors & warnings")
     parser.add_argument('--bnice', action='store_true', default=False, help="Set several options to enable "
-                                                                            "compatability with bnice operators.")
+                                                                            "compatibility with bnice operators.")
     parser.add_argument('-m', '--max_workers', default=1, type=int, help="Set the nax number of processes to spawn to "
                                                                          "perform calculations.")
     parser.add_argument('-g', '--generations', default=1, type=int, help="Set the numbers of time to apply the reaction"
