@@ -4,9 +4,15 @@ import pickaxe
 import rdkit
 import filecmp
 import os
+import re
 from databases import MINE
 
-pk = pickaxe.Pickaxe()
+def purge(dir, pattern):
+    for f in os.listdir(dir):
+        if re.search(pattern, f):
+            os.remove(os.path.join(dir, f))
+
+pk = pickaxe.Pickaxe(image_dir="Tests/")
 meh = 'CCC(=O)C(=O)O'
 l_ala = 'C[C@H](N)C(=O)O'
 d_ala = 'C[C@@H](N)C(=O)O'
@@ -20,24 +26,29 @@ def test_cofactor_loading():
 def test_reaction_rule_loading():
     pk2 = pickaxe.Pickaxe(rule_list='Tests/test_operators.tsv')
     rule = pk2.rxn_rules['2.7.1.a']
-    assert isinstance(rule[1], rdkit.Chem.rdChemReactions.ChemicalReaction)
-    assert "Any" in rule[0]
+    assert isinstance(rule[0], rdkit.Chem.rdChemReactions.ChemicalReaction)
+    assert isinstance(rule[1], dict)
+    assert rule[1]['Reactants'] == ['Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O', 'Any']
 
 def test_compound_loading():
     compound_smiles = pk.load_compound_set(compound_file='Tests/test_compounds.tsv')
     assert len(compound_smiles) == 15
     pk2 = pickaxe.Pickaxe(mine='mongotest')
     compound_smiles = pk2.load_compound_set()
-    assert len(compound_smiles) == 37
+    assert len(compound_smiles) == 26
 
 def test_transform_compounds():
-    pk._load_cofactor('ATP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
-    pk._load_cofactor('ADP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
-    pk.load_rxn_rule('2.7.1.a	ATP;Any	[#6;H2D4:8][#8;H0D2:7][#15;H0D4:6][#8;H0D2:5][#15;H0D4:4][#8;H0D2:3]'
-                     '[#15;H0D4:2][#8;H1D2R0:1].[#1;D1R0:11][#8;H1D2R0:10][#6:9]>>[*:1]-[*:2]-[*:10]-[*:9].[*:8]-[*:7]'
-                     '-[*:6]-[*:5]-[*:4]-[*:3]-[*:11]')
-    pk.transform_compound(fadh)
-    pk._assign_ids()
+    try:
+        pk._load_cofactor('ATP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
+        pk._load_cofactor('ADP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
+        pk.load_rxn_rule('2.7.1.a	ATP;Any	[#6;H2D4:8][#8;H0D2:7][#15;H0D4:6][#8;H0D2:5][#15;H0D4:4][#8;H0D2:3]'
+                         '[#15;H0D4:2][#8;H1D2R0:1].[#1;D1R0:11][#8;H1D2R0:10][#6:9]>>[*:1]-[*:2]-[*:10]-[*:9].[*:8]-[*:7]'
+                         '-[*:6]-[*:5]-[*:4]-[*:3]-[*:11]')
+        pk.transform_compound(fadh)
+        pk._assign_ids()
+        assert os.path.exists("Tests/pk_cpd0000001.png")
+    finally:
+        purge('Tests', ".*\.png$")
 
 def test_hashing():
     pk2 = pickaxe.Pickaxe(explicit_h=False, kekulize=False)
@@ -77,30 +88,30 @@ def test_reaction_output_writing():
 
 def test_transform_all():
     pk3 = pickaxe.Pickaxe(errors=False)
-    pk3.compounds[meh] = {'ID': None, '_id': meh, 'Inchikey': '', 'SMILES': meh, 'Generation': 0}
-    pk3.generation = 0
+    pk3.compounds[meh] = {'ID': None, '_id': fadh, 'Inchikey': '', 'SMILES': fadh, 'Generation': 0}
     pk3._load_cofactor('ATP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
     pk3._load_cofactor('ADP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
+    pk3.generation = 0
     pk3.load_rxn_rule('2.7.1.a	ATP;Any	[#6;H2D4:8][#8;H0D2:7][#15;H0D4:6][#8;H0D2:5][#15;H0D4:4][#8;H0D2:3]'
                      '[#15;H0D4:2][#8;H1D2R0:1].[#1;D1R0:11][#8;H1D2R0:10][#6:9]>>[*:1]-[*:2]-[*:10]-[*:9].[*:8]-[*:7]'
                      '-[*:6]-[*:5]-[*:4]-[*:3]-[*:11]')
     pk3.transform_all(max_generations=2)
-    assert len(pk3.compounds) == 10
-    assert len(pk3.reactions) == 9
+    assert len(pk3.compounds) == 32
+    assert len(pk3.reactions) == 49
 
 
 def test_multiprocessing():
     pk3 = pickaxe.Pickaxe(errors=False)
-    pk3.compounds[meh] = {'ID': None, '_id': meh, 'Inchikey': '', 'SMILES': meh, 'Generation': 0}
-    pk3.generation = 0
+    pk3.compounds[meh] = {'ID': None, '_id': fadh, 'Inchikey': '', 'SMILES': fadh, 'Generation': 0}
     pk3._load_cofactor('ATP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
     pk3._load_cofactor('ADP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
+    pk3.generation = 0
     pk3.load_rxn_rule('2.7.1.a	ATP;Any	[#6;H2D4:8][#8;H0D2:7][#15;H0D4:6][#8;H0D2:5][#15;H0D4:4][#8;H0D2:3]'
                      '[#15;H0D4:2][#8;H1D2R0:1].[#1;D1R0:11][#8;H1D2R0:10][#6:9]>>[*:1]-[*:2]-[*:10]-[*:9].[*:8]-[*:7]'
                      '-[*:6]-[*:5]-[*:4]-[*:3]-[*:11]')
     pk3.transform_all(max_generations=2, num_workers=2)
-    assert len(pk3.compounds) == 10
-    assert len(pk3.reactions) == 9
+    assert len(pk3.compounds) == 32
+    assert len(pk3.reactions) == 49
 
 
 def test_save_as_MINE():
@@ -109,6 +120,10 @@ def test_save_as_MINE():
     try:
         assert mine_db.compounds.count() == 25
         assert mine_db.reactions.count() == 7
+        assert mine_db.operators.count() == 1
+        assert os.path.exists("Tests/C9c69cbeb40f083118c1913599c12c7f4e5e68d03.svg")
     finally:
         mine_db.compounds.drop()
         mine_db.reactions.drop()
+        mine_db.operators.drop()
+        purge('Tests', ".*\.svg$")

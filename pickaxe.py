@@ -1,7 +1,7 @@
 __author__ = 'JGJeffryes'
 
 from rdkit.Chem import AllChem
-from pymongo import ASCENDING
+from rdkit.Chem.Draw import MolToFile
 from databases import MINE
 from argparse import ArgumentParser
 import itertools
@@ -13,6 +13,7 @@ import datetime
 import hashlib
 import csv
 import multiprocessing
+import os
 
 stoich_tuple = collections.namedtuple("stoich_tuple", 'compound,stoich')
 
@@ -23,7 +24,7 @@ class Pickaxe:
         done on an ad hock basis.
     """
     def __init__(self, rule_list=None, cofactor_list=None, explicit_h=True, kekulize=True, errors=True,
-                 raceimze=False, split_stereoisomers=True, mine=None):
+                 raceimze=False, split_stereoisomers=True, mine=None, image_dir=None):
         self.rxn_rules = {}
         self.cofactors = {}
         self._raw_compounds = {}
@@ -35,6 +36,7 @@ class Pickaxe:
         self.split_stereoisomers = split_stereoisomers
         self.kekulize = kekulize
         self.raceimize = raceimze
+        self.image_dir = image_dir
         self.stoich_tuple = stoich_tuple
         self.errors = errors
         from rdkit import RDLogger
@@ -98,7 +100,8 @@ class Pickaxe:
         rxn = AllChem.ReactionFromSmarts(split_text[2])
         if rxn.GetNumReactantTemplates() != len(reactant_names):
             raise ValueError("Number of cofactors does not match supplied reaction rule: %s" % rule_text)
-        self.rxn_rules[split_text[0]] = (reactant_names, rxn)
+        self.rxn_rules[split_text[0]] = (rxn, {'Reactants': reactant_names, 'SMARTS': split_text[2], 'Name': split_text[0],
+                                         "Reactions_predicted": 0, "_id": hashlib.sha256(split_text[0].encode()).hexdigest()})
 
     def load_compound_set(self, compound_file=None, structure_field='structure', id_field='id', fragmented_mols=False):
         """
@@ -182,9 +185,9 @@ class Pickaxe:
         self.cofactors['Any'] = mol
         for rule_name in rules:
             rule = self.rxn_rules[rule_name]
-            reactant_mols = tuple([self.cofactors[x] for x in rule[0]])
+            reactant_mols = tuple([self.cofactors[x] for x in rule[1]['Reactants']])
             try:
-                product_sets = rule[1].RunReactants(reactant_mols)
+                product_sets = rule[0].RunReactants(reactant_mols)
             except RuntimeError:  # I need to do more to untangle the causes of this error
                 print("Runtime ERROR!"+rule_name)
                 print(compound_SMILES)
@@ -303,6 +306,7 @@ class Pickaxe:
         return hashlib.sha256(first_block.encode()).hexdigest()+"-"+hashlib.md5(second_block.encode()).hexdigest()
 
     def _assign_ids(self):
+        """Assigns a numerical ID to compounds for ease of reference. Unique only to the CURRENT run."""
         self.compounds = dict(self.compounds)
         self.reactions = dict(self.reactions)
         i = 1
@@ -311,15 +315,33 @@ class Pickaxe:
                 comp['ID'] = 'pk_cpd'+str(i).zfill(7)
                 i += 1
                 self.compounds[comp['_id']] = comp
+                if self.image_dir and not self.mine:
+                    mol = AllChem.MolFromSmiles(comp['SMILES'])
+                    try:
+                        MolToFile(mol, os.path.join(self.image_dir, comp['ID'] + '.png'), fitImage=True, kekulize=False)
+                    except OSError:
+                        print("Unable to generate image for %s" % comp['SMILES'])
         i = 1
         for rxn in sorted(self.reactions.values(), key=lambda x: (x['Generation'], x['_id'])):
             rxn['ID_rxn'] = ' + '.join(['(%s) %s[c0]' % (x.stoich, self.compounds[x.compound]["ID"]) for x in rxn["Reactants"]]) \
                             + ' => ' + ' + '.join(['(%s) %s[c0]' % (x.stoich, self.compounds[x.compound]["ID"]) for x in rxn["Products"]])
             rxn['ID'] = 'pk_rxn'+str(i).zfill(7)
             i += 1
+            for op in rxn['Operators']:
+                self.rxn_rules[op][1]['Reactions_predicted'] += 1
             self.reactions[rxn['_id']] = rxn
 
     def transform_all(self, num_workers=1, max_generations=1):
+        """
+        This function applies all of the reaction rules to all the compounds until the generation cap is reached.
+
+        :param num_workers: The number of CPUs to for the expansion process.
+        :type num_workers: int
+        :param max_generations: The maximum number of times an reaction rule may be applied
+        :type max_generations: int
+        :return:
+        :rtype:
+        """
         while self.generation < max_generations:
             self.generation += 1
             ti = time.time()
@@ -388,7 +410,7 @@ class Pickaxe:
         """
         db = MINE(db_id)
         for comp_dict in self.compounds.values():
-            db.insert_compound(AllChem.MolFromSmiles(comp_dict['SMILES']), comp_dict)
+            db.insert_compound(AllChem.MolFromSmiles(comp_dict['SMILES']), comp_dict, image_directory=self.image_dir)
         db.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "Compounds Inserted"})
         for rxn in self.reactions.values():
             rxn['Reactants'] = [{"stoich": x.stoich, "c_id": "C"+hashlib.sha1(x.compound.encode('utf-8')).hexdigest()}
@@ -398,18 +420,11 @@ class Pickaxe:
             rxn = utils.convert_sets_to_lists(rxn)
             db.reactions.save(rxn)
         db.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "Reactions Inserted"})
-
-        db.compounds.ensure_index([('Mass', ASCENDING), ('Charge', ASCENDING), ('DB_links.Model_SEED', ASCENDING)])
-        db.compounds.ensure_index([('Names', 'text'), ('Enzymes', 'text'), ('Pathways', 'text')])
-        db.compounds.ensure_index("DB_links.Model_SEED")
-        db.compounds.ensure_index("DB_links.KEGG")
-        db.compounds.ensure_index("MACCS")
-        db.compounds.ensure_index("len_MACCS")
-        db.compounds.ensure_index("Inchikey")
-        db.compounds.ensure_index("MINE_id")
-
-        db.reactions.ensure_index("Reactants.c_id")
-        db.reactions.ensure_index("Products.c_id")
+        db.add_rxn_pointers()
+        db.add_compound_sources()
+        for x in self.rxn_rules.values():
+            db.operators.save(x[1])
+        db.build_indexes()
 
 
 if __name__ == "__main__":
@@ -429,14 +444,19 @@ if __name__ == "__main__":
                         "forms for all unassigned steriocenters in compounds & reactions")
     parser.add_argument('-v', '--verbose', action='store_true', default=False, help="Display RDKit errors & warnings")
     parser.add_argument('--bnice', action='store_true', default=False, help="Set several options to enable "
-                                                                            "compatability with bnice operators.")
+                                                                            "compatibility with bnice operators.")
     parser.add_argument('-m', '--max_workers', default=1, type=int, help="Set the nax number of processes to spawn to "
                                                                          "perform calculations.")
     parser.add_argument('-g', '--generations', default=1, type=int, help="Set the numbers of time to apply the reaction"
                                                                          " rules to the compound set.")
+    parser.add_argument('-i', '--image_dir', default=None, help="Specify a directory to store images of all created "
+                                                                "compounds")
     options = parser.parse_args()
     pk = Pickaxe(cofactor_list=options.cofactor_list, rule_list=options.rule_list, raceimze=options.raceimize,
-                 errors=options.verbose, explicit_h=options.bnice, kekulize=options.bnice)
+                 errors=options.verbose, explicit_h=options.bnice, kekulize=options.bnice, image_dir=options.image_dir,
+                 mine=options.database)
+    if not os.path.exists(options.image_dir):
+        os.mkdir(options.image_dir)
     if options.smiles:
         pk.generation = 0
         pk._add_compound("Start", options.smiles)

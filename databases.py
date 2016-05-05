@@ -4,12 +4,15 @@
 
 __author__ = 'JGJeffryes'
 
+import NP_Score.npscorer as np
+from rdkit.Chem import AllChem
+from rdkit.Chem.Draw import MolToFile
 import pymongo
 import platform
 import hashlib
 import utils
 import datetime
-from rdkit.Chem import AllChem
+import os
 
 def establish_db_client():
     """This establishes a mongo database client in various environments"""
@@ -45,6 +48,7 @@ class MINE:
         self.reactions = db.reactions
         self.operators = db.operators
         self.models = db.models
+        self.np_model = None
         self.id_db = self.client['UniversalMINE']
 
     def add_rxn_pointers(self):
@@ -59,33 +63,9 @@ class MINE:
                 self.compounds.update({"_id": compound["c_id"]}, {'$push': {"Product_of": reaction['_id']}})
         self.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "Add Reaction Pointers"})
 
-    def fix_rxn_pointers(self, new_id, comp_dict):
-        if self.reactions.count() and new_id != comp_dict['_id']:
-            try:
-                for reaction in comp_dict['Product_of']:
-                    rxn = self.reactions.find_one({'_id': str(reaction)}, {'Products': 1})
-                    for i, product in enumerate(rxn['Products']):
-                        if product[1] == comp_dict['_id']:
-                            rxn['Products'][i][1] = new_id
-                    self.reactions.update({'_id': str(reaction)}, {'$set': {'Products': rxn['Products']}})
-            except KeyError:
-                pass
-
-            try:
-                for reaction in comp_dict['Reactant_in']:
-                    rxn = self.reactions.find_one({'_id': str(reaction)}, {'Reactants': 1})
-                    for i, reactant in enumerate(rxn['Reactants']):
-                        if reactant[1] == comp_dict['_id']:
-                            rxn['Reactants'][i][1] = new_id
-                    self.reactions.update({'_id': str(reaction)}, {'$set': {'Reactants': rxn['Reactants']}})
-            except KeyError:
-                pass
-
-        comp_dict['_id'] = new_id
-
-        return comp_dict
-
     def add_compound_sources(self, rxn_key_type="_id"):
+        """Adds a field detailing the compounds and reactions from which a compound is produced. This enables
+        filtering search results to only include compounds which are relevant to a specified metabolic contex"""
         for compound in self.compounds.find({"Sources": {"$exists": 0}}):
             compound['Sources'] = []
             for reaction in self.reactions.find({"Products.c_id": compound[rxn_key_type]}):
@@ -97,6 +77,21 @@ class MINE:
                     print("Too Many Sources for %s" % compound['SMILES'])
         self.compounds.ensure_index([("Sources.Compound", pymongo.ASCENDING), ("Sources.Operators", pymongo.ASCENDING)])
         self.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "Add Compound Source field"})
+
+    def build_indexes(self):
+        """Builds indexes for efficient querying of MINE databases"""
+        self.compounds.ensure_index([('Mass', pymongo.ASCENDING), ('Charge', pymongo.ASCENDING),
+                                     ('DB_links.Model_SEED', pymongo.ASCENDING)])
+        self.compounds.ensure_index([('Names', 'text'), ('Pathways', 'text')])
+        self.compounds.ensure_index("DB_links.Model_SEED")
+        self.compounds.ensure_index("DB_links.KEGG")
+        self.compounds.ensure_index("MACCS")
+        self.compounds.ensure_index("len_MACCS")
+        self.compounds.ensure_index("Inchikey")
+        self.compounds.ensure_index("MINE_id")
+        self.reactions.ensure_index("Reactants.c_id")
+        self.reactions.ensure_index("Products.c_id")
+        self.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "Database indexes built"})
 
     def link_to_external_database(self, external_database, compound=None, match_field="Inchikey", fields_to_copy=None):
         """
@@ -111,6 +106,7 @@ class MINE:
         """
         if compound:
             ext = MINE(external_database)
+            ext.compounds.ensure_index(match_field)
             for ext_comp in ext.compounds.find({match_field: compound[match_field]}):
                 for field in fields_to_copy:
                     if field[0] in ext_comp:
@@ -123,7 +119,7 @@ class MINE:
                                                                    match_field=match_field, fields_to_copy=fields_to_copy))
 
     def insert_compound(self, mol_object, compound_dict={}, kegg_db="KEGG", pubchem_db='PubChem-8-28-2015',
-                        modelseed_db='ModelSEED'):
+                        modelseed_db='ModelSEED', image_directory=False):
         """
         This class saves a RDKit Molecule as a compound entry in the MINE. Calculates necessary fields for API and
         includes additional information passed in the compound dict. Overwrites preexisting compounds in MINE on _id
@@ -146,14 +142,9 @@ class MINE:
         compound_dict['len_MACCS'] = len(compound_dict['MACCS'])
         compound_dict['RDKit'] = [i for i, bit in enumerate(AllChem.RDKFingerprint(mol_object)) if bit]
         compound_dict['len_RDKit'] = len(compound_dict['RDKit'])
+        compound_dict['logP'] = AllChem.CalcCrippenDescriptors(mol_object)[0]
         comphash = hashlib.sha1(compound_dict['SMILES'].encode('utf-8')).hexdigest()
-        if '_id' in compound_dict:
-            if "X" in compound_dict['_id']:
-                    compound_dict = self.fix_rxn_pointers('X' + comphash, compound_dict)
-            else:
-                compound_dict = self.fix_rxn_pointers('C' + comphash, compound_dict)
-        else:
-            compound_dict['_id'] = 'C' + comphash
+        compound_dict['_id'] = 'C' + comphash
 
         if compound_dict['Inchikey']:
             if kegg_db:
@@ -168,6 +159,15 @@ class MINE:
                 compound_dict = self.link_to_external_database(modelseed_db, compound=compound_dict, fields_to_copy=[
                     ('DB_links', 'DB_links')])
 
+        if not self.np_model:
+            self.np_model = np.readNPModel()
+        compound_dict["NP_likeness"] = np.scoreMol(mol_object, self.np_model)
+
+        if image_directory:
+            if not os.path.exists(image_directory):
+                os.mkdir(image_directory)
+            MolToFile(mol_object, os.path.join(image_directory, compound_dict['_id']+'.svg'), kekulize=False)
+
         if self.id_db:
             mine_comp = self.id_db.compounds.find_one({"Inchikey": compound_dict['Inchikey']})
             if mine_comp:
@@ -178,4 +178,4 @@ class MINE:
         self.compounds.save(utils.convert_sets_to_lists(compound_dict))
 
     def insert_reaction(self, reaction_dict):
-        pass
+        raise NotImplementedError

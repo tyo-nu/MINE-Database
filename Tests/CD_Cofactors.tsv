@@ -39,5 +39,6 @@ Malonaldehyde	O=CCC=O
 HNE	CCCCCC(O)/C=C/C=O
 Cysteine	N[C@@H](CS)C(=O)O
 Cysteamine	NCCS
+Glutathione	N[C@@H](CCC(O)=N[C@@H](CS)C(O)=NCC(=O)O)C(=O)O
 Isocyanate	N=C=O
 Fumarate	O=C(O)/C=C/C(=O)O
