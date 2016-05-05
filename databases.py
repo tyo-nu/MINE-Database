@@ -39,8 +39,8 @@ class MINE:
     structure.
     """
     def __init__(self, name):
-        self.client = establish_db_client()
-        db = self.client[name]
+        client = establish_db_client()
+        db = client[name]
         self._db = db
         self.name = name
         self.meta_data = db.meta_data
@@ -49,7 +49,7 @@ class MINE:
         self.operators = db.operators
         self.models = db.models
         self.np_model = None
-        self.id_db = self.client['UniversalMINE']
+        self.id_db = client['UniversalMINE']
 
     def add_rxn_pointers(self):
         """Add links to the reactions that each compound participates in allowing for users to follow paths in the
@@ -106,7 +106,6 @@ class MINE:
         """
         if compound:
             ext = MINE(external_database)
-            ext.compounds.ensure_index(match_field)
             for ext_comp in ext.compounds.find({match_field: compound[match_field]}):
                 for field in fields_to_copy:
                     if field[0] in ext_comp:
@@ -119,7 +118,7 @@ class MINE:
                                                                    match_field=match_field, fields_to_copy=fields_to_copy))
 
     def insert_compound(self, mol_object, compound_dict={}, kegg_db="KEGG", pubchem_db='PubChem-8-28-2015',
-                        modelseed_db='ModelSEED', image_directory=False):
+                        modelseed_db='ModelSEED'):
         """
         This class saves a RDKit Molecule as a compound entry in the MINE. Calculates necessary fields for API and
         includes additional information passed in the compound dict. Overwrites preexisting compounds in MINE on _id
@@ -162,11 +161,6 @@ class MINE:
         if not self.np_model:
             self.np_model = np.readNPModel()
         compound_dict["NP_likeness"] = np.scoreMol(mol_object, self.np_model)
-
-        if image_directory:
-            if not os.path.exists(image_directory):
-                os.mkdir(image_directory)
-            MolToFile(mol_object, os.path.join(image_directory, compound_dict['_id']+'.svg'), kekulize=False)
 
         if self.id_db:
             mine_comp = self.id_db.compounds.find_one({"Inchikey": compound_dict['Inchikey']})

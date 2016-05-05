@@ -24,13 +24,13 @@ class Pickaxe:
         done on an ad hock basis.
     """
     def __init__(self, rule_list=None, cofactor_list=None, explicit_h=True, kekulize=True, errors=True,
-                 raceimze=False, split_stereoisomers=True, mine=None, image_dir=None):
+                 raceimze=False, split_stereoisomers=True, database=None, image_dir=None):
         self.rxn_rules = {}
         self.cofactors = {}
         self._raw_compounds = {}
         self.compounds = {}
         self.reactions = {}
-        self.mine = mine
+        self.mine = database
         self.generation = -1
         self.explicit_h = explicit_h
         self.split_stereoisomers = split_stereoisomers
@@ -153,7 +153,14 @@ class Pickaxe:
         if not mol:
             mol = AllChem.MolFromSmiles(smi)
         i_key = AllChem.InchiToInchiKey(AllChem.MolToInchi(mol))
-        self.compounds[smi] = {'ID': id, '_id': smi, "SMILES": smi, 'Inchikey': i_key, 'Generation': self.generation}
+        _id = 'C' + hashlib.sha1(smi.encode('utf-8')).hexdigest()
+        self.compounds[smi] = {'ID': id, '_id': _id, "SMILES": smi, 'Inchikey': i_key, 'Generation': self.generation}
+        # if we are building a mine and generating images, do so here
+        if self.image_dir and self.mine:
+            try:
+                MolToFile(mol, os.path.join(self.image_dir, _id + '.svg'), kekulize=False)
+            except OSError:
+                print("Unable to generate image for %s" % smi)
         self._raw_compounds[smi] = smi
 
     def transform_compound(self, compound_SMILES, rules=None):
@@ -170,6 +177,7 @@ class Pickaxe:
         pred_compounds = set()
         if not rules:
             rules = self.rxn_rules.keys()
+        self._add_compound("Start", smi=compound_SMILES)
         mol = AllChem.MolFromSmiles(compound_SMILES)
         mol = AllChem.RemoveHs(mol)
         if not mol:
@@ -314,7 +322,8 @@ class Pickaxe:
             if not comp['ID']:
                 comp['ID'] = 'pk_cpd'+str(i).zfill(7)
                 i += 1
-                self.compounds[comp['_id']] = comp
+                self.compounds[comp['SMILES']] = comp
+                # if we are not loading into the mine, we generate the image here
                 if self.image_dir and not self.mine:
                     mol = AllChem.MolFromSmiles(comp['SMILES'])
                     try:
@@ -410,7 +419,7 @@ class Pickaxe:
         """
         db = MINE(db_id)
         for comp_dict in self.compounds.values():
-            db.insert_compound(AllChem.MolFromSmiles(comp_dict['SMILES']), comp_dict, image_directory=self.image_dir)
+            db.insert_compound(AllChem.MolFromSmiles(comp_dict['SMILES']), comp_dict)
         db.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "Compounds Inserted"})
         for rxn in self.reactions.values():
             rxn['Reactants'] = [{"stoich": x.stoich, "c_id": "C"+hashlib.sha1(x.compound.encode('utf-8')).hexdigest()}
@@ -454,8 +463,8 @@ if __name__ == "__main__":
     options = parser.parse_args()
     pk = Pickaxe(cofactor_list=options.cofactor_list, rule_list=options.rule_list, raceimze=options.raceimize,
                  errors=options.verbose, explicit_h=options.bnice, kekulize=options.bnice, image_dir=options.image_dir,
-                 mine=options.database)
-    if options.image_dir and not os.path.exists(options.image_dir):
+                 database=options.database)
+    if not os.path.exists(options.image_dir):
         os.mkdir(options.image_dir)
     if options.smiles:
         pk.generation = 0

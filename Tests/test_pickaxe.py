@@ -12,7 +12,7 @@ def purge(dir, pattern):
         if re.search(pattern, f):
             os.remove(os.path.join(dir, f))
 
-pk = pickaxe.Pickaxe(image_dir="Tests/")
+pk = pickaxe.Pickaxe(image_dir="Tests/", database='MINE_test')
 meh = 'CCC(=O)C(=O)O'
 l_ala = 'C[C@H](N)C(=O)O'
 d_ala = 'C[C@@H](N)C(=O)O'
@@ -33,22 +33,18 @@ def test_reaction_rule_loading():
 def test_compound_loading():
     compound_smiles = pk.load_compound_set(compound_file='Tests/test_compounds.tsv')
     assert len(compound_smiles) == 15
-    pk2 = pickaxe.Pickaxe(mine='mongotest')
+    pk2 = pickaxe.Pickaxe(database='mongotest')
     compound_smiles = pk2.load_compound_set()
     assert len(compound_smiles) == 26
 
 def test_transform_compounds():
-    try:
-        pk._load_cofactor('ATP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
-        pk._load_cofactor('ADP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
-        pk.load_rxn_rule('2.7.1.a	ATP;Any	[#6;H2D4:8][#8;H0D2:7][#15;H0D4:6][#8;H0D2:5][#15;H0D4:4][#8;H0D2:3]'
-                         '[#15;H0D4:2][#8;H1D2R0:1].[#1;D1R0:11][#8;H1D2R0:10][#6:9]>>[*:1]-[*:2]-[*:10]-[*:9].[*:8]-[*:7]'
-                         '-[*:6]-[*:5]-[*:4]-[*:3]-[*:11]')
-        pk.transform_compound(fadh)
-        pk._assign_ids()
-        assert os.path.exists("Tests/pk_cpd0000001.png")
-    finally:
-        purge('Tests', ".*\.png$")
+    pk._load_cofactor('ATP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
+    pk._load_cofactor('ADP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
+    pk.load_rxn_rule('2.7.1.a	ATP;Any	[#6;H2D4:8][#8;H0D2:7][#15;H0D4:6][#8;H0D2:5][#15;H0D4:4][#8;H0D2:3]'
+                     '[#15;H0D4:2][#8;H1D2R0:1].[#1;D1R0:11][#8;H1D2R0:10][#6:9]>>[*:1]-[*:2]-[*:10]-[*:9].[*:8]-[*:7]'
+                     '-[*:6]-[*:5]-[*:4]-[*:3]-[*:11]')
+    pk.transform_compound(fadh)
+    pk._assign_ids()
 
 def test_hashing():
     pk2 = pickaxe.Pickaxe(explicit_h=False, kekulize=False)
