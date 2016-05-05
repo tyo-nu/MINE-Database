@@ -24,13 +24,13 @@ class Pickaxe:
         done on an ad hock basis.
     """
     def __init__(self, rule_list=None, cofactor_list=None, explicit_h=True, kekulize=True, errors=True,
-                 raceimze=False, split_stereoisomers=True, mine=None, image_dir=None):
+                 raceimze=False, split_stereoisomers=True, database=None, image_dir=None):
         self.rxn_rules = {}
         self.cofactors = {}
         self._raw_compounds = {}
         self.compounds = {}
         self.reactions = {}
-        self.mine = mine
+        self.mine = database
         self.generation = -1
         self.explicit_h = explicit_h
         self.split_stereoisomers = split_stereoisomers
@@ -170,6 +170,7 @@ class Pickaxe:
         pred_compounds = set()
         if not rules:
             rules = self.rxn_rules.keys()
+        self._add_compound("Start", smi=compound_SMILES)
         mol = AllChem.MolFromSmiles(compound_SMILES)
         mol = AllChem.RemoveHs(mol)
         if not mol:
@@ -314,7 +315,7 @@ class Pickaxe:
             if not comp['ID']:
                 comp['ID'] = 'pk_cpd'+str(i).zfill(7)
                 i += 1
-                self.compounds[comp['_id']] = comp
+                self.compounds[comp['SMILES']] = comp
                 if self.image_dir and not self.mine:
                     mol = AllChem.MolFromSmiles(comp['SMILES'])
                     try:
@@ -454,7 +455,7 @@ if __name__ == "__main__":
     options = parser.parse_args()
     pk = Pickaxe(cofactor_list=options.cofactor_list, rule_list=options.rule_list, raceimze=options.raceimize,
                  errors=options.verbose, explicit_h=options.bnice, kekulize=options.bnice, image_dir=options.image_dir,
-                 mine=options.database)
+                 database=options.database)
     if not os.path.exists(options.image_dir):
         os.mkdir(options.image_dir)
     if options.smiles:

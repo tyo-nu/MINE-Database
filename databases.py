@@ -39,8 +39,8 @@ class MINE:
     structure.
     """
     def __init__(self, name):
-        self.client = establish_db_client()
-        db = self.client[name]
+        client = establish_db_client()
+        db = client[name]
         self._db = db
         self.name = name
         self.meta_data = db.meta_data
@@ -49,7 +49,7 @@ class MINE:
         self.operators = db.operators
         self.models = db.models
         self.np_model = None
-        self.id_db = self.client['UniversalMINE']
+        self.id_db = client['UniversalMINE']
 
     def add_rxn_pointers(self):
         """Add links to the reactions that each compound participates in allowing for users to follow paths in the
