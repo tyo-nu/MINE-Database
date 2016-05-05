@@ -106,6 +106,7 @@ class MINE:
         """
         if compound:
             ext = MINE(external_database)
+            ext.compounds.ensure_index(match_field)
             for ext_comp in ext.compounds.find({match_field: compound[match_field]}):
                 for field in fields_to_copy:
                     if field[0] in ext_comp:
@@ -163,6 +164,8 @@ class MINE:
         compound_dict["NP_likeness"] = np.scoreMol(mol_object, self.np_model)
 
         if image_directory:
+            if not os.path.exists(image_directory):
+                os.mkdir(image_directory)
             MolToFile(mol_object, os.path.join(image_directory, compound_dict['_id']+'.svg'), kekulize=False)
 
         if self.id_db:

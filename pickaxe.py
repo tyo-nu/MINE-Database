@@ -422,7 +422,8 @@ class Pickaxe:
         db.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "Reactions Inserted"})
         db.add_rxn_pointers()
         db.add_compound_sources()
-        db.operators.insert_many([x[1] for x in self.rxn_rules.values()])
+        for x in self.rxn_rules.values():
+            db.operators.save(x[1])
         db.build_indexes()
 
 
@@ -452,7 +453,10 @@ if __name__ == "__main__":
                                                                 "compounds")
     options = parser.parse_args()
     pk = Pickaxe(cofactor_list=options.cofactor_list, rule_list=options.rule_list, raceimze=options.raceimize,
-                 errors=options.verbose, explicit_h=options.bnice, kekulize=options.bnice)
+                 errors=options.verbose, explicit_h=options.bnice, kekulize=options.bnice, image_dir=options.image_dir,
+                 mine=options.database)
+    if not os.path.exists(options.image_dir):
+        os.mkdir(options.image_dir)
     if options.smiles:
         pk.generation = 0
         pk._add_compound("Start", options.smiles)
