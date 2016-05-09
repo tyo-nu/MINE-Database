@@ -464,7 +464,7 @@ if __name__ == "__main__":
     pk = Pickaxe(cofactor_list=options.cofactor_list, rule_list=options.rule_list, raceimze=options.raceimize,
                  errors=options.verbose, explicit_h=options.bnice, kekulize=options.bnice, image_dir=options.image_dir,
                  database=options.database)
-    if not os.path.exists(options.image_dir):
+    if options.image_dir and not os.path.exists(options.image_dir):
         os.mkdir(options.image_dir)
     if options.smiles:
         pk.generation = 0
