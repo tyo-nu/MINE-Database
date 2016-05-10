@@ -37,7 +37,6 @@ class Pickaxe:
         self.kekulize = kekulize
         self.raceimize = raceimze
         self.image_dir = image_dir
-        self.stoich_tuple = stoich_tuple
         self.errors = errors
         from rdkit import RDLogger
         lg = RDLogger.logger()
@@ -154,7 +153,8 @@ class Pickaxe:
             mol = AllChem.MolFromSmiles(smi)
         i_key = AllChem.InchiToInchiKey(AllChem.MolToInchi(mol))
         _id = 'C' + hashlib.sha1(smi.encode('utf-8')).hexdigest()
-        self.compounds[smi] = {'ID': id, '_id': _id, "SMILES": smi, 'Inchikey': i_key, 'Generation': self.generation}
+        self.compounds[smi] = {'ID': id, '_id': _id, "SMILES": smi, 'Inchikey': i_key, 'Generation': self.generation,
+                               'Reactant_in': [], 'Product_of': [], "Sources": []}
         # if we are building a mine and generating images, do so here
         if self.image_dir and self.mine:
             try:
@@ -239,7 +239,7 @@ class Pickaxe:
         else:
             products = [collections.Counter(comps)]
         for rxn in products:
-            yield [self.stoich_tuple(x, y) if len(x) > 1 else self.stoich_tuple(x[0], y) for x, y in rxn.items()]
+            yield [stoich_tuple(x, y) if len(x) > 1 else stoich_tuple(x[0], y) for x, y in rxn.items()]
 
     def _calculate_compound_information(self, raw, mol_obj):
         """Calculate the standard data for a compound & return a tuple with compound_ids. Memoized with _raw_compound
@@ -418,21 +418,32 @@ class Pickaxe:
         :rtype:
         """
         db = MINE(db_id)
-        for comp_dict in self.compounds.values():
-            db.insert_compound(AllChem.MolFromSmiles(comp_dict['SMILES']), comp_dict)
-        db.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "Compounds Inserted"})
+        bulk_c = db.compounds.initialize_unordered_bulk_op()
+        bulk_r = db.reactions.initialize_unordered_bulk_op()
+        # This loop performs 3 functions 1. convert stoich_tuples to dicts with hashes 2. add reaction links to comps
+        # 3. add source information to compounds
         for rxn in self.reactions.values():
-            rxn['Reactants'] = [{"stoich": x.stoich, "c_id": "C"+hashlib.sha1(x.compound.encode('utf-8')).hexdigest()}
-                                 for x in rxn['Reactants']]
-            rxn['Products'] = [{"stoich": x.stoich, "c_id": "C"+hashlib.sha1(x.compound.encode('utf-8')).hexdigest()}
-                                 for x in rxn['Products']]
+            _tmpr, _tmpc = [], []  # having temp variables for the lists avoids pointer issues
+            for i, x in enumerate(rxn['Reactants']):
+                self.compounds[x.compound]['Reactant_in'].append(rxn['_id'])
+                _tmpc.append({"stoich": x.stoich, "c_id": "C"+hashlib.sha1(x.compound.encode('utf-8')).hexdigest()})
+            rxn['Reactants'] = _tmpc
+            for i, x in enumerate(rxn['Products']):
+                self.compounds[x.compound]['Product_of'].append(rxn['_id'])
+                self.compounds[x.compound]['Sources'].append(
+                    {"Compounds": [x['c_id'] for x in rxn['Reactants']], "Operators": list(rxn["Operators"])})
+                _tmpr.append({"stoich": x.stoich, "c_id": "C" + hashlib.sha1(x.compound.encode('utf-8')).hexdigest()})
+            rxn["Products"] = _tmpc
             rxn = utils.convert_sets_to_lists(rxn)
-            db.reactions.save(rxn)
+            bulk_r.find({'_id': rxn['_id']}).upsert().replace_one(rxn)
+        bulk_r.execute()
         db.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "Reactions Inserted"})
-        db.add_rxn_pointers()
-        db.add_compound_sources()
+        for comp_dict in self.compounds.values():
+            db.insert_compound(AllChem.MolFromSmiles(comp_dict['SMILES']), comp_dict, bulk=bulk_c)
+        bulk_c.execute()
+        db.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "Compounds Inserted"})
         for x in self.rxn_rules.values():
-            db.operators.save(x[1])
+            db.operators.save(x[1])  # there are fewer operators so bulk operations are not really faster
         db.build_indexes()
 
 
@@ -464,7 +475,7 @@ if __name__ == "__main__":
     pk = Pickaxe(cofactor_list=options.cofactor_list, rule_list=options.rule_list, raceimze=options.raceimize,
                  errors=options.verbose, explicit_h=options.bnice, kekulize=options.bnice, image_dir=options.image_dir,
                  database=options.database)
-    if not os.path.exists(options.image_dir):
+    if options.image_dir and not os.path.exists(options.image_dir):
         os.mkdir(options.image_dir)
     if options.smiles:
         pk.generation = 0

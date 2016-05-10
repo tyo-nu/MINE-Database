@@ -8,7 +8,7 @@ test_db = databases.MINE('mongotest')
 def test_insert_compound():
     smiles = 'CC(=O)O'
     mol = AllChem.MolFromSmiles(smiles)
-    test_db.insert_compound(mol, {'Generation': 0.0}, image_directory="./Tests/")
+    test_db.insert_compound(mol, {'Generation': 0.0})
     try:
         entry = test_db.compounds.find_one({"SMILES": smiles})
         assert entry
@@ -21,10 +21,8 @@ def test_insert_compound():
         assert len(entry['Names'])
         assert entry["NP_likeness"]
         assert entry['logP']
-        assert os.path.exists("Tests/C6a2307f86745c292bc504cdf358769d6ed6f1136.svg")
     finally:
         test_db.compounds.remove({"SMILES": smiles})
-        os.remove("Tests/C6a2307f86745c292bc504cdf358769d6ed6f1136.svg")
 
 
 def test_add_rxn_pointers():

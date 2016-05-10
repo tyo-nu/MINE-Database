@@ -106,7 +106,8 @@ class MINE:
         """
         if compound:
             ext = MINE(external_database)
-            for ext_comp in ext.compounds.find({match_field: compound[match_field]}):
+            projection = dict([("_id", 0,)] + [(x[0], 1,) for x in fields_to_copy])
+            for ext_comp in ext.compounds.find({match_field: compound[match_field]}, projection):
                 for field in fields_to_copy:
                     if field[0] in ext_comp:
                         utils.dict_merge(compound, utils.save_dotted_field(field[1], utils.get_dotted_field(ext_comp, field[0])))
@@ -117,7 +118,7 @@ class MINE:
                 self.compounds.save(self.link_to_external_database(external_database, compound=comp,
                                                                    match_field=match_field, fields_to_copy=fields_to_copy))
 
-    def insert_compound(self, mol_object, compound_dict={}, kegg_db="KEGG", pubchem_db='PubChem-8-28-2015',
+    def insert_compound(self, mol_object, compound_dict={}, bulk=None, kegg_db="KEGG", pubchem_db='PubChem-8-28-2015',
                         modelseed_db='ModelSEED'):
         """
         This class saves a RDKit Molecule as a compound entry in the MINE. Calculates necessary fields for API and
@@ -162,14 +163,19 @@ class MINE:
             self.np_model = np.readNPModel()
         compound_dict["NP_likeness"] = np.scoreMol(mol_object, self.np_model)
 
+        compound_dict = utils.convert_sets_to_lists(compound_dict)
         if self.id_db:
             mine_comp = self.id_db.compounds.find_one({"Inchikey": compound_dict['Inchikey']})
             if mine_comp:
                 compound_dict['MINE_id'] = mine_comp['MINE_id']
             else:
                 compound_dict['MINE_id'] = self.id_db.compounds.count()
-                self.id_db.compounds.save(utils.convert_sets_to_lists(compound_dict))
-        self.compounds.save(utils.convert_sets_to_lists(compound_dict))
+                self.id_db.compounds.save(compound_dict)
+
+        if bulk:
+            bulk.find({'_id': compound_dict['_id']}).upsert().replace_one(compound_dict)
+        else:
+            self.compounds.save(compound_dict)
 
     def insert_reaction(self, reaction_dict):
         raise NotImplementedError
