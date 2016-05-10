@@ -117,7 +117,7 @@ class MINE:
                 self.compounds.save(self.link_to_external_database(external_database, compound=comp,
                                                                    match_field=match_field, fields_to_copy=fields_to_copy))
 
-    def insert_compound(self, mol_object, compound_dict={}, kegg_db="KEGG", pubchem_db='PubChem-8-28-2015',
+    def insert_compound(self, mol_object, compound_dict={}, bulk=None, kegg_db="KEGG", pubchem_db='PubChem-8-28-2015',
                         modelseed_db='ModelSEED'):
         """
         This class saves a RDKit Molecule as a compound entry in the MINE. Calculates necessary fields for API and
@@ -169,7 +169,10 @@ class MINE:
             else:
                 compound_dict['MINE_id'] = self.id_db.compounds.count()
                 self.id_db.compounds.save(utils.convert_sets_to_lists(compound_dict))
-        self.compounds.save(utils.convert_sets_to_lists(compound_dict))
+        if bulk:
+            bulk.find({'_id':compound_dict['_id']}).upsert().replace_one(utils.convert_sets_to_lists(compound_dict))
+        else:
+            self.compounds.save(utils.convert_sets_to_lists(compound_dict))
 
     def insert_reaction(self, reaction_dict):
         raise NotImplementedError

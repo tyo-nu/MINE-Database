@@ -418,8 +418,11 @@ class Pickaxe:
         :rtype:
         """
         db = MINE(db_id)
+        bulk_c = db.compounds.initialize_unordered_bulk_op()
+        bulk_r = db.reactions.initialize_unordered_bulk_op()
         for comp_dict in self.compounds.values():
-            db.insert_compound(AllChem.MolFromSmiles(comp_dict['SMILES']), comp_dict)
+            db.insert_compound(AllChem.MolFromSmiles(comp_dict['SMILES']), comp_dict, bulk=bulk_c)
+        bulk_c.execute()
         db.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "Compounds Inserted"})
         for rxn in self.reactions.values():
             rxn['Reactants'] = [{"stoich": x.stoich, "c_id": "C"+hashlib.sha1(x.compound.encode('utf-8')).hexdigest()}
@@ -427,7 +430,8 @@ class Pickaxe:
             rxn['Products'] = [{"stoich": x.stoich, "c_id": "C"+hashlib.sha1(x.compound.encode('utf-8')).hexdigest()}
                                  for x in rxn['Products']]
             rxn = utils.convert_sets_to_lists(rxn)
-            db.reactions.save(rxn)
+            bulk_r.find({'_id': rxn['_id']}).upsert().replace_one(rxn)
+        bulk_r.execute()
         db.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "Reactions Inserted"})
         db.add_rxn_pointers()
         db.add_compound_sources()
