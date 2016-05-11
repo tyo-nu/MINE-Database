@@ -83,6 +83,8 @@ def similarity_search(db, comp_structure, min_tc, fp_type, limit, search_project
         mol = AllChem.MolFromMolBlock(str(comp_structure))
     else:
         mol = AllChem.MolFromSmiles(str(comp_structure))
+    if not mol:
+        raise ValueError("Unable to parse comp_structure")
 
     if fp_type == 'MACCS':
         query_fp = set([i for i, bit in enumerate(AllChem.GetMACCSKeysFingerprint(mol)) if bit])
@@ -92,9 +94,9 @@ def similarity_search(db, comp_structure, min_tc, fp_type, limit, search_project
         raise ValueError("Invalid FP_type")
 
     len_fp = len(query_fp)
+    search_projection[fp_type] = 1
     for x in db.compounds.find({"$and": [{"len_"+fp_type: {"$gte": min_tc*len_fp}},
-                               {"len_"+fp_type: {"$lte": len_fp/min_tc}}]},
-                               dict([(fp_type, 1)]+search_projection.items())):
+                               {"len_"+fp_type: {"$lte": len_fp/min_tc}}]}, search_projection):
         test_fp = set(x[fp_type])
         tc = len(query_fp & test_fp)/float(len(query_fp | test_fp))
         if tc >= min_tc:
@@ -118,6 +120,8 @@ def structure_search(db, comp_structure, search_projection=default_projection):
         mol = AllChem.MolFromMolBlock(str(comp_structure))
     else:
         mol = AllChem.MolFromSmiles(str(comp_structure))
+    if not mol:
+        raise ValueError("Unable to parse comp_structure")
 
     inchi = AllChem.MolToInchi(mol)
     inchi_key = AllChem.InchiToInchiKey(inchi)
@@ -138,11 +142,13 @@ def substructure_search(db, comp_structure, limit, search_projection=default_pro
     if "\n" in comp_structure:
         mol = AllChem.MolFromMolBlock(str(comp_structure))
     else:
-        mol = AllChem.MolFromSmiles(str(comp_structure))
-    query_fp = set([i for i, bit in enumerate(AllChem.RDKFingerprint(mol)) if bit])
+        mol = AllChem.MolFromSmarts(str(comp_structure))
+    if not mol:
+        raise ValueError("Unable to parse comp_structure")
+    query_fp = [i for i, bit in enumerate(AllChem.RDKFingerprint(mol)) if bit]
     for x in db.compounds.find({"RDKit": {"$all": query_fp}}, search_projection):
         comp = AllChem.MolFromSmiles(x['SMILES'])
-        if mol.HasSubstructMatch(comp):
+        if comp.HasSubstructMatch(mol):
             substructure_search_results.append(x)
             if len(substructure_search_results) == limit:
                 break

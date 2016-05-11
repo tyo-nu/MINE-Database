@@ -28,15 +28,14 @@ def test_database_query():
     assert queries.advanced_search(test_db, "{'MINE_id': 19160}", {'_id': 1}) == [glucose_id]
 
 def test_similarity_search():
-    raise NotImplementedError
-    #assert len(queries.similarity_search(test_db, 'OC1OC(O)C(C(C1O)O)O', 0.9, "FP2", 100)) == 28
-    #print(len(queries.similarity_search(test_db, 'OCC1OC(O)C(C(C1O)O)O', 0.9, "FP2", 100)))
-    #assert len(queries.similarity_search(test_db, test_molfile, 0.8, 'FP4', 100)) == 7
+    assert len(queries.similarity_search(test_db, 'Cc1cc2c(cc1C)N(CC(O)C(O)C(O)COP(=O)(O)OP(=O)(O)OCC1OC(n3cnc4c(N)ncnc'
+                                                  '43)C(O)C1O)c1nc(O)nc(O)c1N2', 0.9, "RDKit", 100)) == 8
+    assert len(queries.similarity_search(test_db, test_molfile, 0.5, 'MACCS', 100)) == 2
 
 def test_substructure_search():
-    raise NotImplementedError
-    #assert len(queries.substructure_search(test_db, 'cccccc', 100)) == 100
-    #assert isinstance(queries.substructure_search(test_db, 'Nc1ncnc2[nH]cnc12', 100)[0], dict)
+    meh = queries.substructure_search(test_db, 'O=P(O)(O)O', 100)
+    assert len(meh) == 15
+    assert isinstance(meh[0], dict)
 
 def test_structure_search():
     assert glucose in queries.structure_search(test_db, 'OCC1OC(O)C(C(C1O)O)O')
