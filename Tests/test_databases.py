@@ -1,6 +1,7 @@
 import databases
 from rdkit.Chem import AllChem
 import os
+import pymongo
 
 test_db = databases.MINE('mongotest')
 
@@ -25,9 +26,10 @@ def test_insert_compound():
         test_db.compounds.remove({"SMILES": smiles})
 
 
-def test_add_rxn_pointers():
-    raise NotImplementedError
+def test_init():
+    assert isinstance(test_db.compounds, pymongo.collection.Collection)
+    assert isinstance(test_db.reactions, pymongo.collection.Collection)
+    assert isinstance(test_db.operators, pymongo.collection.Collection)
+    assert isinstance(test_db._db, pymongo.database.Database)
+    assert isinstance(test_db.id_db, pymongo.database.Database)
 
-
-def test_add_compound_sources():
-    raise NotImplementedError
