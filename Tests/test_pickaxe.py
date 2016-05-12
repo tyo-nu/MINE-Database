@@ -117,6 +117,7 @@ def test_save_as_MINE():
         assert mine_db.compounds.count() == 25
         assert mine_db.reactions.count() == 7
         assert mine_db.operators.count() == 1
+        assert mine_db.operators.find_one()["Reactions_predicted"] == 7
         assert os.path.exists("Tests/C9c69cbeb40f083118c1913599c12c7f4e5e68d03.svg")
     finally:
         mine_db.compounds.drop()

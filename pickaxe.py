@@ -268,6 +268,7 @@ class Pickaxe:
         :param compound: A compound
         :type compound: rdMol object
         :param max_centers: The maximum number of unspecified stereocenters to enumerate. Sterioisomers grow 2^n_centers
+        so this cutoff prevents lag
         :type max_centers: int
         :param carbon_only: Only enumerate unspecified carbon centers. (other centers are often not tautomeric artifacts)
         :type carbon_only:  bool
@@ -315,6 +316,7 @@ class Pickaxe:
 
     def _assign_ids(self):
         """Assigns a numerical ID to compounds for ease of reference. Unique only to the CURRENT run."""
+        # If we were running a multiprocess expansion, this removes the dicts from Manger control
         self.compounds = dict(self.compounds)
         self.reactions = dict(self.reactions)
         i = 1
@@ -336,8 +338,6 @@ class Pickaxe:
                             + ' => ' + ' + '.join(['(%s) %s[c0]' % (x.stoich, self.compounds[x.compound]["ID"]) for x in rxn["Products"]])
             rxn['ID'] = 'pk_rxn'+str(i).zfill(7)
             i += 1
-            for op in rxn['Operators']:
-                self.rxn_rules[op][1]['Reactions_predicted'] += 1
             self.reactions[rxn['_id']] = rxn
 
     def transform_all(self, num_workers=1, max_generations=1):
@@ -420,8 +420,8 @@ class Pickaxe:
         db = MINE(db_id)
         bulk_c = db.compounds.initialize_unordered_bulk_op()
         bulk_r = db.reactions.initialize_unordered_bulk_op()
-        # This loop performs 3 functions 1. convert stoich_tuples to dicts with hashes 2. add reaction links to comps
-        # 3. add source information to compounds
+        # This loop performs 4 functions 1. convert stoich_tuples to dicts with hashes 2. add reaction links to comps
+        # 3. add source information to compounds 4. iterate the reactions predicted for each relevant operator
         for rxn in self.reactions.values():
             _tmpr, _tmpc = [], []  # having temp variables for the lists avoids pointer issues
             for i, x in enumerate(rxn['Reactants']):
@@ -434,14 +434,19 @@ class Pickaxe:
                     {"Compounds": [x['c_id'] for x in rxn['Reactants']], "Operators": list(rxn["Operators"])})
                 _tmpr.append({"stoich": x.stoich, "c_id": "C" + hashlib.sha1(x.compound.encode('utf-8')).hexdigest()})
             rxn["Products"] = _tmpc
+            # iterate the number of reactions predicted
+            for op in rxn['Operators']:
+                self.rxn_rules[op][1]['Reactions_predicted'] += 1
             rxn = utils.convert_sets_to_lists(rxn)
             bulk_r.find({'_id': rxn['_id']}).upsert().replace_one(rxn)
         bulk_r.execute()
         db.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "Reactions Inserted"})
+
         for comp_dict in self.compounds.values():
             db.insert_compound(AllChem.MolFromSmiles(comp_dict['SMILES']), comp_dict, bulk=bulk_c)
         bulk_c.execute()
         db.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "Compounds Inserted"})
+
         for x in self.rxn_rules.values():
             db.operators.save(x[1])  # there are fewer operators so bulk operations are not really faster
         db.build_indexes()
