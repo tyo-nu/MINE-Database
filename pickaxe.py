@@ -18,13 +18,32 @@ import os
 stoich_tuple = collections.namedtuple("stoich_tuple", 'compound,stoich')
 
 class Pickaxe:
-    """
+    def __init__(self, rule_list=None, cofactor_list=None, explicit_h=True, kekulize=True, errors=True,
+                 raceimze=False, split_stereoisomers=True, database=None, image_dir=None):
+        """
         This class generates new compounds from user-specified starting compounds using a set of SMARTS-based reaction
         rules. It may be initialized with a text file containing the reaction rules and cofactors or this may be
         done on an ad hock basis.
-    """
-    def __init__(self, rule_list=None, cofactor_list=None, explicit_h=True, kekulize=True, errors=True,
-                 raceimze=False, split_stereoisomers=True, database=None, image_dir=None):
+
+        :param rule_list: Path to a list of reaction rules in TSV form
+        :type rule_list: str
+        :param cofactor_list: Path to list of cofactors in TSV form
+        :type cofactor_list: str
+        :param explicit_h: Explicitly represent bound hydrogen atoms
+        :type explicit_h: bool
+        :param kekulize: Kekulize structures before applying reaction rules
+        :type kekulize: bool
+        :param errors: Print underlying RDKit warnings and halt on error
+        :type errors: bool
+        :param raceimze: Enumerate all possible chiral forms of a molecule if unspecified stereocenters exist
+        :type raceimze: bool
+        :param split_stereoisomers: Split each possible stereoisomers into a separate reaction
+        :type split_stereoisomers: bool
+        :param database: Name of desired Mongo Database
+        :type database: str
+        :param image_dir: Path to desired image folder
+        :type image_dir: str
+        """
         self.rxn_rules = {}
         self.cofactors = {}
         self._raw_compounds = {}
@@ -38,20 +57,21 @@ class Pickaxe:
         self.raceimize = raceimze
         self.image_dir = image_dir
         self.errors = errors
+        # TODO: Test database and warn on overwrite
+
         from rdkit import RDLogger
         lg = RDLogger.logger()
         if not errors:
             lg.setLevel(4)
+
         if cofactor_list:
             with open(cofactor_list) as infile:
                 for cofactor in infile:
                     self._load_cofactor(cofactor)
-        self.cofactors['set'] = set()
+
         if rule_list:
             with open(rule_list) as infile:
                 for rule in infile:
-                    if rule[0] == "#":
-                        continue
                     self.load_rxn_rule(rule)
 
     def _load_cofactor(self, cofactor_text):
@@ -62,6 +82,9 @@ class Pickaxe:
         :return:
         :rtype:
         """
+        #TODO: replace with csv function
+        if cofactor_text[0] == "#":
+            return
         split_text = cofactor_text.strip().split('\t')
         try:
             mol = AllChem.MolFromSmiles(split_text[1])
@@ -85,6 +108,7 @@ class Pickaxe:
         :return:
         :rtype:
         """
+        # TODO: replace with csv function
         if rule_text[0] == "#":
             return
         split_text = rule_text.strip().split('\t')
@@ -113,6 +137,8 @@ class Pickaxe:
         :type structure_field: str
         :param id_field: the name of the column containing the desired compound ID (Default: 'id)
         :type id_field: str
+        :param fragmented_mols: Permit the loading of disconnected molecules
+        :type fragmented_mols: bool
         :return: compound SMILES
         :rtype: list
         """
@@ -136,19 +162,20 @@ class Pickaxe:
                     id = line[id_field]
                     self._add_compound(id, smi, mol=mol)
                     compound_smiles.append(smi)
-        else:
-            if not self.mine:
-                raise ValueError('MINE database not specified')
+        elif self.mine:
             db = MINE(self.mine)
             for compound in db.compounds.find():
                 id = compound['_id']
                 smi = compound['SMILES']
                 self._add_compound(id, smi)
                 compound_smiles.append(smi)
+        else:
+            raise ValueError('No input file or database specified for starting compounds')
         print("%s compounds loaded" % len(compound_smiles))
         return compound_smiles
 
     def _add_compound(self, id, smi, mol=None):
+        """Adds a compound to the internal compound dictionary"""
         if not mol:
             mol = AllChem.MolFromSmiles(smi)
         i_key = AllChem.InchiToInchiKey(AllChem.MolToInchi(mol))
@@ -173,11 +200,11 @@ class Pickaxe:
         :return: Transformed compounds as tuple of id abd SMILES string and reactions as a tuple of reactants & products
         :rtype: tuple of lists
         """
+        # these sets collect predictions if this function is being used in isolation
         pred_rxns = set()
         pred_compounds = set()
         if not rules:
             rules = self.rxn_rules.keys()
-        self._add_compound("Start", smi=compound_SMILES)
         mol = AllChem.MolFromSmiles(compound_SMILES)
         mol = AllChem.RemoveHs(mol)
         if not mol:
@@ -196,19 +223,21 @@ class Pickaxe:
             reactant_mols = tuple([self.cofactors[x] for x in rule[1]['Reactants']])
             try:
                 product_sets = rule[0].RunReactants(reactant_mols)
-            except RuntimeError:  # I need to do more to untangle the causes of this error
+            except RuntimeError:  # This error should be addressed in a new version of RDKit
                 print("Runtime ERROR!"+rule_name)
                 print(compound_SMILES)
                 continue
             reactants = next(self._make_compound_tups(reactant_mols, rule_name))  # no enumeration for reactants
-            reactants.sort()
+            reactants.sort()  # By sorting the reactant (and later products) we ensure that reactions are unique
             for product_mols in product_sets:
                 try:
                     for stereo_prods in self._make_compound_tups(product_mols, rule_name, split_stereoisomers=self.split_stereoisomers):
                         pred_compounds.update(x.compound for x in stereo_prods)
                         stereo_prods.sort()
+                        # TODO: extract this into _add_reaction method
                         text_rxn = ' + '.join(['(%s) %s' % (x.stoich, x.compound) for x in reactants]) + ' => ' + \
                            ' + '.join(['(%s) %s' % (x.stoich, x.compound) for x in stereo_prods])
+                        #this hash function is less informative that the one that appears later, but much faster.
                         rhash = hashlib.sha256(text_rxn.encode()).hexdigest()
                         pred_rxns.add(text_rxn)
                         if rhash not in self.reactions:
@@ -224,6 +253,7 @@ class Pickaxe:
 
     def _make_compound_tups(self, mols, rule_name, split_stereoisomers=False):
         """Takes a list of mol objects and returns an generator for (compound, stoich) tuples"""
+        # TODO: comment this function & next
         comps = []
         products = []
         for m in mols:
@@ -314,7 +344,7 @@ class Pickaxe:
 
         return hashlib.sha256(first_block.encode()).hexdigest()+"-"+hashlib.md5(second_block.encode()).hexdigest()
 
-    def _assign_ids(self):
+    def assign_ids(self):
         """Assigns a numerical ID to compounds for ease of reference. Unique only to the CURRENT run."""
         # If we were running a multiprocess expansion, this removes the dicts from Manger control
         self.compounds = dict(self.compounds)
@@ -361,20 +391,22 @@ class Pickaxe:
             if compound_smiles:
                 if num_workers > 1:
                     pool = multiprocessing.Pool(processes=num_workers)
+                    # The compound and reaction processes will be shared across processes and thus need a Manager to
+                    # handle requests. This can be a bottleneck if running on a server with a large number of CPUs but
+                    # that's not the predominate use case
                     manager = multiprocessing.Manager()
                     self.compounds = manager.dict(self.compounds)
                     self.reactions = manager.dict(self.reactions)
                     for i, res in enumerate(pool.imap_unordered(self.transform_compound, compound_smiles)):
                         if not (i+1) % print_on:
-                            print("Generation %s: %s percent complete" % (self.generation, round((i+1) * 100 / len(compound_smiles))))
+                            print("Generation %s: %s percent complete" % (self.generation, round((i+1) / len(compound_smiles)) * 100))
                 else:
                     for i, smi in enumerate(compound_smiles):
                         self.transform_compound(smi)
                         if not (i+1) % print_on:
-                            print("Generation %s: %s percent complete" % (self.generation, round((i+1) * 100 / len(compound_smiles))))
-            print("Generation %s produced %s new compounds and %s new reactions in %s sec" % (self.generation,
-                len(self.compounds)-n_comps, len(self.reactions) - n_rxns, time.time()-ti))
-        self._assign_ids()
+                            print("Generation %s: %s percent complete" % (self.generation, round((i+1) / len(compound_smiles)) * 100))
+            print("Generation %s produced %s new compounds and %s new reactions in %s sec" %
+                  (self.generation, len(self.compounds)-n_comps, len(self.reactions) - n_rxns, time.time()-ti))
 
     def write_compound_output_file(self, path, delimiter='\t'):
         """
@@ -420,8 +452,10 @@ class Pickaxe:
         db = MINE(db_id)
         bulk_c = db.compounds.initialize_unordered_bulk_op()
         bulk_r = db.reactions.initialize_unordered_bulk_op()
-        # This loop performs 4 functions 1. convert stoich_tuples to dicts with hashes 2. add reaction links to comps
-        # 3. add source information to compounds 4. iterate the reactions predicted for each relevant operator
+
+        # This loop performs 4 functions to reactions 1. convert stoich_tuples to dicts with hashes 2. add reaction
+        # links to comps 3. add source information to compounds 4. iterate the reactions predicted for each relevant
+        # operator
         for rxn in self.reactions.values():
             _tmpr, _tmpc = [], []  # having temp variables for the lists avoids pointer issues
             for i, x in enumerate(rxn['Reactants']):
@@ -488,9 +522,12 @@ if __name__ == "__main__":
     else:
         pk.load_compound_set(compound_file=options.compound_file)
     pk.transform_all(max_generations=options.generations, num_workers=options.max_workers)
-    pk.write_compound_output_file(options.output_dir+'/compounds.tsv')
-    pk.write_reaction_output_file(options.output_dir+'/reactions.tsv')
     if options.database:
         print("Saving results to %s" % options.database)
         pk.save_to_MINE(options.database)
+    else:
+        pk.assign_ids()
+        pk.write_compound_output_file(options.output_dir+'/compounds.tsv')
+        pk.write_reaction_output_file(options.output_dir+'/reactions.tsv')
+
     print("Execution took %s seconds." % (time.time()-t1))
