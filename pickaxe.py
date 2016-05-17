@@ -1,7 +1,7 @@
 __author__ = 'JGJeffryes'
 
 from rdkit.Chem import AllChem
-from rdkit.Chem.Draw import MolToFile
+from rdkit.Chem.Draw import MolToFile, rdMolDraw2D
 from databases import MINE
 from argparse import ArgumentParser
 import itertools
@@ -185,7 +185,13 @@ class Pickaxe:
         # if we are building a mine and generating images, do so here
         if self.image_dir and self.mine:
             try:
-                MolToFile(mol, os.path.join(self.image_dir, _id + '.svg'), kekulize=False)
+                with open(os.path.join(self.image_dir, _id + '.svg'), 'w') as outfile:
+                    nmol = rdMolDraw2D.PrepareMolForDrawing(mol)
+                    d2d = rdMolDraw2D.MolDraw2DSVG(1000, 1000)
+                    d2d.DrawMolecule(nmol)
+                    d2d.FinishDrawing()
+                    outfile.write(d2d.GetDrawingText())
+                #MolToFile(mol, os.path.join(self.image_dir, _id + '.png'), size=(500,500))
             except OSError:
                 print("Unable to generate image for %s" % smi)
         self._raw_compounds[smi] = smi
@@ -399,12 +405,12 @@ class Pickaxe:
                     self.reactions = manager.dict(self.reactions)
                     for i, res in enumerate(pool.imap_unordered(self.transform_compound, compound_smiles)):
                         if not (i+1) % print_on:
-                            print("Generation %s: %s percent complete" % (self.generation, round((i+1) / len(compound_smiles)) * 100))
+                            print("Generation %s: %s percent complete" % (self.generation, round((i+1) / len(compound_smiles) * 100)))
                 else:
                     for i, smi in enumerate(compound_smiles):
                         self.transform_compound(smi)
                         if not (i+1) % print_on:
-                            print("Generation %s: %s percent complete" % (self.generation, round((i+1) / len(compound_smiles)) * 100))
+                            print("Generation %s: %s percent complete" % (self.generation, round((i+1) / len(compound_smiles) * 100)))
             print("Generation %s produced %s new compounds and %s new reactions in %s sec" %
                   (self.generation, len(self.compounds)-n_comps, len(self.reactions) - n_rxns, time.time()-ti))
 
