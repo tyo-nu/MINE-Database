@@ -11,9 +11,10 @@ import sys
 import hashlib
 import os
 import datetime
+import csv
 
 
-def export_sdf(mine_db, target):
+def export_sdf(mine_db, dir_path, max_compounds=None):
     """
     Exports compounds from the database as an MDL SDF file
     :param mine_db: a MINE object
@@ -24,19 +25,53 @@ def export_sdf(mine_db, target):
     if not mine_db.compounds.find_one({"Product_of": {'$exists': 1}}):
         mine_db.add_rxn_pointers()
 
-    print("Exporting %s compounds from %s as an SDF file") %(mine_db.compounds.count(), mine_db.name)
-    target = utils.prevent_overwrite(target)
+    print("Exporting %s compounds from %s as an SDF file" %(mine_db.compounds.count(), mine_db.name))
+    target = utils.prevent_overwrite(os.path.join(dir_path, mine_db.name)+"_1.sdf")
     w = AllChem.SDWriter(target)
+    w.SetKekulize(True)
+    n_files = 1
     for compound in mine_db.compounds.find():
         mol = AllChem.MolFromSmiles(compound['SMILES'], True, {'CoA': '*', 'R': "*"})
-        mol.SetProp('_id', compound['_id'])
-        mol.SetProp('Generation', compound['Generation'])
-        if 'Reactant_in' in compound:
-            mol.SetProp('Reactant_in', compound['Reactant_in'])
-        if 'Reactant_in' in compound:
-            mol.SetProp('Product_of', compound['Product_of'])
-        w.write(mol)
+        if mol:
+            mol.SetProp('_id', compound['_id'])
+            mol.SetProp('Generation', str(compound['Generation']))
+            if 'Reactant_in' in compound:
+                mol.SetProp('Reactant_in', str(compound['Reactant_in']))
+            if 'Product_of' in compound:
+                mol.SetProp('Product_of', str(compound['Product_of']))
+            w.write(mol)
+            if max_compounds and (w.NumMols() >= max_compounds):
+                n_files += 1
+                target = utils.prevent_overwrite(os.path.join(dir_path, mine_db.name) + "_%s.sdf" % n_files)
+                w = AllChem.SmilesWriter(target)
     w.close()
+
+
+def export_smiles(mine_db, dir_path, max_compounds=None):
+    """
+    Exports compounds from the database as an SMILES file
+    :param mine_db: a MINE object
+    :param dir_path: directory for files
+    :param max_compounds: maximum number of compounds per file (defaults to unlimited)
+    :return:
+    """
+    header = ['SMILES', "_id", "Generation", 'Reactant_in', 'Product_of']
+    if not mine_db.compounds.find_one({"Product_of": {'$exists': 1}}):
+        mine_db.add_rxn_pointers()
+
+    print("Exporting %s compounds from %s as SMILES file" % (mine_db.compounds.count(), mine_db.name))
+    target = open(utils.prevent_overwrite(os.path.join(dir_path, mine_db.name)+"_1.smiles"), 'w')
+
+    w = csv.DictWriter(target, fieldnames=header, dialect='excel-tab')
+    n_files = 1
+    i = 0
+    for compound in mine_db.compounds.find({}, dict([(x, 1) for x in header])):
+        w.writerow(compound)
+        i += 1
+        if max_compounds and not (i % max_compounds):
+            n_files += 1
+            target = utils.prevent_overwrite(os.path.join(dir_path, mine_db.name)+"_%s.smiles" % n_files)
+            w = csv.DictWriter(target, fieldnames=header, dialect='excel-tab')
 
 
 def export_mol(mine_db, target, name_field='_id'):
@@ -85,7 +120,9 @@ if __name__ == '__main__':
     path = sys.argv[3]
     database = MINE(db_name)
     if task == 'export-sdf':
-        export_sdf(database, path)
+        export_sdf(database, path, max_compounds=10000)
+    if task == 'export-smi':
+        export_smiles(database, path)
     if task == 'export-mol':
         if len(sys.argv) == 5:
             export_mol(database, path, sys.argv[4])
