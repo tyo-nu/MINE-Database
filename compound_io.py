@@ -70,7 +70,7 @@ def export_smiles(mine_db, dir_path, max_compounds=None):
         i += 1
         if max_compounds and not (i % max_compounds):
             n_files += 1
-            target = utils.prevent_overwrite(os.path.join(dir_path, mine_db.name)+"_%s.smiles" % n_files)
+            target = open(utils.prevent_overwrite(os.path.join(dir_path, mine_db.name)+"_%s.smiles" % n_files), 'w')
             w = csv.DictWriter(target, fieldnames=header, dialect='excel-tab')
 
 
@@ -120,9 +120,15 @@ if __name__ == '__main__':
     path = sys.argv[3]
     database = MINE(db_name)
     if task == 'export-sdf':
-        export_sdf(database, path, max_compounds=10000)
+        if len(sys.argv) == 5:
+            export_sdf(database, path, int(sys.argv[4]))
+        else:
+            export_sdf(database, path)
     if task == 'export-smi':
-        export_smiles(database, path)
+        if len(sys.argv) == 5:
+            export_smiles(database, path, int(sys.argv[4]))
+        else:
+            export_smiles(database, path)
     if task == 'export-mol':
         if len(sys.argv) == 5:
             export_mol(database, path, sys.argv[4])
