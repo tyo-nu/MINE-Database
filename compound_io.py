@@ -114,6 +114,20 @@ def import_sdf(mine_db, target,):
     mine_db.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "SDF Imported", "Filepath": target})
 
 
+def import_smiles(mine_db, target,):
+    """
+    Imports a smiles file as a MINE database
+    :param mine_db: a MINE object, the database to insert the compound into
+    :param target: a path, the SDF file to be loaded
+    :return:
+    """
+    mols = AllChem.SmilesMolSupplier(target, delimiter='\t', nameColumn=0)
+    for mol in mols:
+        if mol:
+            mine_db.insert_compound(mol, compound_dict=mol.GetPropsAsDict(), pubchem_db=None, kegg_db=None, modelseed_db=None)
+    mine_db.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "SDF Imported", "Filepath": target})
+
+
 if __name__ == '__main__':
     task = sys.argv[1]
     db_name = sys.argv[2]
@@ -124,15 +138,19 @@ if __name__ == '__main__':
             export_sdf(database, path, int(sys.argv[4]))
         else:
             export_sdf(database, path)
-    if task == 'export-smi':
+    elif task == 'export-smi':
         if len(sys.argv) == 5:
             export_smiles(database, path, int(sys.argv[4]))
         else:
             export_smiles(database, path)
-    if task == 'export-mol':
+    elif task == 'export-mol':
         if len(sys.argv) == 5:
             export_mol(database, path, sys.argv[4])
         else:
             export_mol(database, path)
-    if task == 'import-sdf':
+    elif task == 'import-sdf':
         import_sdf(database, path)
+    elif task == 'import-smi':
+        import_smiles(database, path)
+    else:
+        print("ERROR: Unrecognised Task")

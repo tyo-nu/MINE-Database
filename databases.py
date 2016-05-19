@@ -13,6 +13,7 @@ import hashlib
 import utils
 import datetime
 import os
+import ast
 
 def establish_db_client():
     """This establishes a mongo database client in various environments"""
@@ -145,6 +146,10 @@ class MINE:
         compound_dict['logP'] = AllChem.CalcCrippenDescriptors(mol_object)[0]
         comphash = hashlib.sha1(compound_dict['SMILES'].encode('utf-8')).hexdigest()
         compound_dict['_id'] = 'C' + comphash
+        if "Reactant_in" in compound_dict and isinstance(compound_dict['Reactant_in'], str) and compound_dict['Reactant_in']:
+            compound_dict['Reactant_in'] = ast.literal_eval(compound_dict['Reactant_in'])
+        if "Product_of" in compound_dict and isinstance(compound_dict['Product_of'], str) and compound_dict['Product_of']:
+            compound_dict['Product_of'] = ast.literal_eval(compound_dict['Product_of'])
 
         if compound_dict['Inchikey']:
             if kegg_db:
