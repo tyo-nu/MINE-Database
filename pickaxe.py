@@ -456,6 +456,8 @@ class Pickaxe:
         :rtype:
         """
         db = MINE(db_id)
+        self.compounds = dict(self.compounds)
+        self.reactions = dict(self.reactions)
         bulk_c = db.compounds.initialize_unordered_bulk_op()
         bulk_r = db.reactions.initialize_unordered_bulk_op()
 
