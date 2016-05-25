@@ -42,3 +42,5 @@ Cysteamine	NCCS
 Glutathione	N[C@@H](CCC(O)=N[C@@H](CS)C(O)=NCC(=O)O)C(=O)O
 Isocyanate	N=C=O
 Fumarate	O=C(O)/C=C/C(=O)O
+Arginine	N=C(N)NCCC[C@H](N)C(=O)O
+Glutamate	N[C@@H](CCC(=O)O)C(=O)O
