@@ -465,17 +465,17 @@ class Pickaxe:
         # links to comps 3. add source information to compounds 4. iterate the reactions predicted for each relevant
         # operator
         for rxn in self.reactions.values():
-            _tmpr, _tmpc = [], []  # having temp variables for the lists avoids pointer issues
+            _tmpr, _tmpp = [], []  # having temp variables for the lists avoids pointer issues
             for i, x in enumerate(rxn['Reactants']):
                 self.compounds[x.compound]['Reactant_in'].append(rxn['_id'])
-                _tmpc.append({"stoich": x.stoich, "c_id": "C"+hashlib.sha1(x.compound.encode('utf-8')).hexdigest()})
-            rxn['Reactants'] = _tmpc
+                _tmpr.append({"stoich": x.stoich, "c_id": "C"+hashlib.sha1(x.compound.encode('utf-8')).hexdigest()})
+            rxn['Reactants'] = _tmpr
             for i, x in enumerate(rxn['Products']):
                 self.compounds[x.compound]['Product_of'].append(rxn['_id'])
                 self.compounds[x.compound]['Sources'].append(
                     {"Compounds": [x['c_id'] for x in rxn['Reactants']], "Operators": list(rxn["Operators"])})
-                _tmpr.append({"stoich": x.stoich, "c_id": "C" + hashlib.sha1(x.compound.encode('utf-8')).hexdigest()})
-            rxn["Products"] = _tmpc
+                _tmpp.append({"stoich": x.stoich, "c_id": "C" + hashlib.sha1(x.compound.encode('utf-8')).hexdigest()})
+            rxn["Products"] = _tmpp
             # iterate the number of reactions predicted
             for op in rxn['Operators']:
                 self.rxn_rules[op][1]['Reactions_predicted'] += 1
