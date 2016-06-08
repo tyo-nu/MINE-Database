@@ -135,6 +135,44 @@ def dict_merge(finaldict, sourcedict):
                 finaldict[key] = {}
             dict_merge(finaldict[key], val)
 
+_reactions = None
+def neutralise_charges(mol, reactions=None):
+    def _InitialiseNeutralisationReactions():
+        patts = (
+            # Imidazoles
+            ('[n+;H,]', 'n'),
+            # Amines
+            ('[N+;!H0]', 'N'),
+            # Carboxylic acids and alcohols
+            ('[$([O-]);!$([O-][#7])]', 'O'),
+            # Thiols
+            ('[S-;X1]', 'S'),
+            # Sulfonamides
+            ('[$([N-;X2]S(=O)=O)]', 'N'),
+            # Enamines
+            ('[$([N-;X2][C,N]=C)]', 'N'),
+            # Tetrazoles
+            ('[n-]', '[nH]'),
+            # Sulfoxides
+            ('[$([S-]=O)]', 'S'),
+            # Amides
+            ('[$([N-]C=O)]', 'N'),
+
+        )
+        return [(AllChem.MolFromSmarts(x), AllChem.MolFromSmiles(y, False)) for x, y in patts]
+
+    global _reactions
+    if reactions is None:
+        if _reactions is None:
+            _reactions=_InitialiseNeutralisationReactions()
+        reactions=_reactions
+    replaced = False
+    for i,(reactant, product) in enumerate(reactions):
+        while mol.HasSubstructMatch(reactant):
+            replaced = True
+            rms = AllChem.ReplaceSubstructs(mol, reactant, product)
+            mol = rms[0]
+    return mol
 
 def do_profile(func):
     from line_profiler import LineProfiler

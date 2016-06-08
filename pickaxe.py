@@ -18,7 +18,7 @@ import os
 stoich_tuple = collections.namedtuple("stoich_tuple", 'compound,stoich')
 
 class Pickaxe:
-    def __init__(self, rule_list=None, cofactor_list=None, explicit_h=True, kekulize=True, errors=True,
+    def __init__(self, rule_list=None, cofactor_list=None, explicit_h=True, kekulize=True, neutralise=True, errors=True,
                  raceimze=False, split_stereoisomers=True, database=None, image_dir=None):
         """
         This class generates new compounds from user-specified starting compounds using a set of SMARTS-based reaction
@@ -32,6 +32,8 @@ class Pickaxe:
         :param explicit_h: Explicitly represent bound hydrogen atoms
         :type explicit_h: bool
         :param kekulize: Kekulize structures before applying reaction rules
+        :type kekulize: bool
+        :param kekulize: Remove charges on structure before applying reaction rules
         :type kekulize: bool
         :param errors: Print underlying RDKit warnings and halt on error
         :type errors: bool
@@ -55,6 +57,7 @@ class Pickaxe:
         self.split_stereoisomers = split_stereoisomers
         self.kekulize = kekulize
         self.raceimize = raceimze
+        self.neutralise = neutralise
         self.image_dir = image_dir
         self.errors = errors
         # TODO: Test database and warn on overwrite
@@ -158,6 +161,8 @@ class Pickaxe:
                         continue
                     if not fragmented_mols and len(AllChem.GetMolFrags(mol)) > 1:
                         continue
+                    if self.neutralise:
+                        mol = utils.neutralise_charges(mol)
                     smi = AllChem.MolToSmiles(mol, True)
                     id = line[id_field]
                     self._add_compound(id, smi, mol=mol)
@@ -191,7 +196,6 @@ class Pickaxe:
                     d2d.DrawMolecule(nmol)
                     d2d.FinishDrawing()
                     outfile.write(d2d.GetDrawingText())
-                #MolToFile(mol, os.path.join(self.image_dir, _id + '.png'), size=(500,500))
             except OSError:
                 print("Unable to generate image for %s" % smi)
         self._raw_compounds[smi] = smi
@@ -520,8 +524,8 @@ if __name__ == "__main__":
                                                                 "compounds")
     options = parser.parse_args()
     pk = Pickaxe(cofactor_list=options.cofactor_list, rule_list=options.rule_list, raceimze=options.raceimize,
-                 errors=options.verbose, explicit_h=options.bnice, kekulize=options.bnice, image_dir=options.image_dir,
-                 database=options.database)
+                 errors=options.verbose, explicit_h=options.bnice, kekulize=options.bnice, neutralise=options.bnice,
+                 image_dir=options.image_dir, database=options.database)
     if options.image_dir and not os.path.exists(options.image_dir):
         os.mkdir(options.image_dir)
     if options.smiles:
