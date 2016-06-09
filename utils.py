@@ -140,7 +140,7 @@ def neutralise_charges(mol, reactions=None):
     def _InitialiseNeutralisationReactions():
         patts = (
             # Imidazoles
-            ('[n+;H,]', 'n'),
+            ('[n+;H]', 'n'),
             # Amines
             ('[N+;!H0]', 'N'),
             # Carboxylic acids and alcohols
@@ -166,10 +166,8 @@ def neutralise_charges(mol, reactions=None):
         if _reactions is None:
             _reactions=_InitialiseNeutralisationReactions()
         reactions=_reactions
-    replaced = False
     for i,(reactant, product) in enumerate(reactions):
         while mol.HasSubstructMatch(reactant):
-            replaced = True
             rms = AllChem.ReplaceSubstructs(mol, reactant, product)
             mol = rms[0]
     return mol
