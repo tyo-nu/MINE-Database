@@ -244,22 +244,24 @@ class Pickaxe:
                     for stereo_prods in self._make_compound_tups(product_mols, rule_name, split_stereoisomers=self.split_stereoisomers):
                         pred_compounds.update(x.compound for x in stereo_prods)
                         stereo_prods.sort()
-                        # TODO: extract this into _add_reaction method
-                        text_rxn = ' + '.join(['(%s) %s' % (x.stoich, x.compound) for x in reactants]) + ' => ' + \
-                           ' + '.join(['(%s) %s' % (x.stoich, x.compound) for x in stereo_prods])
-                        #this hash function is less informative that the one that appears later, but much faster.
-                        rhash = hashlib.sha256(text_rxn.encode()).hexdigest()
+                        text_rxn = self._add_reaction(reactants, rule_name, stereo_prods)
                         pred_rxns.add(text_rxn)
-                        if rhash not in self.reactions:
-                            reaction_data = {"_id": rhash, "Reactants": reactants, "Products": stereo_prods,
-                                             "Operators": {rule_name}, "SMILES_rxn": text_rxn,
-                                             "Generation": self.generation}
-                            self.reactions[rhash] = reaction_data
-                        else:
-                            self.reactions[rhash]['Operators'].add(rule_name)
                 except ValueError:
                     continue
         return pred_compounds, pred_rxns
+
+    def _add_reaction(self, reactants, rule_name, stereo_prods):
+        """Hashes and inserts reaction into reaction dictionary"""
+        text_rxn = ' + '.join(['(%s) %s' % (x.stoich, x.compound) for x in reactants]) + ' => ' + \
+                   ' + '.join(['(%s) %s' % (x.stoich, x.compound) for x in stereo_prods])
+        # this hash function is less informative that the one that appears later, but much faster.
+        rhash = hashlib.sha256(text_rxn.encode()).hexdigest()
+        if rhash not in self.reactions:
+            self.reactions[rhash] = {"_id": rhash, "Reactants": reactants, "Products": stereo_prods,
+                                     "Operators": {rule_name}, "SMILES_rxn": text_rxn, "Generation": self.generation}
+        else:
+            self.reactions[rhash]['Operators'].add(rule_name)
+        return text_rxn
 
     def _make_compound_tups(self, mols, rule_name, split_stereoisomers=False):
         """Takes a list of mol objects and returns an generator for (compound, stoich) tuples"""
