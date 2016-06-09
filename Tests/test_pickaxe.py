@@ -13,6 +13,7 @@ def purge(dir, pattern):
             os.remove(os.path.join(dir, f))
 
 pk = pickaxe.Pickaxe(image_dir="Tests/", database='MINE_test')
+rule = None
 meh = 'CCC(=O)C(=O)O'
 l_ala = 'C[C@H](N)C(=O)O'
 d_ala = 'C[C@@H](N)C(=O)O'
@@ -24,11 +25,14 @@ def test_cofactor_loading():
     assert isinstance(pk2.cofactors['ATP'], rdkit.Chem.rdchem.Mol)
 
 def test_reaction_rule_loading():
-    pk2 = pickaxe.Pickaxe(rule_list='Tests/test_operators.tsv')
+    global rule
+    pk2 = pickaxe.Pickaxe(cofactor_list='Tests/Cofactor_SMILES.tsv', rule_list='Tests/test_operators.tsv')
     rule = pk2.rxn_rules['2.7.1.a']
     assert isinstance(rule[0], rdkit.Chem.rdChemReactions.ChemicalReaction)
     assert isinstance(rule[1], dict)
-    assert rule[1]['Reactants'] == ['Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O', 'Any']
+    assert rule[1]['Reactants'] == ['ATP', 'Any']
+    assert "Products" in rule[1]
+    assert "Comments" in rule[1]
 
 def test_compound_loading():
     compound_smiles = pk.load_compound_set(compound_file='Tests/test_compounds.tsv')
@@ -41,28 +45,24 @@ def test_transform_compounds():
     pk._add_compound("Start", smi=fadh)
     pk._load_cofactor('ATP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
     pk._load_cofactor('ADP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
-    pk.load_rxn_rule('2.7.1.a	ATP;Any	[#6;H2D4:8][#8;H0D2:7][#15;H0D4:6][#8;H0D2:5][#15;H0D4:4][#8;H0D2:3]'
-                     '[#15;H0D4:2][#8;H1D2R0:1].[#1;D1R0:11][#8;H1D2R0:10][#6:9]>>[*:1]-[*:2]-[*:10]-[*:9].[*:8]-[*:7]'
-                     '-[*:6]-[*:5]-[*:4]-[*:3]-[*:11]')
+    pk.rxn_rules['2.7.1.a'] = rule
     pk.transform_compound(fadh)
     pk.assign_ids()
 
 def test_hashing():
     pk2 = pickaxe.Pickaxe(explicit_h=False, kekulize=False)
     pk2._load_cofactor('S-Adenosylmethionine	C[S+](CC[C@H](N)C(=O)O)C[C@H]1O[C@@H](n2cnc3c(N)ncnc32)[C@H](O)[C@@H]1O')
-    #pk2.load_rxn_rule('Methylation_1	Any;S-Adenosylmethionine	[#6;R0:2]-[#7;R0;H1,H2:1].[#6H3:3]-[#16;D3:4]>>'
-    #                  '[#6:2]-[#7:1]-[#6:3].[#16:4]	Any;S-Adenosylhomocystine')
     pk2.transform_compound(l_ala)
     len_rxns = len(pk2.reactions)
     pk2.transform_compound(d_ala)
     assert len(pk2.reactions) == 2 * len_rxns
 
 def test_product_racimization():
-    pk2 = pickaxe.Pickaxe(raceimze=False, rule_list='Tests/test_operators.tsv')
+    pk2 = pickaxe.Pickaxe(raceimze=False, cofactor_list='Tests/Cofactor_SMILES.tsv', rule_list='Tests/test_operators.tsv')
     comps, rxns = pk2.transform_compound(meh, rules=['2.6.1.a'])
     assert len(comps) == 2
     assert len(rxns) == 1
-    pk2 = pickaxe.Pickaxe(raceimze=True, rule_list='Tests/test_operators.tsv')
+    pk2 = pickaxe.Pickaxe(raceimze=True, cofactor_list='Tests/Cofactor_SMILES.tsv', rule_list='Tests/test_operators.tsv')
     rcomps, rrxns = pk2.transform_compound(meh, rules=['2.6.1.a'])
     assert len(rcomps) == 3
     assert len(rrxns) == 2
@@ -89,10 +89,9 @@ def test_transform_all():
     pk3._load_cofactor('ATP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
     pk3._load_cofactor('ADP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
     pk3.generation = 0
-    pk3.load_rxn_rule('2.7.1.a	ATP;Any	[#6;H2D4:8][#8;H0D2:7][#15;H0D4:6][#8;H0D2:5][#15;H0D4:4][#8;H0D2:3]'
-                     '[#15;H0D4:2][#8;H1D2R0:1].[#1;D1R0:11][#8;H1D2R0:10][#6:9]>>[*:1]-[*:2]-[*:10]-[*:9].[*:8]-[*:7]'
-                     '-[*:6]-[*:5]-[*:4]-[*:3]-[*:11]')
+    pk3.rxn_rules['2.7.1.a'] = rule
     pk3.transform_all(max_generations=2)
+    print(len(pk3.compounds), len(pk3.reactions))
     assert len(pk3.compounds) == 32
     assert len(pk3.reactions) == 49
 
@@ -103,9 +102,7 @@ def test_multiprocessing():
     pk3._load_cofactor('ATP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
     pk3._load_cofactor('ADP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
     pk3.generation = 0
-    pk3.load_rxn_rule('2.7.1.a	ATP;Any	[#6;H2D4:8][#8;H0D2:7][#15;H0D4:6][#8;H0D2:5][#15;H0D4:4][#8;H0D2:3]'
-                     '[#15;H0D4:2][#8;H1D2R0:1].[#1;D1R0:11][#8;H1D2R0:10][#6:9]>>[*:1]-[*:2]-[*:10]-[*:9].[*:8]-[*:7]'
-                     '-[*:6]-[*:5]-[*:4]-[*:3]-[*:11]')
+    pk3.rxn_rules['2.7.1.a'] = rule
     pk3.transform_all(max_generations=2, num_workers=2)
     assert len(pk3.compounds) == 32
     assert len(pk3.reactions) == 49

@@ -73,9 +73,7 @@ class Pickaxe:
                     self._load_cofactor(cofactor)
 
         if rule_list:
-            with open(rule_list) as infile:
-                for rule in infile:
-                    self.load_rxn_rule(rule)
+            self.load_rxn_rules(rule_list)
 
     def _load_cofactor(self, cofactor_text):
         """
@@ -85,7 +83,6 @@ class Pickaxe:
         :return:
         :rtype:
         """
-        #TODO: replace with csv function
         if cofactor_text[0] == "#":
             return
         split_text = cofactor_text.strip().split('\t')
@@ -103,31 +100,32 @@ class Pickaxe:
             AllChem.Kekulize(mol, clearAromaticFlags=True)
         self.cofactors[split_text[0]] = mol
 
-    def load_rxn_rule(self, rule_text):
+    def load_rxn_rules(self, rule_path):
         """
-        Loads a reaction rule into the rxn_rule dictionary from a tab-delimited string
-        :param rule_text: tab-delimited string with the rule name, cofactor names, and rule as SMARTS
-        :type rule_text: basestring
+        Loads all reaction rules from file_path into rxn_rule dict.
+        :param rule_path: path to file
+        :type rule_path: str
         :return:
         :rtype:
         """
-        # TODO: replace with csv function
-        if rule_text[0] == "#":
-            return
-        split_text = rule_text.strip().split('\t')
-        if len(split_text) < 3:
-            raise ValueError("Unable to parse reaction rule: %s" % rule_text)
-        reactant_names = split_text[1].split(';')
-        for name in reactant_names:
-            if name == "Any":
-                continue
-            if name not in self.cofactors:  # try to proceed as if name is SMILES
-                self._load_cofactor(name+"\t"+name)
-        rxn = AllChem.ReactionFromSmarts(split_text[2])
-        if rxn.GetNumReactantTemplates() != len(reactant_names):
-            raise ValueError("Number of cofactors does not match supplied reaction rule: %s" % rule_text)
-        self.rxn_rules[split_text[0]] = (rxn, {'Reactants': reactant_names, 'SMARTS': split_text[2], 'Name': split_text[0],
-                                         "Reactions_predicted": 0, "_id": hashlib.sha256(split_text[0].encode()).hexdigest()})
+        with open(rule_path) as infile:
+            rdr = csv.DictReader((row for row in infile if not row.startswith('#')), delimiter='\t')
+            for rule in rdr:
+                try:
+                    rule['Reactants'] = rule['Reactants'].split(';')
+                    for reactant_name in rule['Reactants']:
+                        if reactant_name not in self.cofactors and reactant_name != "Any":
+                            # try to proceed as if name is SMILES
+                            self._load_cofactor(reactant_name + "\t" + reactant_name)
+                    rxn = AllChem.ReactionFromSmarts(rule['SMARTS'])
+                    rule.update({"_id": rule["Name"], "Reactions_predicted": 0})
+                    if rxn.GetNumReactantTemplates() != len(rule['Reactants']):
+                        raise ValueError("Number of cofactors does not match supplied reaction rule")
+                    if rule["Name"] in self.rxn_rules:
+                        raise ValueError("Duplicate reaction rule name")
+                    self.rxn_rules[rule["Name"]] = (rxn, rule)
+                except Exception:
+                    raise ValueError("Failed to parse %s" % (rule["Name"]))
 
     def load_compound_set(self, compound_file=None, structure_field='structure', id_field='id', fragmented_mols=False):
         """
