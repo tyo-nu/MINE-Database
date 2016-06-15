@@ -1,5 +1,14 @@
 Name	Reactants	SMARTS	Products	Comments
-AlphaHydroxyAldehydeOxidation	Any;O2	[#8:1]-[#6H2:2]-[#6:3]=[O:4].[O:5]=[O:6]>>[#8:1]-[#6:2](=[O:5])-[#6:3]=[O:4].[#8:6]	Any;Water
+1,2-BenzoquinoneAlphaAddition_1,2-Benzoquinone	Any;1,2-Benzoquinone	[#6:10]-[#7,#16;H1:9].[O:7]=[#6:3]-1-[#6h:4]=[#6:5]-[#6:6]=[#6:1]-[#6:2]-1=[O:8]>>[#6:10]-[*:9]-[#6:4]-1=[#6:5]-[#6:6]=[#6:1]-[#6:2](=[O:8])-[#6:3]-1=[O:7]	Any	Dudley ED, Hotchkiss JH (1989) J Food Biochem 13: 65-75; PMID:2691341
+1,2-BenzoquinoneAlphaAddition_Cystine	Any;Cysteine	[O:7]=[#6:3]-1-[#6h:4]=[#6:5]-[#6:6]=[#6:1]-[#6:2]-1=[O:8].[#6:10]-[#7,#16;H1:9]>>[#6:10]-[*:9]-[#6:4]-1=[#6:5]-[#6:6]=[#6:1]-[#6:2](=[O:8])-[#6:3]-1=[O:7]	Any	Dudley ED, Hotchkiss JH (1989) J Food Biochem 13: 65-75; PMID:2691341
+1,2-BenzoquinoneAlphaAddition_Lysine	Any;Lysine	[O:7]=[#6:3]-1-[#6h:4]=[#6:5]-[#6:6]=[#6:1]-[#6:2]-1=[O:8].[#6:10]-[#7,#16;H1:9]>>[#6:10]-[*:9]-[#6:4]-1=[#6:5]-[#6:6]=[#6:1]-[#6:2](=[O:8])-[#6:3]-1=[O:7]	Any	4980678
+1,2-BenzoquinoneBetaAddition_1,2Benzoquinone	Any;1,2-Benzoquinone	[#6:10]-[#7,#16;H1:9].[O:7]=[#6:3]-1-[#6:4]=[#6;h1:5]-[#6:6]=[#6:1]-[#6:2]-1=[O:8]>>[#6:10]-[*:9]-[#6:5]-1=[#6:4]-[#6:3](-[#8:7])=[#6:2](-[#8:8])-[#6:1]=[#6:6]-1	Any	Dudley ED, Hotchkiss JH (1989) J Food Biochem 13: 65-75; PMID:2691341
+1,2-BenzoquinoneBetaAddition_Cystine	Any;Cysteine	[O:7]=[#6:3]-1-[#6:4]=[#6;h1:5]-[#6:6]=[#6:1]-[#6:2]-1=[O:8].[#6:10]-[#7,#16;H1:9]>>[#6:10]-[*:9]-[#6:5]-1=[#6:4]-[#6:3](-[#8:7])=[#6:2](-[#8:8])-[#6:1]=[#6:6]-1	Any	Dudley ED, Hotchkiss JH (1989) J Food Biochem 13: 65-75; PMID:2691341
+1,2-BenzoquinoneBetaAddition_Lysine	Any;Lysine	[O:7]=[#6:3]-1-[#6:4]=[#6;h1:5]-[#6:6]=[#6:1]-[#6:2]-1=[O:8].[#6:10]-[#7,#16;H1:9]>>[#6:10]-[*:9]-[#6:5]-1=[#6:4]-[#6:3](-[#8:7])=[#6:2](-[#8:8])-[#6:1]=[#6:6]-1	Any	4980678
+1,2BenzoquinoneAdditionCyclization 	Any	[#7H2,SH1:11]-[#6:10]-[#6:9]-[#6:6]-1=[#6:1]-[#6:2](=[O:8])-[#6:3](=[O:7])-[#6:4]=[#6;h1:5]-1>>[#8:8]-[#6:2]-1=[#6:3](-[#8:7])-[#6:4]=[#6:5]-2-[*:11]-[#6:10]-[#6:9]-[#6:6]-2=[#6:1]-1	Any
+1,4-BenzoquinoneAddition_1,4-Benzoquinone	Any;1,4-Benzoquinone	[#6:9]-[#7,#16;H1:10].[O:7]=[#6:4]-1-[#6:3]=[#6:2]-[#6:1](=[O:8])-[#6:6]=[#6H1:5]-1>>[#6:9]-[*:10]-[#6:2]-1=[#6:1](-[#8:8])-[#6:6]=[#6:5]-[#6:4](-[#8:7])=[#6:3]-1	Any	3200250;21527774
+1,4-BenzoquinoneAddition_Cystine	Any;Cysteine	[O:7]=[#6:4]-1-[#6:3]=[#6:2]-[#6:1](=[O:8])-[#6:6]=[#6H1:5]-1.[#6:9]-[#7,#16;H1:10]>>[#6:9]-[*:10]-[#6:2]-1=[#6:1](-[#8:8])-[#6:6]=[#6:5]-[#6:4](-[#8:7])=[#6:3]-1	Any	3200250
+1,4-BenzoquinoneAddition_Lysine	Any;Lysine	[O:7]=[#6:4]-1-[#6:3]=[#6:2]-[#6:1](=[O:8])-[#6:6]=[#6H1:5]-1.[#6:9]-[#7,#16;H1:10]>>[#6:9]-[*:10]-[#6:2]-1=[#6:1](-[#8:8])-[#6:6]=[#6:5]-[#6:4](-[#8:7])=[#6:3]-1	Any	21527774
 AldehydeOxidation	Any;H2O2	[#6:1]-[#6H1:2]=[O:3].[#8:4]-[#8:5]>>[#6:1]-[#6:2](-[#8:5])=[O:3].[#8:4]	Any;Water
 AldolAddition_Acetaldehyde	Any;Acetaldehyde	[#6H3:1]-[#6:2]=[O:3].[O:6]=[#6H1:4]-[#6:5]=[O:7]>>[#8:6]-[#6:4](-[#6:1]-[#6:2]=[O:3])-[#6:5]=[O:7]	Any
 AldolAddition_MGlyoxal	Any;MGlyoxal	[#6H3:1]-[#6;D3:2]=[O:3].[O:6]=[#6H1:4]-[#6:5]=[O:7]>>[#8:6]-[#6:4](-[#6:1]-[#6:2]=[O:3])-[#6:5]=[O:7]	Any
@@ -11,6 +20,7 @@ AlphaCarboxyImineAdduct_Pyridoxal	Any;PyridoxalP	[#6;H2R1:7][#6;R1:6]=[#7;R1:5][
 AlphaCarboxyImineAdductRearr_Acetaldehyde	Any;Acetaldehyde	[#6;H2R1:7]-[#6;R1H2:6][#7;R1:5]=[#6;R1:4][#6R0:1](-[#8:3])=[O:2].[#6H1:9]=[O:8]>>[#8:3]-[#6:1](=[O:2])-[#6;R1:4][#7;R1:5]=[#6;R1H1:6][#6H0:7]=[#6:9].[#8:8]	Any;Water
 AlphaCarboxyImineAdductRearr_MGlyoxal	Any;MGlyoxal	[#6;H2R1:7]-[#6;R1H2:6][#7;R1:5]=[#6;R1:4][#6R0:1](-[#8:3])=[O:2].[#6H1:9]=[O:8]>>[#8:3]-[#6:1](=[O:2])-[#6;R1:4][#7;R1:5]=[#6;R1H1:6][#6H0:7]=[#6:9].[#8:8]	Any;Water
 AlphaCarboxyImineAdductRearr_Pyridoxal	Any;PyridoxalP	[#6;H2R1:7]-[#6;R1H2:6][#7;R1:5]=[#6;R1:4][#6R0:1](-[#8:3])=[O:2].[#6H1:9]=[O:8]>>[#8:3]-[#6:1](=[O:2])-[#6;R1:4][#7;R1:5]=[#6;R1H1:6][#6H0:7]=[#6:9].[#8:8]	Any;Water
+AlphaHydroxyAldehydeOxidation	Any;O2	[#8:1]-[#6H2:2]-[#6:3]=[O:4].[O:5]=[O:6]>>[#8:1]-[#6:2](=[O:5])-[#6:3]=[O:4].[#8:6]	Any;Water
 AlphaKetoDeamination	Any;Water;O2	[#7H2:2]-[#6;R0;H2:1]-[#6;R0:3]=[O:4].[#8:5].[O:6]=[O:7]>>[O:5]=[#6;R0H1:1]-[#6;R0:3]=[O:4].[#7:2].[#8:6]-[#8:7]	Any;Ammonia;H2O2
 AlphaKetoDecarboxylation	Any	[#8H1:2]-[#6:1](=[O:3])-[#6:4](-[*:6])=[O:5]>>[O:3]=[C:1]=[O:2].[*:6]-[#6:4]=[O:5]	CO2;Any
 AlphaKetoDecarboxylationRearr	Any	[#8H1:6]-[#6H1@:5]-[#6:4](=[O:7])-[#6:1](-[#8H1:2])=[O:3]>>[O:3]=[C:1]=[O:2].[#8H1:7]-[#6:4]-[#6H0:5]=[O:6]	CO2;Any
@@ -22,7 +32,8 @@ AutoxidationToCarboxylicAcid	Any;H2O2	[#6:5]-[#6;R0:2](=[O:1])-[#6;H2R0:3]-[#8:4
 AutoxidationToKetone	Any;O2	[#8H1:4]-[#6R0h@:3]-[#6;R0:2]=[O:1].[O:5]=[O:6]>>[O:4]=[#6H0:3]-[#6:2]=[O:1].[#8:5]-[#8:6]	Any;H2O2
 BetaHydroxyDehydration	Any	[#8H1:1]-[#6;H2:2]-[#6:3](=[O:6])-[#6:4]-;!@[#8:5]>>[#6:4]-[#6:3](=[O:6])-[#6:2]=[O:1].[#8:5]	Any;Any
 BetaKetoDecarboxylation	Any	[#8H1:2]-[#6:1](=[O:3])-[#6H2:4]-[#6:5]=[O:6]>>[O:3]=[C:1]=[O:2].[#6:4]-[#6:5]=[O:6]	CO2;Any
-Carbamylation	Any;Isocyanate	[#6:2]-[#7H,#16H:1].[#7:5]=[C:4]=[O:3]>>[#6:2]-[#7:1]-[#6:4](-[#7:5])=[O:3]	Any
+Carbamylation_CarbamoylPhosphate	Any;CarbamoylPhosphate	[#6:2]-[#7H2,#16H1:1].[#7:5]-[#6:4](-[#7,#8:6])=[O:3]>>[#6:2]-[*:1]-[#6:4](-[#7:5])=[O:3].[*:6]	Any;Pi
+Carbamylation_Urea	Any;Urea	[#6:2]-[#7H2,#16H1:1].[#7:5]-[#6:4](-[#7,#8:6])=[O:3]>>[#6:2]-[*:1]-[#6:4](-[#7:5])=[O:3].[*:6]	Any;Ammonia
 CyclohexadieneDecarboxylation	Any	[#8H1:7]-[#6:4]-1-[#6:3]=[#6:2]-[#6:1](-[#6:6]=[#6:5]-1)-[#6:8](-[#8H1:10])=[O:9]>>[#8H1:7]-[#6:4]-1-[#6:5]=[#6:6]-[#6:1]-[#6:2]=[#6:3]-1.[O:9]=[C:8]=[O:10]	Any;CO2
 CyclohexadieneDehydration	Any	[#8H1:7]-[#6H1:4]-1-[#6:3]=[#6:2]-[#6H1:1]-[#6:6]=[#6:5]-1>>[c:1]1[c:2][c:3][c:4][c:5][c:6]1.[#8:7]	Any;Water
 CyclohexadieneRearrangement	Any	[#8:10]-[#6:6]-1-[#6:5]=[#6:4]-[#6:3]=[#6:2]-[#6:1]-1-[#8:7]-[#6:8]=[#6:9]>>[#8:10]-[#6:4]-1-[#6:5]=[#6:6]-[#6:1](-[#8:7]-[#6:8]=[#6:9])-[#6:2]=[#6:3]-1	Any
@@ -40,29 +51,31 @@ EnoneDeamination	Any;Water	[#7H2:2]-[#6;R0:1](=[#6;H2R0:3])-[#6;R0:4]=[O:5].[#8:
 EpsilonLactamFormation	Any	[#7;H1,H2:1]-[#6;R0:2]-[#6;R0:3]-[#6;R0:4]-[#6;R0:5]-[#6;R0:6](-[#8H1,#7H2:8])=[O:7]>>[O:7]=[#6:6]-1-[#6:5]-[#6:4]-[#6:3]-[#6:2]-[#7:1]-1.[*:8]	Any;Any
 GammaHydroxyDehydration	Any	[#8;D2:5]-[#6;R0:4]-[#6;H1R0@:3](-[#8H1:6])-[#6R0:2]=[O:1]>>[#6:4]-[#6H0:3](=[O:6])-[#6:2]=[O:1].[#8:5]	Any;Any
 GammaLactamFormation	Any	[#7;H1,H2:1]-[#6;R0:2]-[#6;R0:3]-[#6;R0:4]-[#6;R0:5](-[#8H1,#7H2:7])=[O:6]>>[O:6]=[#6:5]-1-[#6:4]-[#6:3]-[#6:2]-[#7:1]-1.[*:7]	Any;Any
-GuanadineNucleophilicCycilization_Arginine	Any;Arginine	[#8:5]=[#6:6]-[#6:7]=[#8:8].[#7R0:2]-,=[#6R0:1](-,=[#7R0h:3])-,=[#7R0h:4]>>[#7:2]-,=[#6:1]-,=1-,=[#7:3]-[#6:6](-[#8:5])-[#6:7](-[#8:8])-[#7:4]-,=1	Any
-GuanadineNucleophilicCycilization_Glyoxal	Any;Glyoxal	[#7R0:2]-,=[#6R0:1](-,=[#7R0h:3])-,=[#7R0h:4].[#8:5]=[#6:6]-[#6:7]=[#8:8]>>[#7:2]-,=[#6:1]-,=1-,=[#7:3]-[#6:6](-[#8:5])-[#6:7](-[#8:8])-[#7:4]-,=1	Any
-GuanadineNucleophilicCycilization_MGlyoxal	Any;MGlyoxal	[#7R0:2]-,=[#6R0:1](-,=[#7R0h:3])-,=[#7R0h:4].[#8:5]=[#6:6]-[#6:7]=[#8:8]>>[#7:2]-,=[#6:1]-,=1-,=[#7:3]-[#6:6](-[#8:5])-[#6:7](-[#8:8])-[#7:4]-,=1	Any
+GuanadineNucleophilicCycilization_Arginine	Any;Arginine	[#8:5]=[#6H1:6]-[#6:7]=[#8:8].[#7R0:2]-,=[#6R0:1](-,=[#7R0h:3])-,=[#7R0h:4]>>[#7:2]-,=[#6:1]-,=1-,=[#7:3]-[#6:6](-[#8:5])-[#6:7](-[#8:8])-[#7:4]-,=1	Any
+GuanadineNucleophilicCycilization_Glyoxal	Any;Glyoxal	[#7R0:2]-,=[#6R0:1](-,=[#7R0h:3])-,=[#7R0h:4].[#8:5]=[#6H1:6]-[#6:7]=[#8:8]>>[#7:2]-,=[#6:1]-,=1-,=[#7:3]-[#6:6](-[#8:5])-[#6:7](-[#8:8])-[#7:4]-,=1	Any
+GuanadineNucleophilicCycilization_MGlyoxal	Any;MGlyoxal	[#7R0:2]-,=[#6R0:1](-,=[#7R0h:3])-,=[#7R0h:4].[#8:5]=[#6H1:6]-[#6:7]=[#8:8]>>[#7:2]-,=[#6:1]-,=1-,=[#7:3]-[#6:6](-[#8:5])-[#6:7](-[#8:8])-[#7:4]-,=1	Any
 ImineHydrolysis	Any;Water	[#6:6]=[#7:5][#6:4]=[#6:3][#6:2]=[O:1].[#8:7]>>[#7:5][#6:4]=[#6:3][#6:2]=[O:1].[#6:6]=[O:7]	Any;Any
 ImineReduction	Any;Ascorbate	[#6;H2R0]-[#7;R0]=[#6;H1R0].[#8][#6]=[#6][#8]>>[#6]-[#7]-[#6].O=[#6]-[#6]=O	Any;Dehydroascorbate
 KetimineHydrolysis	Any;Water	[#7:1]=[#6:2]-[#6:3]=[O:4].[#8:5]>>[O:4]=[#6:3]-[#6:2]=[O:5].[#7:1]	Any;Ammonia
-MichaelAddition_Cysteine	Any;Cysteine	[#6;R0:1]=[#6;R0:2]-[#6;R0:3]=[O:4].[#6:5]-[#16H1:6]>>[#6:5]-[#16:6]-[#6;R0:1]-[#6;R0:2]-[#6;R0:3]=[O:4]	Any
-MichaelAddition_Fumarate	Any;Fumarate	[#6:2]-[#16H1:1].[#8:6]-[#6:5](=[O:7])-[#6:4]=[#6:3]>>[#6:2]-[#16:1]-[#6:4](-[#6:3])-[#6:5](-[#8:6])=[O:7]	Any
-MichaelAddition_Glutathione	Any;Glutathione	[#6;R0:1]=[#6;R0:2]-[#6;R0:3]=[O:4].[#6:5]-[#16H1:6]>>[#6:5]-[#16:6]-[#6;R0:1]-[#6;R0:2]-[#6;R0:3]=[O:4]	Any
+MailardReaction_Asparagine	Any;Asparagine	[#8H1:14]-[#6;H2D2:10]-[#6:9](-[#8H1:13])-[#6:8](-[#8H1:12])-[#6:7](-[#8H1:11])-[#6;@,@@:5](-[#8H1:6])-[#6H1:4]=[O:3].[#6;D3:2]-[#7H2:1]>>[#8:3].[#6;D3:2]-[#7H:1]-[#6:4][C:5]1([#8H1:6])[#8:14]-[#6;H2D2:10]-[#6:9](-[#8H1:13])-[#6:8](-[#8H1:12])-[#6:7]1-[#8H1:11]	Any;Water
+MailardReaction_Glucose	Any;Glucose	[#6;D3:2]-[#7H2:1].[#8H1:14]-[#6;H2D2:10]-[#6:9](-[#8H1:13])-[#6:8](-[#8H1:12])-[#6:7](-[#8H1:11])-[#6;@,@@:5](-[#8H1:6])-[#6H1:4]=[O:3]>>[#8:3].[#6;D3:2]-[#7H:1]-[#6:4][C:5]1([#8H1:6])[#8:14]-[#6;H2D2:10]-[#6:9](-[#8H1:13])-[#6:8](-[#8H1:12])-[#6:7]1-[#8H1:11]	Any;Water
+MichaelAddition_Cysteine	Any;Cysteine	[#6;R0:1]=[#6;R0:2]-[$(C=O),$(C#N),$(C[N+](=O)[O-]);R0:3].[#6:5]-[#16H1,#7H2:6]>>[#6:5]-[*:6]-[#6;R0:1]-[#6;R0:2]-[*:3]	Any
+MichaelAddition_Fumarate	Any;Fumarate	[#6:5]-[#16H1,#7H2:6].[#6;R0:1]=[#6;R0:2]-[$(C=O),$(C#N),$(C[N+](=O)[O-]);R0:3]>>[#6:5]-[*:6]-[#6;R0:1]-[#6;R0:2]-[*:3]	Any
+MichaelAddition_Glutathione	Any;Glutathione	[#6;R0:1]=[#6;R0:2]-[$(C=O),$(C#N),$(C[N+](=O)[O-]);R0:3].[#6:5]-[#16H1,#7H2:6]>>[#6:5]-[*:6]-[#6;R0:1]-[#6;R0:2]-[*:3]	Any
 MichaelAdditionCyclization_HNE	Any;HNE	[#6:2]-[#16H1,#7H2:1].[#8:8]-[#6;R0:7][#6;R0:6]=[#6;R0:5][#6;R0:4]=[O:3]>>[#6:2]-[*:1]-[#6:6]-1-[#6:7]-[#8:8]-[#6:4](-[#8:3])-[#6:5]-1	Any
 MichaelAdditionNucleophilicCyclization_HNE	Any;HNE	[#7H2:1]-[c:2](:[#6,#7:3]):[nH1:4].[#6;R0:8]=[#6;R0:7]-[#6;R0:6]=[O:5]>>[#8:5]-[#6:6]-1-[#6:7]-[#6:8]-[#7:1]-[c:2](:[*:3])[n:4]-1	Any
 NKetoseSugarHydrolysis	Any;Water	[#6;R1:5]-[#7H1:4]-[#6;R0:8]-[#6;R0:2](=[O:1])-[#6;R0:3](-[#6;R0:7])-[#8:6].[#8:9]>>[#6;R0:7]-[#6;R0:3](-[#8:6])-[#6;R0:2](=[O:1])-[#6;R0:8]-[#8:9].[#6;R1:5]-[#7H1:4]	Any;Any
 NRiboseHydrolysis	Any;Water	[#7A:1]-[#6;R1r5:2](-[#8;R1r5:4])-[#6;R1r5:3]-[#8H1:5].[#8:6]>>[#7:1].[#8H1:5]-[#6;R1r5:3]-[#6;R1r5:2](-[#8;R1r5:4])-[#8:6]	Any;Any
 NucleophilicAddition_Cysteine	Any;Cysteine	[#6H1:3]=[O:4].[#6:2]-[#16H1,#7H2:1]>>[#6:2]-[*:1]-[#6:3]-[#8H1:4]	Any
-NucleophilicAddition_Glutathione	Any;Glutathione	[#6H1:3]=[O:4].[#6:2]-[#16H1,#7H2:1]>>[#6:2]-[*:1]-[#6:3]-[#8H1:4]	Any
 NucleophilicAddition_Glutamate	Any;Glutamate	[#6H1:3]=[O:4].[#6:2]-[#16H1,#7H2:1]>>[#6:2]-[*:1]-[#6:3]-[#8H1:4]	Any
 NucleophilicAddition_Glutamine	Any;Glutamine	[#6H1:3]=[O:4].[#6:2]-[#16H1,#7H2:1]>>[#6:2]-[*:1]-[#6:3]-[#8H1:4]	Any
+NucleophilicAddition_Glutathione	Any;Glutathione	[#6H1:3]=[O:4].[#6:2]-[#16H1,#7H2:1]>>[#6:2]-[*:1]-[#6:3]-[#8H1:4]	Any
 NucleophilicAddition_Glycoaldehyde	Any;Glycoaldehyde	[#6:2]-[#16H1,#7H2:1].[#6H1:3]=[O:4]>>[#6:2]-[*:1]-[#6:3]-[#8H1:4]	Any
 NucleophilicAddition_Glyoxal	Any;Glyoxal	[#6:2]-[#16H1,#7H2:1].[#6H1:3]=[O:4]>>[#6:2]-[*:1]-[#6:3]-[#8H1:4]	Any
 NucleophilicAddition_MGlyoxal	Any;MGlyoxal	[#6:2]-[#16H1,#7H2:1].[#6H1:3]=[O:4]>>[#6:2]-[*:1]-[#6:3]-[#8H1:4]	Any
 NucleophilicAdditionCondensation_Arginine	Any;Arginine	[O:5]=[#6:6]-[#6H1:7]=[O:8].[#7:4]-[#6:2](-[#7H2:3])=[#7H1:1]>>[#7:4]-[#6:2]-1=[#7:1]-[#6:6]-[#6:7](=[O:8])-[#7:3]-1.[#8:5]	Any;Water
 NucleophilicAdditionCondensation_Mglyoxal	Any;MGlyoxal	[#7:4]-[#6:2](-[#7H2:3])=[#7H1:1].[O:5]=[#6:6]-[#6H1:7]=[O:8]>>[#7:4]-[#6:2]-1=[#7:1]-[#6:6]-[#6:7](=[O:8])-[#7:3]-1.[#8:5]	Any;Water
-NucleophilicAdditionElimination_Mglyoxal	Any;MGlyoxal	[#6:1]-[#7H2:2].[#6:7]-[#6:3](=[O:6])-[#6H1:4]=[O:5]>>[#6H1:7]-[#6:3](=[O:6])-[#7H1:2]-[#6:1].[#6:4]=[O:5]	Any;Formaldehyde
+NucleophilicAdditionElimination_Mglyoxal	Any;MGlyoxal	[#6:1]-[#7H2,#16H1:2].[#6:7]-[#6:3](=[O:6])-[#6H1:4]=[O:5]>>[#6H1:7]-[#6:3](=[O:6])-[*:2]-[#6:1].[#6:4]=[O:5]	Any;Formaldehyde
 NucleophilicCondesation_Glycoaldehyde	Any;Glycoaldehyde	[#7H2:1]-[#6:2]-[c:3]:[c:4]-[#8H1:5].[#6:8]-[#6:7]=[O:6]>>[#6:8]-[#6:7]-1-[#7H1:1]-[#6:2]-[c:3][c:4]-[#8H0:5]-1.[#8:6]	Any;Water
 NucleophilicLactolFormation	Any	[#8H1:5]-[#6:1][#6:2]=[#6:3][#6:4]=[O:6]>>[#8:6]-[#6:4]-1-[#8:5]-[#6:1]-[#6:2]=[#6:3]-1	Any
 OlefinEpoxidation	Any;H2O2	[#6:5][#6:4]=[#6:3][#6:1]=[O:2].[#8:6]-[#8:7]>>[#6:5]-[#6:4]-1-[#8:6]-[#6:3]-1-[#6:1]=[O:2].[#8:7]	Any;Water
@@ -88,12 +101,15 @@ PyrrolineFormation_MGlyoxal	Any;MGlyoxal	[#6:3]-1-[#6:4]-[#6h1:5]=[#7:1]-[#6:2]-
 RibosideCyclization	Any	[#8:1]-[#6R1:2]-[#7;R1:3]-[#6;R1r5:4](-[#8;D2R1r5:6])-[#6;R1r5:5]-[#8:7]>>[#8:6]-[#6:4]-1-[#6:5]-[#8:7]-[#6:2]-[#7:3]-1.[#8:1]	Any;Water
 RibosideOxidation	Any;O2;Water	[#8:14].[O:12]=[O:13].[#6:6]-1-[#6:7]-[#8:8]-[#6H1:4](-[#6:5]-1)-[n+:2]1[c:1][c:9][c:11][c:10][c:3]1>>[#8:8]-[#6:7]-[#6:6]-[#6:5]-[#6H0:4](=[O:14])[#7;A;+0:2]1[#6:1]=[#6:9]-[#6:11]-[#6:10]=[#6:3]1.[#8:12]-[#8:13]	Any;H2O2
 RibosideOxidativeCleavage	Any;O2;Water	[c:5]:[n+:4](:[c:3])-[#6:1]-1-[#6:2]-[#6:6]-[#6:7]-[#8:8]-1.[O:9]=[O:10].[#8:11]>>[c:3]:[n:4]:[c:5].[#8:8]-[#6:7]-[#6:6]-[#6:2]-[#6:1]=[O:11].[#8:9]-[#8:10]	Any;Any;H2O2
+S-nitrosothiolFormation	Any;N2O3	[#6:2]-[#16H1:1].[#8-:4]-[#7+:3](=[O:5])-[#7:6]=[O:7]>>[#6:2]-[#16:1]-[#7:6]=[O:7].[#8:4]-[#7:3]=[O:5]	Any;Nitrite	11807184
+SchiffBaseFormation_Acetaldehyde	Any;Acetaldehyde	[#6:2]-[#7H2:1].[#6:4]-[#6H1:5]=[O:6]>>[*:2]-[#7:1]=[#6:5]-[#6:4].[#8:6]	Any;Water
 SchiffBaseFormation_Glutamate	Any;Glutamate	[#6:4]-[#6H1:5]=[O:6].[#6:2]-[#7H2:1]>>[*:2]-[#7:1]=[#6:5]-[#6:4].[#8:6]	Any;Water
 SchiffBaseFormation_Glutamine	Any;Glutamine	[#6:4]-[#6H1:5]=[O:6].[#6:2]-[#7H2:1]>>[*:2]-[#7:1]=[#6:5]-[#6:4].[#8:6]	Any;Water
-SchiffBaseFormation_Acetaldehyde	Any;Acetaldehyde	[#6:2]-[#7H2:1].[#6:4]-[#6H1:5]=[O:6]>>[*:2]-[#7:1]=[#6:5]-[#6:4].[#8:6]	Any;Water
 SchiffBaseFormation_Glycoaldehyde	Any;Glycoaldehyde	[#6:2]-[#7H2:1].[#6:4]-[#6H1:5]=[O:6]>>[*:2]-[#7:1]=[#6:5]-[#6:4].[#8:6]	Any;Water
 SchiffBaseFormation_MGlyoxal	Any;MGlyoxal	[#6:2]-[#7H2:1].[#6:4]-[#6H1:5]=[O:6]>>[*:2]-[#7:1]=[#6:5]-[#6:4].[#8:6]	Any;Water
 SchiffBaseFormation_Pyridoxal	Any;PyridoxalP	[#6:2]-[#7H2:1].[#6:4]-[#6H1:5]=[O:6]>>[*:2]-[#7:1]=[#6:5]-[#6:4].[#8:6]	Any;Water
+SP2CarbonNitration	Any;NitrosooxidanylRadical;NitrosooxidanylRadical	[#6,#7:3]-[#6H1:2]=[#6,#7:1].[#8:5]-[#7:4]=[O:6].[#8:8]-[#7:7]=[O:9]>>[#8-:8]-[#7+:7](=[O:9])-[#6:2](-[#6,#7:3])-[#6,#7:1].[#8:5]-[#7:4]=[O:6]	Any;Nitrite	18457679; 16227625
+SuccenylCleavage	Any	[#8H1:5]-[#6:1](=[O:6])-[#6:2]-[#6:3]-[#6:4](=[O:7])-[#8:8]-[*:9]>>[#8:8]-[#6:4](=[O:7])-[#6:3]-[#6:2]-[#6:1](-[#8H1:5])=[O:6].[*:9]	Any;Any	5472367
 SulfoniumHydrolysis	Any;Water	[#6:2][S+:1]([#6:3])[#6H3:4].[#8:5]>>[#6:2]-[#16:1]-[#6H3:4].[#6:3]-[#8:5]	Any;Any
 TertiaryAmineMethylation	Any;S-Adenosylmethionine	[#6;R0:2]-[#7;R0D3H0+0:1].[#6H3:3]-[#16;D3:4]>>[#6:2]-[#7+:1]-[#6:3].[#16:4]	Any;S-Adenosylhomocystine
 ThiazoleHydrolysis	Any;Water	[#6:6]-[n+:4]1[c:5][c:1][s:2][c:3]1.[#8:7]>>[c:5]1[c:1][s:2][c:3][n:4]1.[#6:6]-[#8:7]	Any;Any
@@ -106,6 +122,7 @@ ThiazolidineFormationAAcry_Cysteamine	Any;Cysteamine	[#7H2:5]-[#6;R0:3](=[#6;H2R
 ThiazolidineFormationAAcry_Cysteine	Any;Cysteine	[#7H2:5]-[#6;R0:3](=[#6;H2R0:4])-[#6;R0:2]=[O:1].[#7:9]-[#6:8]-[#6:7]-[#16:6]>>[#6:4][C;R0:3]1([#7:9]-[#6:8]-[#6:7]-[#16:6]1)[#6;R0:2]=[O:1].[#7:5]	Any;Ammonia
 ThioesterFormation_Glycoaldehyde	Any;Glycoaldehyde;O2	[#6:2]-[#16H1:1].[#8:6]-[#6:3]-[#6:4]=[O:5].[O:7]=[O:8]>>[#6:2]-[#16:1]-[#6:4](=[O:5])-[#6:3]-[#8:6].[#8:7]-[#8:8]	Any;H2O2
 ThioesterHydrolysis	Any;Water	[#6:5]-[#16:4]-;!@[#6:2](-[#6:3])=[O:1].[#8:6]>>[#6:3]-[#6:2](-[#8:6])=[O:1].[#6:5]-[#16:4]	Any;Any
+ThiolNitration	Any;NitrosooxidanylRadical;NitrosooxidanylRadical	[#6:2]-[#16H1:1].[#8:4]-[#7:3]=[O:5].[#8:7]-[#7:6]=[O:8]>>[#6:2]-[#16:1]-[#7+:6](-[#8-:7])=[O:8].[#8:4]-[#7:3]=[O:5]	Any;Nitrite	10493809; 14661084
 ThiolOxidation	Any;H2O2;H2O2;H2O2	[#6:1]-[#16H1:2].[#8:3]-[#8:4].[#8:5]-[#8:6].[#8:7]-[#8:8]>>[#6:1][S:2]([#8:3])(=[O:4])=[O:5].[#8:6].[#8:7].[#8:8]	Any;Water;Water;Water
 Transamination_Glutamate	Any;Glutamate	[#6:1]-[#6:2]=[O:3].[#6:4]-[#6H1:5](-[#6:6])-[#7H2:7]>>[#6:1]-[#6:2]-[#7H2:7].[#6:4]-[#6H0:5](-[#6:6])=[O:3]	Any;Any
 Transamination_Glyoxylate	Any;Glyoxylate	[#6:4]-[#6H1:5](-[#6:6])-[#7H2:7].[#6:1]-[#6:2]=[O:3]>>[#6:4]-[#6H0:5](-[#6:6])=[O:3].[#6:1]-[#6:2]-[#7H2:7]	Any;Any
