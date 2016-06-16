@@ -5,6 +5,7 @@ from rdkit.Chem.Draw import MolToFile, rdMolDraw2D
 from databases import MINE
 from argparse import ArgumentParser
 import itertools
+import re
 import collections
 import time
 import utils
@@ -235,18 +236,38 @@ class Pickaxe:
                 print("Runtime ERROR!"+rule_name)
                 print(compound_SMILES)
                 continue
+            reactant_atoms = self._get_atom_count(reactant_mols)
             reactants = next(self._make_compound_tups(reactant_mols, rule_name))  # no enumeration for reactants
             reactants.sort()  # By sorting the reactant (and later products) we ensure that reactions are unique
             for product_mols in product_sets:
                 try:
+
                     for stereo_prods in self._make_compound_tups(product_mols, rule_name, split_stereoisomers=self.split_stereoisomers):
                         pred_compounds.update(x.compound for x in stereo_prods)
                         stereo_prods.sort()
                         text_rxn = self._add_reaction(reactants, rule_name, stereo_prods)
+                        product_atoms = self._get_atom_count(product_mols)
+                        if reactant_atoms - product_atoms or product_atoms - reactant_atoms:
+                            print("Warning: Unbalanced Reaction produced by " + rule_name)
+                            print(text_rxn)
+                            print(reactant_atoms, product_atoms)
                         pred_rxns.add(text_rxn)
                 except ValueError:
                     continue
         return pred_compounds, pred_rxns
+
+    def _get_atom_count(self, molecules):
+        atoms = collections.Counter()
+        meh = []
+        for mol in molecules:
+            AllChem.SanitizeMol(mol)
+            meh.append(AllChem.CalcMolFormula(mol))
+            for pair in re.findall('([A-Z][a-z]*)(\d*)', AllChem.CalcMolFormula(mol)):
+                if pair[1]:
+                    atoms[pair[0]] += int(pair[1])
+                else:
+                    atoms[pair[0]] += 1
+        return atoms
 
     def _add_reaction(self, reactants, rule_name, stereo_prods):
         """Hashes and inserts reaction into reaction dictionary"""
