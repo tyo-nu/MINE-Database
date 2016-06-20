@@ -36,7 +36,7 @@ def test_reaction_rule_loading():
 
 def test_compound_loading():
     compound_smiles = pk.load_compound_set(compound_file='Tests/test_compounds.tsv')
-    assert len(compound_smiles) == 15
+    assert len(compound_smiles) == 14
     pk2 = pickaxe.Pickaxe(database='mongotest')
     compound_smiles = pk2.load_compound_set()
     assert len(compound_smiles) == 26
@@ -112,7 +112,7 @@ def test_save_as_MINE():
     pk.save_to_MINE("MINE_test")
     mine_db = MINE('MINE_test')
     try:
-        assert mine_db.compounds.count() == 25
+        assert mine_db.compounds.count() == 24
         assert mine_db.reactions.count() == 7
         assert mine_db.operators.count() == 1
         assert mine_db.operators.find_one()["Reactions_predicted"] == 7

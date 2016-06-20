@@ -163,8 +163,9 @@ class Pickaxe:
                         mol = utils.neutralise_charges(mol)
                     smi = AllChem.MolToSmiles(mol, True)
                     id = line[id_field]
-                    self._add_compound(id, smi, mol=mol)
-                    compound_smiles.append(smi)
+                    if "C" in smi or "c" in smi:
+                        self._add_compound(id, smi, mol=mol)
+                        compound_smiles.append(smi)
         elif self.mine:
             db = MINE(self.mine)
             for compound in db.compounds.find():
