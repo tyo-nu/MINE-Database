@@ -51,7 +51,6 @@ class Pickaxe:
         self._raw_compounds = {}
         self.compounds = {}
         self.reactions = {}
-        self.mine = database
         self.generation = -1
         self.explicit_h = explicit_h
         self.split_stereoisomers = split_stereoisomers
@@ -60,7 +59,12 @@ class Pickaxe:
         self.neutralise = neutralise
         self.image_dir = image_dir
         self.errors = errors
-        # TODO: Test database and warn on overwrite
+        if database:
+            self.mine = MINE(database)
+            if self.mine.compounds.count():
+                print("Warning: expansion will overwrite existing compounds and operators!")
+        else:
+            self.mine = None
 
         from rdkit import RDLogger
         lg = RDLogger.logger()
@@ -167,8 +171,8 @@ class Pickaxe:
                         self._add_compound(id, smi, mol=mol)
                         compound_smiles.append(smi)
         elif self.mine:
-            db = MINE(self.mine)
-            for compound in db.compounds.find():
+            #db = MINE(self.mine)
+            for compound in self.mine.compounds.find():
                 id = compound['_id']
                 smi = compound['SMILES']
                 self._add_compound(id, smi)
