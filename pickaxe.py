@@ -124,6 +124,7 @@ class Pickaxe:
                         raise ValueError("Number of cofactors does not match supplied reaction rule")
                     if rule["Name"] in self.rxn_rules:
                         raise ValueError("Duplicate reaction rule name")
+                    rule['Products'] = rule['Products'].split(';')
                     self.rxn_rules[rule["Name"]] = (rxn, rule)
                 except Exception:
                     raise ValueError("Failed to parse %s" % (rule["Name"]))
