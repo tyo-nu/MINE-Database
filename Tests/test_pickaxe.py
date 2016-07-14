@@ -98,7 +98,7 @@ def test_transform_all():
 
 
 def test_multiprocessing():
-    pk3 = pickaxe.Pickaxe(errors=False)
+    pk3 = pickaxe.Pickaxe(database='MINE_test', errors=False)
     pk3._load_cofactor('ATP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
     pk3._load_cofactor('ADP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
     pk3.generation = 0

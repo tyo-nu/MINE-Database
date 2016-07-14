@@ -61,8 +61,9 @@ class Pickaxe:
         self.image_dir = image_dir
         self.errors = errors
         if database:
-            self.mine = MINE(database)
-            if self.mine.compounds.count():
+            self.mine = database
+            db = MINE(database)
+            if db.compounds.count():
                 print("Warning: expansion will overwrite existing compounds and operators!")
         else:
             self.mine = None
@@ -174,8 +175,8 @@ class Pickaxe:
                         self._add_compound(id, smi, mol=mol)
                         compound_smiles.append(smi)
         elif self.mine:
-            #db = MINE(self.mine)
-            for compound in self.mine.compounds.find():
+            db = MINE(self.mine)
+            for compound in db.compounds.find():
                 id = compound['_id']
                 smi = compound['SMILES']
                 self._add_compound(id, smi)
