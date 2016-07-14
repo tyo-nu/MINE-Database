@@ -187,6 +187,9 @@ class Pickaxe:
 
     def _add_compound(self, id, smi, mol=None):
         """Adds a compound to the internal compound dictionary"""
+        self._raw_compounds[smi] = smi
+        if smi in self.compounds:
+            return  # we don't want to overwrite the same compound from a prior generation
         if not mol:
             mol = AllChem.MolFromSmiles(smi)
         i_key = AllChem.InchiToInchiKey(AllChem.MolToInchi(mol))
@@ -204,7 +207,6 @@ class Pickaxe:
                     outfile.write(d2d.GetDrawingText())
             except OSError:
                 print("Unable to generate image for %s" % smi)
-        self._raw_compounds[smi] = smi
 
     def transform_compound(self, compound_SMILES, rules=None):
         """

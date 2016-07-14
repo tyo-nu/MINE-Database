@@ -85,38 +85,48 @@ def test_reaction_output_writing():
 
 def test_transform_all():
     pk3 = pickaxe.Pickaxe(errors=False)
-    pk3.compounds[meh] = {'ID': None, '_id': fadh, 'Inchikey': '', 'SMILES': fadh, 'Generation': 0}
     pk3._load_cofactor('ATP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
     pk3._load_cofactor('ADP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
     pk3.generation = 0
+    pk3._add_compound(fadh, fadh)
     pk3.rxn_rules['2.7.1.a'] = rule
     pk3.transform_all(max_generations=2)
-    print(len(pk3.compounds), len(pk3.reactions))
-    assert len(pk3.compounds) == 32
+    assert len(pk3.compounds) == 31
     assert len(pk3.reactions) == 49
+    comp_gens = set([x['Generation'] for x in pk3.compounds.values()])
+    assert comp_gens == {-1, 0, 1, 2}
 
 
 def test_multiprocessing():
     pk3 = pickaxe.Pickaxe(errors=False)
-    pk3.compounds[meh] = {'ID': None, '_id': fadh, 'Inchikey': '', 'SMILES': fadh, 'Generation': 0}
     pk3._load_cofactor('ATP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
     pk3._load_cofactor('ADP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
     pk3.generation = 0
+    pk3._add_compound(fadh, fadh)
     pk3.rxn_rules['2.7.1.a'] = rule
     pk3.transform_all(max_generations=2, num_workers=2)
-    assert len(pk3.compounds) == 32
+    assert len(pk3.compounds) == 31
     assert len(pk3.reactions) == 49
+    comp_gens = set([x['Generation'] for x in pk3.compounds.values()])
+    assert comp_gens == {-1, 0, 1, 2}
+    return pk3
 
 
 def test_save_as_MINE():
-    pk.save_to_MINE("MINE_test")
+    pk3 = test_multiprocessing()
+    pk3.save_to_MINE("MINE_test")
     mine_db = MINE('MINE_test')
     try:
-        assert mine_db.compounds.count() == 24
-        assert mine_db.reactions.count() == 7
+        assert mine_db.compounds.count() == 31
+        assert mine_db.reactions.count() == 49
         assert mine_db.operators.count() == 1
-        assert mine_db.operators.find_one()["Reactions_predicted"] == 7
+        assert mine_db.operators.find_one()["Reactions_predicted"] == 49
         assert os.path.exists("Tests/C9c69cbeb40f083118c1913599c12c7f4e5e68d03.svg")
+        start_comp = mine_db.compounds.find_one({'Generation': 0})
+        assert len(start_comp['Reactant_in'])
+        product = mine_db.compounds.find_one({'Generation': 2})
+        assert len(product['Product_of'])
+        assert len(product['Sources'])
     finally:
         mine_db.compounds.drop()
         mine_db.reactions.drop()
