@@ -435,7 +435,7 @@ class Pickaxe:
                             print("Generation %s: %s percent complete" % (self.generation, round((i+1) / len(compound_smiles) * 100)))
                 else:
                     for i, smi in enumerate(compound_smiles):
-                        self.transform_compound(smi, rules=['AmineAcylation_AcetylCoa'])
+                        self.transform_compound(smi)
                         if not (i+1) % print_on:
                             print("Generation %s: %s percent complete" % (self.generation, round((i+1) / len(compound_smiles) * 100)))
             print("Generation %s produced %s new compounds and %s new reactions in %s sec" %
