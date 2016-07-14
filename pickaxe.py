@@ -251,7 +251,6 @@ class Pickaxe:
             reactants.sort()  # By sorting the reactant (and later products) we ensure that reactions are unique
             for product_mols in product_sets:
                 try:
-
                     for stereo_prods in self._make_compound_tups(product_mols, rule_name, split_stereoisomers=self.split_stereoisomers):
                         pred_compounds.update(x.compound for x in stereo_prods)
                         stereo_prods.sort()
@@ -267,11 +266,11 @@ class Pickaxe:
         return pred_compounds, pred_rxns
 
     def _get_atom_count(self, molecules):
+        if self.explicit_h:
+            return 0
         atoms = collections.Counter()
-        meh = []
         for mol in molecules:
             AllChem.SanitizeMol(mol)
-            meh.append(AllChem.CalcMolFormula(mol))
             for pair in re.findall('([A-Z][a-z]*)(\d*)', AllChem.CalcMolFormula(mol)):
                 if pair[1]:
                     atoms[pair[0]] += int(pair[1])
