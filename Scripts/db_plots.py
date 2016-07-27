@@ -6,13 +6,12 @@ from collections import defaultdict, Counter
 import sys
 
 
-def make_violin_plots(db_list):
-    # ToDo: Make properties editable
+def make_violin_plots(db_list, prop_list=['Mass', 'logP', 'NP_likeness']):
     df = pandas.DataFrame()
     for db_name in db_list:
         db = MINE(db_name)
         l = []
-        cursor = db.compounds.find(projection={'_id': 0, 'Mass': 1, 'logP': 1, 'NP_likeness': 1})
+        cursor = db.compounds.find(projection=dict([('_id', 0)]+[(x, 1) for x in prop_list]))
         for x in cursor:
             x['DB'] = str(db_name.strip('exp2'))
             if "exp" in db_name:
@@ -21,13 +20,11 @@ def make_violin_plots(db_list):
                 x['Type'] = 'Source'
             l.append(x)
         df = df.append(l)
-    df['logP'] = pandas.to_numeric(df['logP'])
-    f, ax = plt.subplots(1, 3)
-    seaborn.violinplot(split=True, hue='Type', x='DB', y='Mass', data=df, ax=ax[0])
-    seaborn.violinplot(split=True, hue='Type', x='DB', y='logP', data=df, ax=ax[1])
-    seaborn.violinplot(split=True, hue='Type', x='DB', y='NP_likeness', data=df, ax=ax[2])
-    ax[1].legend_.remove()
-    ax[2].legend_.remove()
+    f, ax = plt.subplots(1, len(prop_list))
+    for i, prop in enumerate(prop_list):
+        seaborn.violinplot(split=True, hue='Type', x='DB', y=prop, data=df, ax=ax[i])
+        if i > 0:
+            ax[i].legend_.remove()
     plt.tight_layout()
     plt.savefig("MINE property comparison.png")
 
