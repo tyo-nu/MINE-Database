@@ -1,3 +1,5 @@
+import matplotlib
+matplotlib.use('Agg')
 import seaborn
 import pandas
 import matplotlib.pyplot as plt
@@ -33,7 +35,7 @@ def make_fp_heatmap(db_name, fp_type='MACCS', n_rows=25):
     db = MINE(db_name)
     data = defaultdict(Counter)
     for comp in db.compounds.find({}, {"_id": 0, "Generation": 1, fp_type: 1}):
-        if fp_type in comp:
+        if fp_type in comp and int(comp['Generation']) > -1:
             data[int(comp['Generation'])].update(comp[fp_type])
     df = pandas.DataFrame(data)
     df_norm = df.div(df.max(axis=0), axis=1)
