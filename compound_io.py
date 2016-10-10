@@ -12,6 +12,7 @@ import hashlib
 import os
 import datetime
 import csv
+import os
 
 
 def export_sdf(mine_db, dir_path, max_compounds=None):
@@ -128,6 +129,21 @@ def import_smiles(mine_db, target,):
     mine_db.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "SDF Imported", "Filepath": target})
 
 
+def import_mol_dir(mine_db, target,):
+    """
+    Imports a directory of molfiles as a MINE database
+    :param mine_db: a MINE object, the database to insert the compound into
+    :param target: a path, the molfile directory to be loaded
+    :return:
+    """
+    for file in os.listdir(target):
+        if ".mol" in file:
+            mol = AllChem.MolFromMolFile(target+'/'+file)
+            if mol:
+                mine_db.insert_compound(mol, compound_dict={"Name": file.strip('.mol'), 'Generation': 0},
+                                        pubchem_db=None, kegg_db=None, modelseed_db=None)
+    mine_db.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "MolFiles Imported", "Filepath": target})
+
 if __name__ == '__main__':
     task = sys.argv[1]
     db_name = sys.argv[2]
@@ -152,5 +168,7 @@ if __name__ == '__main__':
         import_sdf(database, path)
     elif task == 'import-smi':
         import_smiles(database, path)
+    elif task == 'import-mol':
+        import_mol_dir(database, path)
     else:
         print("ERROR: Unrecognised Task")
