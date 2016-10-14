@@ -1,8 +1,7 @@
-__author__ = 'JGJeffryes'
-
 from rdkit.Chem import AllChem
 from rdkit.Chem.Draw import MolToFile, rdMolDraw2D
 from databases import MINE
+from utils import rxn2hash
 from argparse import ArgumentParser
 import itertools
 import re
@@ -16,7 +15,7 @@ import csv
 import multiprocessing
 import os
 
-stoich_tuple = collections.namedtuple("stoich_tuple", 'compound,stoich')
+stoich_tuple = collections.namedtuple("stoich_tuple", 'stoich,compound')
 
 class Pickaxe:
     def __init__(self, rule_list=None, cofactor_list=None, explicit_h=True, kekulize=True, neutralise=True, errors=True,
@@ -280,10 +279,7 @@ class Pickaxe:
 
     def _add_reaction(self, reactants, rule_name, stereo_prods):
         """Hashes and inserts reaction into reaction dictionary"""
-        text_rxn = ' + '.join(['(%s) %s' % (x.stoich, x.compound) for x in reactants]) + ' => ' + \
-                   ' + '.join(['(%s) %s' % (x.stoich, x.compound) for x in stereo_prods])
-        # this hash function is less informative that the one that appears later, but much faster.
-        rhash = hashlib.sha256(text_rxn.encode()).hexdigest()
+        rhash, text_rxn = rxn2hash(reactants, stereo_prods, True)
         if rhash not in self.reactions:
             self.reactions[rhash] = {"_id": rhash, "Reactants": reactants, "Products": stereo_prods,
                                      "Operators": {rule_name}, "SMILES_rxn": text_rxn, "Generation": self.generation}
@@ -309,7 +305,7 @@ class Pickaxe:
         else:
             products = [collections.Counter(comps)]
         for rxn in products:
-            yield [stoich_tuple(x, y) if len(x) > 1 else stoich_tuple(x[0], y) for x, y in rxn.items()]
+            yield [stoich_tuple(y, x) if len(x) > 1 else stoich_tuple(y, x[0]) for x, y in rxn.items()]
 
     def _calculate_compound_information(self, raw, mol_obj):
         """Calculate the standard data for a compound & return a tuple with compound_ids. Memoized with _raw_compound

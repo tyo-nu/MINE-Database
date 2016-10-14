@@ -44,7 +44,8 @@ def make_fp_heatmap(db_name, fp_type='MACCS', n_rows=25):
     else:
         df_norm['range'] = df_norm.max(axis=1) - df_norm.min(axis=1)
         df_top = df_norm.sort_values('range', ascending=False).head(int(n_rows)).ix[:, :-1]
-    seaborn.heatmap(df_top)
+    hm = seaborn.heatmap(df_top)
+    hm.collections[0].colorbar.set_label("Prevalence")
     plt.xlabel('Generation')
     plt.ylabel(fp_type + " bit")
     plt.yticks(rotation=0)

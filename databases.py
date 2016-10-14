@@ -187,6 +187,7 @@ class MINE:
             bulk.find({'_id': compound_dict['_id']}).upsert().replace_one(compound_dict)
         else:
             self.compounds.save(compound_dict)
+        return compound_dict['_id']
 
     def insert_reaction(self, reaction_dict):
         raise NotImplementedError
