@@ -1,19 +1,15 @@
-#!/usr/bin/env python
+import ast
+import datetime
+import hashlib
+import platform
+
+from ..NP_Score import npscorer as np
+import pymongo
+from . import utils
+from rdkit.Chem import AllChem
 
 """Databases.py: This file contains MINE database classes including database loading functions."""
 
-__author__ = 'JGJeffryes'
-
-import NP_Score.npscorer as np
-from rdkit.Chem import AllChem
-from rdkit.Chem.Draw import MolToFile
-import pymongo
-import platform
-import hashlib
-import utils
-import datetime
-import os
-import ast
 
 def establish_db_client():
     """This establishes a mongo database client in various environments"""

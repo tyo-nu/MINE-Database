@@ -1,13 +1,12 @@
-__author__ = 'JGJeffryes'
-from databases import MINE
-from databases import establish_db_client
 import json
 import os
+from ..databases import MINE, establish_db_client
+
 
 def setup_package():
     print(__name__, '__init__.py : setup_package() ========================================')
     testdb = MINE("mongotest")
-    with open('Tests/testing_db.json') as infile:
+    with open(os.path.dirname(__file__)+'/data/testing_db.json') as infile:
         jsondb = json.load(infile)
     for doc in jsondb[0]:
         testdb.compounds.save(doc)

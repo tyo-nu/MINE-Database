@@ -1,10 +1,9 @@
-"""Utils.py: contains basic functions reused in various contexts in other modules"""
-__author__ = 'JGJeffryes'
-
 from rdkit.Chem import AllChem
 import hashlib
 import collections
 from os import path
+
+"""Utils.py: contains basic functions reused in various contexts in other modules"""
 
 
 def convert_sets_to_lists(obj):

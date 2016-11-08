@@ -1,21 +1,19 @@
-from rdkit.Chem import AllChem
-from minedatabase.databases import MINE
-from minedatabase import utils
-import pandas as pd
-import xlrd
-import subprocess
 import os
+import subprocess
 import sys
+
+import pandas as pd
+from minedatabase import utils
+from minedatabase.databases import MINE
+from rdkit.Chem import AllChem
 
 
 def load_cdmine_rxns(mine_db, excel_file, pic_dir=""):
-    workbook = xlrd.open_workbook(excel_file)
-    abrv_sheet = workbook.sheet_by_index(1)
-    abrv = {}
+    abrv = {"hn": "[*]"}
     if pic_dir and not os.path.exists(pic_dir):
         os.mkdir(pic_dir)
-    compounds = pd.read_excel(excel_file, 1)
-    reactions = pd.read_excel(excel_file, 0)
+    compounds = pd.read_excel(excel_file, 1, skiprows=1)
+    reactions = pd.read_excel(excel_file, 0, skiprows=1)
 
     for i, row in compounds.iterrows():
         if row['SMILES'] == row['SMILES']:

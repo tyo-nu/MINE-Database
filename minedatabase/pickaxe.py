@@ -1,19 +1,20 @@
-from rdkit.Chem import AllChem
-from rdkit.Chem.Draw import MolToFile, rdMolDraw2D
-from databases import MINE
-from utils import rxn2hash
-from argparse import ArgumentParser
-import itertools
-import re
 import collections
-import time
-import utils
-from copy import deepcopy
+import csv
 import datetime
 import hashlib
-import csv
+import itertools
 import multiprocessing
 import os
+import re
+import time
+from argparse import ArgumentParser
+from copy import deepcopy
+
+from . import utils
+from .databases import MINE
+from .utils import rxn2hash
+from rdkit.Chem import AllChem
+from rdkit.Chem.Draw import MolToFile, rdMolDraw2D
 
 stoich_tuple = collections.namedtuple("stoich_tuple", 'stoich,compound')
 

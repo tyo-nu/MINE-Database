@@ -1,9 +1,7 @@
-"""Queries.py: Contains functions which power the API queries"""
-
-__author__ = 'JGJeffryes'
-
 from ast import literal_eval
 from rdkit.Chem import AllChem
+
+"""Queries.py: Contains functions which power the API queries"""
 
 default_projection = {'SMILES': 1, 'Formula': 1, 'MINE_id': 1, 'Names': 1, 'Inchikey': 1, 'Mass': 1, 'Sources': 1,
                       'Generation': 1, 'NP_likeness': 1}

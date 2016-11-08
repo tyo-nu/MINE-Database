@@ -1,7 +1,6 @@
-import databases
-from rdkit.Chem import AllChem
-import os
 import pymongo
+from .. import databases
+from rdkit.Chem import AllChem
 
 test_db = databases.MINE('mongotest')
 
