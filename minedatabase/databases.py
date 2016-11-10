@@ -3,9 +3,9 @@ import datetime
 import hashlib
 import platform
 
-from ..NP_Score import npscorer as np
 import pymongo
-from . import utils
+from minedatabase import utils
+from minedatabase.NP_Score import npscorer as np
 from rdkit.Chem import AllChem
 
 """Databases.py: This file contains MINE database classes including database loading functions."""

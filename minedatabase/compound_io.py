@@ -3,8 +3,8 @@ import datetime
 import os
 import sys
 
-from . import utils
-from .databases import MINE
+from minedatabase import utils
+from minedatabase.databases import MINE
 from rdkit.Chem import AllChem
 
 """Databases.py: Functions to load MINE databases from and dump compounds into common cheminformatics formats"""

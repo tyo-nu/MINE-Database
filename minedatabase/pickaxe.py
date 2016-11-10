@@ -10,9 +10,9 @@ import time
 from argparse import ArgumentParser
 from copy import deepcopy
 
-from . import utils
-from .databases import MINE
-from .utils import rxn2hash
+from minedatabase import utils
+from minedatabase.databases import MINE
+from minedatabase.utils import rxn2hash
 from rdkit.Chem import AllChem
 from rdkit.Chem.Draw import MolToFile, rdMolDraw2D
 
@@ -528,12 +528,12 @@ class Pickaxe:
 if __name__ == "__main__":
     t1 = time.time()
     parser = ArgumentParser()
-    parser.add_argument('-C', '--cofactor_list', default="Tests/Cofactor_SMILES.tsv", help="Specify a list of cofactors"
-                                                                                           " as a tab-separated file")
-    parser.add_argument('-r', '--rule_list', default="Tests/operators_smarts.tsv", help="Specify a list of reaction "
-                                                                                        "rules as a tab-separated file")
-    parser.add_argument('-c', '--compound_file', default="Tests/test_compounds.tsv", help="Specify a list of starting "
-                        "compounds as a tab-separated file")
+    parser.add_argument('-C', '--cofactor_list', default="tests/data/test_cofactors.tsv",
+                        help="Specify a list of cofactors as a tab-separated file")
+    parser.add_argument('-r', '--rule_list', default="tests/data/test_operators.tsv",
+                        help="Specify a list of reaction rules as a tab-separated file")
+    parser.add_argument('-c', '--compound_file', default="tests/data/test_compounds.tsv",
+                        help="Specify a list of starting compounds as a tab-separated file")
     parser.add_argument('-s', '--smiles', default=None, help="Specify a starting compound as SMILES.")
     parser.add_argument('-o', '--output_dir', default=".", help="The directory in which to place files")
     parser.add_argument('-d', '--database', default=None, help="The name of the database in which to store output. If "
@@ -541,14 +541,14 @@ if __name__ == "__main__":
     parser.add_argument('-R', '--raceimize', action='store_true', default=False, help="Enumerate the possible chiral "
                         "forms for all unassigned steriocenters in compounds & reactions")
     parser.add_argument('-v', '--verbose', action='store_true', default=False, help="Display RDKit errors & warnings")
-    parser.add_argument('--bnice', action='store_true', default=False, help="Set several options to enable "
-                                                                            "compatibility with bnice operators.")
-    parser.add_argument('-m', '--max_workers', default=1, type=int, help="Set the nax number of processes to spawn to "
-                                                                         "perform calculations.")
-    parser.add_argument('-g', '--generations', default=1, type=int, help="Set the numbers of time to apply the reaction"
-                                                                         " rules to the compound set.")
-    parser.add_argument('-i', '--image_dir', default=None, help="Specify a directory to store images of all created "
-                                                                "compounds")
+    parser.add_argument('--bnice', action='store_true', default=False,
+                        help="Set several options to enable compatibility with bnice operators.")
+    parser.add_argument('-m', '--max_workers', default=1, type=int,
+                        help="Set the nax number of processes to spawn to perform calculations.")
+    parser.add_argument('-g', '--generations', default=1, type=int,
+                        help="Set the numbers of time to apply the reaction rules to the compound set.")
+    parser.add_argument('-i', '--image_dir', default=None,
+                        help="Specify a directory to store images of all created compounds")
     options = parser.parse_args()
     pk = Pickaxe(cofactor_list=options.cofactor_list, rule_list=options.rule_list, raceimze=options.raceimize,
                  errors=options.verbose, explicit_h=options.bnice, kekulize=options.bnice, neutralise=options.bnice,
