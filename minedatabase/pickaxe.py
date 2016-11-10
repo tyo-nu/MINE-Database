@@ -12,11 +12,10 @@ from copy import deepcopy
 
 from minedatabase import utils
 from minedatabase.databases import MINE
-from minedatabase.utils import rxn2hash
+from minedatabase.utils import rxn2hash, stoich_tuple
 from rdkit.Chem import AllChem
 from rdkit.Chem.Draw import MolToFile, rdMolDraw2D
 
-stoich_tuple = collections.namedtuple("stoich_tuple", 'stoich,compound')
 
 class Pickaxe:
     def __init__(self, rule_list=None, cofactor_list=None, explicit_h=True, kekulize=True, neutralise=True, errors=True,
@@ -510,8 +509,7 @@ class Pickaxe:
             # iterate the number of reactions predicted
             for op in rxn['Operators']:
                 self.rxn_rules[op][1]['Reactions_predicted'] += 1
-            rxn = utils.convert_sets_to_lists(rxn)
-            bulk_r.find({'_id': rxn['_id']}).upsert().replace_one(rxn)
+            db.insert_reaction(rxn, bulk=bulk_r)
         bulk_r.execute()
         db.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "Reactions Inserted"})
 

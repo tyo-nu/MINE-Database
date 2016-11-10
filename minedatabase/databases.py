@@ -2,6 +2,7 @@ import ast
 import datetime
 import hashlib
 import platform
+import collections
 
 import pymongo
 from minedatabase import utils
@@ -125,6 +126,14 @@ class MINE:
         :type mol_object: RDKit Mol object
         :param compound_dict: Additional information about the compound to be stored. Overwritten by calculated values.
         :type compound_dict: dict
+        :param bulk:
+        :type bulk:
+        :param kegg_db:
+        :type kegg_db:
+        :param pubchem_db:
+        :type pubchem_db:
+        :param modelseed_db:
+        :type modelseed_db:
         :return:
         :rtype:
         """
@@ -185,5 +194,18 @@ class MINE:
             self.compounds.save(compound_dict)
         return compound_dict['_id']
 
-    def insert_reaction(self, reaction_dict):
-        raise NotImplementedError
+    def insert_reaction(self, reaction_dict, bulk=None):
+        if '_id' not in reaction_dict:
+            reaction_dict['_id'] = utils.rxn2hash(reaction_dict['Reactants'], reaction_dict['Products'])
+
+        # by converting to a dict, mongo stores the data as objects not arrays allowing for queries by compound hash
+        if isinstance(reaction_dict['Reactants'][0], utils.stoich_tuple):
+            reaction_dict['Reactants'] = [x._asdict() for x in reaction_dict['Reactants']]
+            reaction_dict['Products'] = [x._asdict() for x in reaction_dict['Products']]
+
+        reaction_dict = utils.convert_sets_to_lists(reaction_dict)
+        if bulk:
+            bulk.find({'_id': reaction_dict['_id']}).upsert().replace_one(reaction_dict)
+        else:
+            self.reactions.save(reaction_dict)
+        return reaction_dict['_id']

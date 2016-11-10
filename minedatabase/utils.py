@@ -5,6 +5,8 @@ from os import path
 
 """Utils.py: contains basic functions reused in various contexts in other modules"""
 
+stoich_tuple = collections.namedtuple("stoich_tuple", 'stoich,compound')
+
 
 def convert_sets_to_lists(obj):
     """Recursively converts dictionaries that contain sets to lists"""
@@ -152,7 +154,6 @@ def rxn2hash(reactants, products, return_text=False):
 
 def parse_text_rxn(rxn, rp_del, cp_del, translation_dict=None):
     """Makes a list of product and reactant stoich_tuples"""
-    stoich_tuple = collections.namedtuple("stoich_tuple", 'stoich,compound')
 
     def parse_half(half_rxn, td):
         if translation_dict:
