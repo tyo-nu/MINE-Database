@@ -124,19 +124,25 @@ def import_smiles(mine_db, target,):
     mine_db.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "SDF Imported", "Filepath": target})
 
 
-def import_mol_dir(mine_db, target,):
+def import_mol_dir(mine_db, target, name_field="Name", overwrite=False):
     """
     Imports a directory of molfiles as a MINE database
     :param mine_db: a MINE object, the database to insert the compound into
     :param target: a path, the molfile directory to be loaded
+    :param overwrite: a bool, if true, new compounds replace the old compounds in the database
     :return:
     """
     for file in os.listdir(target):
         if ".mol" in file:
             mol = AllChem.MolFromMolFile(target+'/'+file)
+            name = file.rstrip('.mol')
             if mol:
-                mine_db.insert_compound(mol, compound_dict={"Name": file.strip('.mol'), 'Generation': 0},
-                                        pubchem_db=None, kegg_db=None, modelseed_db=None)
+                comphash = utils.compound_hash(mol)
+                if not overwrite and mine_db.compounds.count({"_id": comphash}):
+                    mine_db.compounds.update({"_id": comphash}, {"$addToSet": {name_field: name}})
+                else:
+                    mine_db.insert_compound(mol, compound_dict={name_field: [name], 'Generation': 0}, pubchem_db=None,
+                                            kegg_db=None, modelseed_db=None)
     mine_db.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "MolFiles Imported", "Filepath": target})
 
 if __name__ == '__main__':
