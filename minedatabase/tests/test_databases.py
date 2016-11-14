@@ -33,8 +33,8 @@ def test_insert_reaction():
     entry = test_db.reactions.find_one({"_id": "4542c96f4bca04bfe2db15bc71e9eaee38bee5b87ad8a6752a5c4718ba1974c1"})
     assert entry
     assert isinstance(entry['_id'], str) and len(entry['_id'])
-    assert entry['Reactants'] == [{"stoich": 1, "compound": "A"}, {"stoich": 1, "compound": "B"}]
-    assert entry['Products'] == [{"stoich": 1, "compound": "C"}, {"stoich": 1, "compound": "D"}]
+    assert entry['Reactants'] == [{"stoich": 1, "c_id": "A"}, {"stoich": 1, "c_id": "B"}]
+    assert entry['Products'] == [{"stoich": 1, "c_id": "C"}, {"stoich": 1, "c_id": "D"}]
 
 
 def test_init():

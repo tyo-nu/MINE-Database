@@ -1,8 +1,6 @@
 import ast
 import datetime
-import hashlib
 import platform
-import collections
 
 import pymongo
 from minedatabase import utils
@@ -149,13 +147,7 @@ class MINE:
         compound_dict['RDKit'] = [i for i, bit in enumerate(AllChem.RDKFingerprint(mol_object)) if bit]
         compound_dict['len_RDKit'] = len(compound_dict['RDKit'])
         compound_dict['logP'] = AllChem.CalcCrippenDescriptors(mol_object)[0]
-
-        comphash = hashlib.sha1(compound_dict['SMILES'].encode('utf-8')).hexdigest()
-        if compound_dict['Generation'] < 0: # if the compound is a cofactor
-            compound_dict['_id'] = 'X' + comphash
-            del compound_dict['Reactant_in'], compound_dict["Product_of"], compound_dict['Sources']
-        else:
-            compound_dict['_id'] = 'C' + comphash
+        compound_dict['_id'] = utils.compound_hash(compound_dict['SMILES'], cofactor=compound_dict['Generation'] < 0)
 
         if "Reactant_in" in compound_dict and isinstance(compound_dict['Reactant_in'], str) and compound_dict['Reactant_in']:
             compound_dict['Reactant_in'] = ast.literal_eval(compound_dict['Reactant_in'])

@@ -5,7 +5,17 @@ from os import path
 
 """Utils.py: contains basic functions reused in various contexts in other modules"""
 
-stoich_tuple = collections.namedtuple("stoich_tuple", 'stoich,compound')
+stoich_tuple = collections.namedtuple("stoich_tuple", 'stoich,c_id')
+
+
+def compound_hash(compound, cofactor=False):
+    if isinstance(compound, AllChem.Mol):
+        compound = AllChem.MolToSmiles(compound, True)
+    chash = hashlib.sha1(compound.encode('utf-8')).hexdigest()
+    if cofactor:
+        return "X"+chash
+    else:
+        return "C"+chash
 
 
 def convert_sets_to_lists(obj):

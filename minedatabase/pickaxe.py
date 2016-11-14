@@ -193,7 +193,7 @@ class Pickaxe:
         if not mol:
             mol = AllChem.MolFromSmiles(smi)
         i_key = AllChem.InchiToInchiKey(AllChem.MolToInchi(mol))
-        _id = 'C' + hashlib.sha1(smi.encode('utf-8')).hexdigest()
+        _id = utils.compound_hash(smi)
         self.compounds[smi] = {'ID': id, '_id': _id, "SMILES": smi, 'Inchikey': i_key, 'Generation': self.generation,
                                'Reactant_in': [], 'Product_of': [], "Sources": []}
         # if we are building a mine and generating images, do so here
@@ -251,7 +251,7 @@ class Pickaxe:
             for product_mols in product_sets:
                 try:
                     for stereo_prods in self._make_compound_tups(product_mols, rule_name, split_stereoisomers=self.split_stereoisomers):
-                        pred_compounds.update(x.compound for x in stereo_prods)
+                        pred_compounds.update(x.c_id for x in stereo_prods)
                         stereo_prods.sort()
                         text_rxn = self._add_reaction(reactants, rule_name, stereo_prods)
                         product_atoms = self._get_atom_count(product_mols)
@@ -400,8 +400,10 @@ class Pickaxe:
                         print("Unable to generate image for %s" % comp['SMILES'])
         i = 1
         for rxn in sorted(self.reactions.values(), key=lambda x: (x['Generation'], x['_id'])):
-            rxn['ID_rxn'] = ' + '.join(['(%s) %s[c0]' % (x.stoich, self.compounds[x.compound]["ID"]) for x in rxn["Reactants"]]) \
-                            + ' => ' + ' + '.join(['(%s) %s[c0]' % (x.stoich, self.compounds[x.compound]["ID"]) for x in rxn["Products"]])
+            rxn['ID_rxn'] = ' + '.join(['(%s) %s[c0]' % (x.stoich, self.compounds[x.c_id]["ID"])
+                                        for x in rxn["Reactants"]]) + ' => ' + \
+                            ' + '.join(['(%s) %s[c0]' % (x.stoich, self.compounds[x.c_id]["ID"])
+                                        for x in rxn["Products"]])
             rxn['ID'] = 'pk_rxn'+str(i).zfill(7)
             i += 1
             self.reactions[rxn['_id']] = rxn
@@ -497,14 +499,14 @@ class Pickaxe:
         for rxn in self.reactions.values():
             _tmpr, _tmpp = [], []  # having temp variables for the lists avoids pointer issues
             for i, x in enumerate(rxn['Reactants']):
-                self.compounds[x.compound]['Reactant_in'].append(rxn['_id'])
-                _tmpr.append({"stoich": x.stoich, "c_id": "C"+hashlib.sha1(x.compound.encode('utf-8')).hexdigest()})
+                self.compounds[x.c_id]['Reactant_in'].append(rxn['_id'])
+                _tmpr.append({"stoich": x.stoich, "c_id": utils.compound_hash(x.c_id)})
             rxn['Reactants'] = _tmpr
             for i, x in enumerate(rxn['Products']):
-                self.compounds[x.compound]['Product_of'].append(rxn['_id'])
-                self.compounds[x.compound]['Sources'].append(
+                self.compounds[x.c_id]['Product_of'].append(rxn['_id'])
+                self.compounds[x.c_id]['Sources'].append(
                     {"Compounds": [x['c_id'] for x in rxn['Reactants']], "Operators": list(rxn["Operators"])})
-                _tmpp.append({"stoich": x.stoich, "c_id": "C" + hashlib.sha1(x.compound.encode('utf-8')).hexdigest()})
+                _tmpp.append({"stoich": x.stoich, "c_id": utils.compound_hash(x.c_id)})
             rxn["Products"] = _tmpp
             # iterate the number of reactions predicted
             for op in rxn['Operators']:
