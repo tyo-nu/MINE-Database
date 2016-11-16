@@ -1,7 +1,7 @@
-import databases
-from rdkit.Chem import AllChem
-import os
 import pymongo
+from .. import databases
+from .. import utils
+from rdkit.Chem import AllChem
 
 test_db = databases.MINE('mongotest')
 
@@ -24,6 +24,17 @@ def test_insert_compound():
         assert entry['logP']
     finally:
         test_db.compounds.remove({"SMILES": smiles})
+
+
+def test_insert_reaction():
+    rxn = {'Equation': 'A + B = C + D'}
+    rxn['Reactants'], rxn['Products'] = utils.parse_text_rxn(rxn['Equation'], ' = ', ' + ')
+    test_db.insert_reaction(rxn)
+    entry = test_db.reactions.find_one({"_id": "4542c96f4bca04bfe2db15bc71e9eaee38bee5b87ad8a6752a5c4718ba1974c1"})
+    assert entry
+    assert isinstance(entry['_id'], str) and len(entry['_id'])
+    assert entry['Reactants'] == [{"stoich": 1, "c_id": "A"}, {"stoich": 1, "c_id": "B"}]
+    assert entry['Products'] == [{"stoich": 1, "c_id": "C"}, {"stoich": 1, "c_id": "D"}]
 
 
 def test_init():

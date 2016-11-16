@@ -1,22 +1,21 @@
-__author__ = 'JGJeffryes'
-
-from rdkit.Chem import AllChem
-from rdkit.Chem.Draw import MolToFile, rdMolDraw2D
-from databases import MINE
-from argparse import ArgumentParser
-import itertools
-import re
 import collections
-import time
-import utils
-from copy import deepcopy
+import csv
 import datetime
 import hashlib
-import csv
+import itertools
 import multiprocessing
 import os
+import re
+import time
+from argparse import ArgumentParser
+from copy import deepcopy
 
-stoich_tuple = collections.namedtuple("stoich_tuple", 'compound,stoich')
+from minedatabase import utils
+from minedatabase.databases import MINE
+from minedatabase.utils import rxn2hash, stoich_tuple
+from rdkit.Chem import AllChem
+from rdkit.Chem.Draw import MolToFile, rdMolDraw2D
+
 
 class Pickaxe:
     def __init__(self, rule_list=None, cofactor_list=None, explicit_h=True, kekulize=True, neutralise=True, errors=True,
@@ -52,7 +51,6 @@ class Pickaxe:
         self._raw_compounds = {}
         self.compounds = {}
         self.reactions = {}
-        self.mine = database
         self.generation = -1
         self.explicit_h = explicit_h
         self.split_stereoisomers = split_stereoisomers
@@ -61,7 +59,13 @@ class Pickaxe:
         self.neutralise = neutralise
         self.image_dir = image_dir
         self.errors = errors
-        # TODO: Test database and warn on overwrite
+        if database:
+            self.mine = database
+            db = MINE(database)
+            if db.compounds.count():
+                print("Warning: expansion will overwrite existing compounds and operators!")
+        else:
+            self.mine = None
 
         from rdkit import RDLogger
         lg = RDLogger.logger()
@@ -166,8 +170,9 @@ class Pickaxe:
                         mol = utils.neutralise_charges(mol)
                     smi = AllChem.MolToSmiles(mol, True)
                     id = line[id_field]
-                    self._add_compound(id, smi, mol=mol)
-                    compound_smiles.append(smi)
+                    if "C" in smi or "c" in smi:
+                        self._add_compound(id, smi, mol=mol)
+                        compound_smiles.append(smi)
         elif self.mine:
             db = MINE(self.mine)
             for compound in db.compounds.find():
@@ -182,10 +187,13 @@ class Pickaxe:
 
     def _add_compound(self, id, smi, mol=None):
         """Adds a compound to the internal compound dictionary"""
+        self._raw_compounds[smi] = smi
+        if smi in self.compounds:
+            return  # we don't want to overwrite the same compound from a prior generation
         if not mol:
             mol = AllChem.MolFromSmiles(smi)
         i_key = AllChem.InchiToInchiKey(AllChem.MolToInchi(mol))
-        _id = 'C' + hashlib.sha1(smi.encode('utf-8')).hexdigest()
+        _id = utils.compound_hash(smi)
         self.compounds[smi] = {'ID': id, '_id': _id, "SMILES": smi, 'Inchikey': i_key, 'Generation': self.generation,
                                'Reactant_in': [], 'Product_of': [], "Sources": []}
         # if we are building a mine and generating images, do so here
@@ -199,7 +207,6 @@ class Pickaxe:
                     outfile.write(d2d.GetDrawingText())
             except OSError:
                 print("Unable to generate image for %s" % smi)
-        self._raw_compounds[smi] = smi
 
     def transform_compound(self, compound_SMILES, rules=None):
         """
@@ -243,9 +250,8 @@ class Pickaxe:
             reactants.sort()  # By sorting the reactant (and later products) we ensure that reactions are unique
             for product_mols in product_sets:
                 try:
-
                     for stereo_prods in self._make_compound_tups(product_mols, rule_name, split_stereoisomers=self.split_stereoisomers):
-                        pred_compounds.update(x.compound for x in stereo_prods)
+                        pred_compounds.update(x.c_id for x in stereo_prods)
                         stereo_prods.sort()
                         text_rxn = self._add_reaction(reactants, rule_name, stereo_prods)
                         product_atoms = self._get_atom_count(product_mols)
@@ -259,11 +265,11 @@ class Pickaxe:
         return pred_compounds, pred_rxns
 
     def _get_atom_count(self, molecules):
+        if self.explicit_h:
+            return 0
         atoms = collections.Counter()
-        meh = []
         for mol in molecules:
             AllChem.SanitizeMol(mol)
-            meh.append(AllChem.CalcMolFormula(mol))
             for pair in re.findall('([A-Z][a-z]*)(\d*)', AllChem.CalcMolFormula(mol)):
                 if pair[1]:
                     atoms[pair[0]] += int(pair[1])
@@ -273,10 +279,7 @@ class Pickaxe:
 
     def _add_reaction(self, reactants, rule_name, stereo_prods):
         """Hashes and inserts reaction into reaction dictionary"""
-        text_rxn = ' + '.join(['(%s) %s' % (x.stoich, x.compound) for x in reactants]) + ' => ' + \
-                   ' + '.join(['(%s) %s' % (x.stoich, x.compound) for x in stereo_prods])
-        # this hash function is less informative that the one that appears later, but much faster.
-        rhash = hashlib.sha256(text_rxn.encode()).hexdigest()
+        rhash, text_rxn = rxn2hash(reactants, stereo_prods, True)
         if rhash not in self.reactions:
             self.reactions[rhash] = {"_id": rhash, "Reactants": reactants, "Products": stereo_prods,
                                      "Operators": {rule_name}, "SMILES_rxn": text_rxn, "Generation": self.generation}
@@ -302,7 +305,7 @@ class Pickaxe:
         else:
             products = [collections.Counter(comps)]
         for rxn in products:
-            yield [stoich_tuple(x, y) if len(x) > 1 else stoich_tuple(x[0], y) for x, y in rxn.items()]
+            yield [stoich_tuple(y, x) if len(x) > 1 else stoich_tuple(y, x[0]) for x, y in rxn.items()]
 
     def _calculate_compound_information(self, raw, mol_obj):
         """Calculate the standard data for a compound & return a tuple with compound_ids. Memoized with _raw_compound
@@ -397,8 +400,10 @@ class Pickaxe:
                         print("Unable to generate image for %s" % comp['SMILES'])
         i = 1
         for rxn in sorted(self.reactions.values(), key=lambda x: (x['Generation'], x['_id'])):
-            rxn['ID_rxn'] = ' + '.join(['(%s) %s[c0]' % (x.stoich, self.compounds[x.compound]["ID"]) for x in rxn["Reactants"]]) \
-                            + ' => ' + ' + '.join(['(%s) %s[c0]' % (x.stoich, self.compounds[x.compound]["ID"]) for x in rxn["Products"]])
+            rxn['ID_rxn'] = ' + '.join(['(%s) %s[c0]' % (x.stoich, self.compounds[x.c_id]["ID"])
+                                        for x in rxn["Reactants"]]) + ' => ' + \
+                            ' + '.join(['(%s) %s[c0]' % (x.stoich, self.compounds[x.c_id]["ID"])
+                                        for x in rxn["Products"]])
             rxn['ID'] = 'pk_rxn'+str(i).zfill(7)
             i += 1
             self.reactions[rxn['_id']] = rxn
@@ -494,20 +499,19 @@ class Pickaxe:
         for rxn in self.reactions.values():
             _tmpr, _tmpp = [], []  # having temp variables for the lists avoids pointer issues
             for i, x in enumerate(rxn['Reactants']):
-                self.compounds[x.compound]['Reactant_in'].append(rxn['_id'])
-                _tmpr.append({"stoich": x.stoich, "c_id": "C"+hashlib.sha1(x.compound.encode('utf-8')).hexdigest()})
+                self.compounds[x.c_id]['Reactant_in'].append(rxn['_id'])
+                _tmpr.append({"stoich": x.stoich, "c_id": utils.compound_hash(x.c_id)})
             rxn['Reactants'] = _tmpr
             for i, x in enumerate(rxn['Products']):
-                self.compounds[x.compound]['Product_of'].append(rxn['_id'])
-                self.compounds[x.compound]['Sources'].append(
+                self.compounds[x.c_id]['Product_of'].append(rxn['_id'])
+                self.compounds[x.c_id]['Sources'].append(
                     {"Compounds": [x['c_id'] for x in rxn['Reactants']], "Operators": list(rxn["Operators"])})
-                _tmpp.append({"stoich": x.stoich, "c_id": "C" + hashlib.sha1(x.compound.encode('utf-8')).hexdigest()})
+                _tmpp.append({"stoich": x.stoich, "c_id": utils.compound_hash(x.c_id)})
             rxn["Products"] = _tmpp
             # iterate the number of reactions predicted
             for op in rxn['Operators']:
                 self.rxn_rules[op][1]['Reactions_predicted'] += 1
-            rxn = utils.convert_sets_to_lists(rxn)
-            bulk_r.find({'_id': rxn['_id']}).upsert().replace_one(rxn)
+            db.insert_reaction(rxn, bulk=bulk_r)
         bulk_r.execute()
         db.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "Reactions Inserted"})
 
@@ -524,12 +528,12 @@ class Pickaxe:
 if __name__ == "__main__":
     t1 = time.time()
     parser = ArgumentParser()
-    parser.add_argument('-C', '--cofactor_list', default="Tests/Cofactor_SMILES.tsv", help="Specify a list of cofactors"
-                                                                                           " as a tab-separated file")
-    parser.add_argument('-r', '--rule_list', default="Tests/operators_smarts.tsv", help="Specify a list of reaction "
-                                                                                        "rules as a tab-separated file")
-    parser.add_argument('-c', '--compound_file', default="Tests/test_compounds.tsv", help="Specify a list of starting "
-                        "compounds as a tab-separated file")
+    parser.add_argument('-C', '--cofactor_list', default="tests/data/test_cofactors.tsv",
+                        help="Specify a list of cofactors as a tab-separated file")
+    parser.add_argument('-r', '--rule_list', default="tests/data/test_operators.tsv",
+                        help="Specify a list of reaction rules as a tab-separated file")
+    parser.add_argument('-c', '--compound_file', default="tests/data/test_compounds.tsv",
+                        help="Specify a list of starting compounds as a tab-separated file")
     parser.add_argument('-s', '--smiles', default=None, help="Specify a starting compound as SMILES.")
     parser.add_argument('-o', '--output_dir', default=".", help="The directory in which to place files")
     parser.add_argument('-d', '--database', default=None, help="The name of the database in which to store output. If "
@@ -537,14 +541,14 @@ if __name__ == "__main__":
     parser.add_argument('-R', '--raceimize', action='store_true', default=False, help="Enumerate the possible chiral "
                         "forms for all unassigned steriocenters in compounds & reactions")
     parser.add_argument('-v', '--verbose', action='store_true', default=False, help="Display RDKit errors & warnings")
-    parser.add_argument('--bnice', action='store_true', default=False, help="Set several options to enable "
-                                                                            "compatibility with bnice operators.")
-    parser.add_argument('-m', '--max_workers', default=1, type=int, help="Set the nax number of processes to spawn to "
-                                                                         "perform calculations.")
-    parser.add_argument('-g', '--generations', default=1, type=int, help="Set the numbers of time to apply the reaction"
-                                                                         " rules to the compound set.")
-    parser.add_argument('-i', '--image_dir', default=None, help="Specify a directory to store images of all created "
-                                                                "compounds")
+    parser.add_argument('--bnice', action='store_true', default=False,
+                        help="Set several options to enable compatibility with bnice operators.")
+    parser.add_argument('-m', '--max_workers', default=1, type=int,
+                        help="Set the nax number of processes to spawn to perform calculations.")
+    parser.add_argument('-g', '--generations', default=1, type=int,
+                        help="Set the numbers of time to apply the reaction rules to the compound set.")
+    parser.add_argument('-i', '--image_dir', default=None,
+                        help="Specify a directory to store images of all created compounds")
     options = parser.parse_args()
     pk = Pickaxe(cofactor_list=options.cofactor_list, rule_list=options.rule_list, raceimze=options.raceimize,
                  errors=options.verbose, explicit_h=options.bnice, kekulize=options.bnice, neutralise=options.bnice,

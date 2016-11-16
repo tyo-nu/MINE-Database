@@ -1,19 +1,14 @@
-#!/usr/bin/env python
+import ast
+import datetime
+import platform
+
+import pymongo
+from minedatabase import utils
+from minedatabase.NP_Score import npscorer as np
+from rdkit.Chem import AllChem
 
 """Databases.py: This file contains MINE database classes including database loading functions."""
 
-__author__ = 'JGJeffryes'
-
-import NP_Score.npscorer as np
-from rdkit.Chem import AllChem
-from rdkit.Chem.Draw import MolToFile
-import pymongo
-import platform
-import hashlib
-import utils
-import datetime
-import os
-import ast
 
 def establish_db_client():
     """This establishes a mongo database client in various environments"""
@@ -129,6 +124,14 @@ class MINE:
         :type mol_object: RDKit Mol object
         :param compound_dict: Additional information about the compound to be stored. Overwritten by calculated values.
         :type compound_dict: dict
+        :param bulk:
+        :type bulk:
+        :param kegg_db:
+        :type kegg_db:
+        :param pubchem_db:
+        :type pubchem_db:
+        :param modelseed_db:
+        :type modelseed_db:
         :return:
         :rtype:
         """
@@ -144,8 +147,8 @@ class MINE:
         compound_dict['RDKit'] = [i for i, bit in enumerate(AllChem.RDKFingerprint(mol_object)) if bit]
         compound_dict['len_RDKit'] = len(compound_dict['RDKit'])
         compound_dict['logP'] = AllChem.CalcCrippenDescriptors(mol_object)[0]
-        comphash = hashlib.sha1(compound_dict['SMILES'].encode('utf-8')).hexdigest()
-        compound_dict['_id'] = 'C' + comphash
+        compound_dict['_id'] = utils.compound_hash(compound_dict['SMILES'], cofactor=compound_dict['Generation'] < 0)
+
         if "Reactant_in" in compound_dict and isinstance(compound_dict['Reactant_in'], str) and compound_dict['Reactant_in']:
             compound_dict['Reactant_in'] = ast.literal_eval(compound_dict['Reactant_in'])
         if "Product_of" in compound_dict and isinstance(compound_dict['Product_of'], str) and compound_dict['Product_of']:
@@ -181,6 +184,20 @@ class MINE:
             bulk.find({'_id': compound_dict['_id']}).upsert().replace_one(compound_dict)
         else:
             self.compounds.save(compound_dict)
+        return compound_dict['_id']
 
-    def insert_reaction(self, reaction_dict):
-        raise NotImplementedError
+    def insert_reaction(self, reaction_dict, bulk=None):
+        if '_id' not in reaction_dict:
+            reaction_dict['_id'] = utils.rxn2hash(reaction_dict['Reactants'], reaction_dict['Products'])
+
+        # by converting to a dict, mongo stores the data as objects not arrays allowing for queries by compound hash
+        if isinstance(reaction_dict['Reactants'][0], utils.stoich_tuple):
+            reaction_dict['Reactants'] = [x._asdict() for x in reaction_dict['Reactants']]
+            reaction_dict['Products'] = [x._asdict() for x in reaction_dict['Products']]
+
+        reaction_dict = utils.convert_sets_to_lists(reaction_dict)
+        if bulk:
+            bulk.find({'_id': reaction_dict['_id']}).upsert().replace_one(reaction_dict)
+        else:
+            self.reactions.save(reaction_dict)
+        return reaction_dict['_id']

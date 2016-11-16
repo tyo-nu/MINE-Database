@@ -1,9 +1,11 @@
-__author__ = 'JGJeffryes'
-import queries
-import databases
+from os.path import dirname
+
+from .. import databases, queries
+
+data_dir = dirname(__file__)+'/data'
 
 test_db = databases.MINE('mongotest')
-test_molfile = open("./Tests/glucose.mol", "r").read()
+test_molfile = open(data_dir+"/glucose.mol", "r").read()
 glucose = {'Names': ['Hexose', 'D-Idose', 'Glucose', 'Mannose', 'D-Gulose', 'D-Allose', 'D-Hexose', 'Dextrose',
                      'Seminose', 'L-Gulose', 'D-Talose', 'D-Aldose', 'D-Mannose', 'D-Aldose2', 'D-Aldose1', 'D-Glucose',
                      'D-Altrose', 'Carubinose', 'Grape sugar', 'L-Galactose', 'D-Galactose', 'D-ido-Hexose',

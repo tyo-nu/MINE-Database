@@ -1,9 +1,21 @@
-"""Utils.py: contains basic functions reused in various contexts in other modules"""
-__author__ = 'JGJeffryes'
-
 from rdkit.Chem import AllChem
 import hashlib
+import collections
 from os import path
+
+"""Utils.py: contains basic functions reused in various contexts in other modules"""
+
+stoich_tuple = collections.namedtuple("stoich_tuple", 'stoich,c_id')
+
+
+def compound_hash(compound, cofactor=False):
+    if isinstance(compound, AllChem.Mol):
+        compound = AllChem.MolToSmiles(compound, True)
+    chash = hashlib.sha1(compound.encode('utf-8')).hexdigest()
+    if cofactor:
+        return "X"+chash
+    else:
+        return "C"+chash
 
 
 def convert_sets_to_lists(obj):
@@ -134,6 +146,37 @@ def dict_merge(finaldict, sourcedict):
             if not key in finaldict:
                 finaldict[key] = {}
             dict_merge(finaldict[key], val)
+
+
+def rxn2hash(reactants, products, return_text=False):
+    """Hashes reactant and product lists"""
+    def to_str(half_rxn):
+        return ['(%s) %s' % (x[0], x[1]) if (len(x) == 2 and not isinstance(x, str)) else '(1) %s' % x
+                for x in sorted(half_rxn)]
+
+    text_rxn = ' + '.join(to_str(reactants)) + ' => ' + ' + '.join(to_str(products))
+    rhash = hashlib.sha256(text_rxn.encode()).hexdigest()
+    if return_text:
+        return rhash, text_rxn
+    else:
+        return rhash
+
+
+def parse_text_rxn(rxn, rp_del, cp_del, translation_dict=None):
+    """Makes a list of product and reactant stoich_tuples"""
+
+    def parse_half(half_rxn, td):
+        if translation_dict:
+            return [stoich_tuple(1, td[x.strip()]) if len(x.split()) == 1
+                    else stoich_tuple(int(x.split()[0].strip('()')), td[x.split()[1].strip()])
+                    for x in half_rxn.split(cp_del)]
+        else:
+            return [stoich_tuple(1, x.strip()) if len(x.split()) == 1
+                    else stoich_tuple(int(x.split()[0].strip('()')), x.split()[1].strip())
+                    for x in half_rxn.split(cp_del)]
+
+    return [parse_half(x, translation_dict) for x in rxn.split(rp_del)]
+
 
 _reactions = None
 def neutralise_charges(mol, reactions=None):

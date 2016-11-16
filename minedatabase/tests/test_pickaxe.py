@@ -1,18 +1,20 @@
-__author__ = 'JGJeffryes'
-
-import pickaxe
-import rdkit
 import filecmp
 import os
 import re
-from databases import MINE
+
+import rdkit
+from .. import pickaxe
+from ..databases import MINE
+
+data_dir = os.path.dirname(__file__)+'/data'
+
 
 def purge(dir, pattern):
     for f in os.listdir(dir):
         if re.search(pattern, f):
             os.remove(os.path.join(dir, f))
 
-pk = pickaxe.Pickaxe(image_dir="Tests/", database='MINE_test')
+pk = pickaxe.Pickaxe(image_dir=data_dir, database='MINE_test')
 rule = None
 meh = 'CCC(=O)C(=O)O'
 l_ala = 'C[C@H](N)C(=O)O'
@@ -20,13 +22,13 @@ d_ala = 'C[C@@H](N)C(=O)O'
 fadh = 'Cc1cc2c(cc1C)N(CC(O)C(O)C(O)COP(=O)(O)OP(=O)(O)OCC1OC(n3cnc4c(N)ncnc43)C(O)C1O)c1nc(O)nc(O)c1N2'
 
 def test_cofactor_loading():
-    pk2 = pickaxe.Pickaxe(cofactor_list='Tests/Cofactor_SMILES.tsv')
+    pk2 = pickaxe.Pickaxe(cofactor_list=data_dir + '/test_cofactors.tsv')
     assert "O=C=O" in pk2._raw_compounds
     assert isinstance(pk2.cofactors['ATP'], rdkit.Chem.rdchem.Mol)
 
 def test_reaction_rule_loading():
     global rule
-    pk2 = pickaxe.Pickaxe(cofactor_list='Tests/Cofactor_SMILES.tsv', rule_list='Tests/test_operators.tsv')
+    pk2 = pickaxe.Pickaxe(cofactor_list=data_dir + '/test_cofactors.tsv', rule_list=data_dir + '/test_operators.tsv')
     rule = pk2.rxn_rules['2.7.1.a']
     assert isinstance(rule[0], rdkit.Chem.rdChemReactions.ChemicalReaction)
     assert isinstance(rule[1], dict)
@@ -35,8 +37,8 @@ def test_reaction_rule_loading():
     assert "Comments" in rule[1]
 
 def test_compound_loading():
-    compound_smiles = pk.load_compound_set(compound_file='Tests/test_compounds.tsv')
-    assert len(compound_smiles) == 15
+    compound_smiles = pk.load_compound_set(compound_file=data_dir+'/test_compounds.tsv')
+    assert len(compound_smiles) == 14
     pk2 = pickaxe.Pickaxe(database='mongotest')
     compound_smiles = pk2.load_compound_set()
     assert len(compound_smiles) == 26
@@ -58,67 +60,79 @@ def test_hashing():
     assert len(pk2.reactions) == 2 * len_rxns
 
 def test_product_racimization():
-    pk2 = pickaxe.Pickaxe(raceimze=False, cofactor_list='Tests/Cofactor_SMILES.tsv', rule_list='Tests/test_operators.tsv')
+    pk2 = pickaxe.Pickaxe(raceimze=False, cofactor_list=data_dir + '/test_cofactors.tsv',
+                          rule_list=data_dir+'/test_operators.tsv')
     comps, rxns = pk2.transform_compound(meh, rules=['2.6.1.a'])
     assert len(comps) == 2
     assert len(rxns) == 1
-    pk2 = pickaxe.Pickaxe(raceimze=True, cofactor_list='Tests/Cofactor_SMILES.tsv', rule_list='Tests/test_operators.tsv')
+    pk2 = pickaxe.Pickaxe(raceimze=True, cofactor_list=data_dir + '/test_cofactors.tsv',
+                          rule_list=data_dir+'/test_operators.tsv')
     rcomps, rrxns = pk2.transform_compound(meh, rules=['2.6.1.a'])
     assert len(rcomps) == 3
     assert len(rrxns) == 2
 
 def test_compound_output_writing():
-    pk.write_compound_output_file('Tests/testcompoundsout')
-    assert os.path.exists('Tests/testcompoundsout_new')
+    pk.write_compound_output_file(data_dir+'/testcompoundsout')
+    assert os.path.exists(data_dir+'/testcompoundsout_new')
     try:
-        assert filecmp.cmp('Tests/testcompoundsout', 'Tests/testcompoundsout_new')
+        assert filecmp.cmp(data_dir+'/testcompoundsout', data_dir+'/testcompoundsout_new')
     finally:
-        os.remove('Tests/testcompoundsout_new')
+        os.remove(data_dir+'/testcompoundsout_new')
 
 def test_reaction_output_writing():
-    pk.write_reaction_output_file('Tests/testreactionsout')
-    assert os.path.exists('Tests/testreactionsout_new')
+    pk.write_reaction_output_file(data_dir+'/testreactionsout')
+    assert os.path.exists(data_dir+'/testreactionsout_new')
     try:
-        assert filecmp.cmp('Tests/testreactionsout', 'Tests/testreactionsout_new')
+        assert filecmp.cmp(data_dir+'/testreactionsout', data_dir+'/testreactionsout_new')
     finally:
-        os.remove('Tests/testreactionsout_new')
+        os.remove(data_dir+'/testreactionsout_new')
 
 def test_transform_all():
     pk3 = pickaxe.Pickaxe(errors=False)
-    pk3.compounds[meh] = {'ID': None, '_id': fadh, 'Inchikey': '', 'SMILES': fadh, 'Generation': 0}
     pk3._load_cofactor('ATP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
     pk3._load_cofactor('ADP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
     pk3.generation = 0
+    pk3._add_compound(fadh, fadh)
     pk3.rxn_rules['2.7.1.a'] = rule
     pk3.transform_all(max_generations=2)
-    print(len(pk3.compounds), len(pk3.reactions))
-    assert len(pk3.compounds) == 32
+    assert len(pk3.compounds) == 31
     assert len(pk3.reactions) == 49
+    comp_gens = set([x['Generation'] for x in pk3.compounds.values()])
+    assert comp_gens == {-1, 0, 1, 2}
 
 
 def test_multiprocessing():
-    pk3 = pickaxe.Pickaxe(errors=False)
-    pk3.compounds[meh] = {'ID': None, '_id': fadh, 'Inchikey': '', 'SMILES': fadh, 'Generation': 0}
+    pk3 = pickaxe.Pickaxe(database='MINE_test', errors=False)
     pk3._load_cofactor('ATP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
     pk3._load_cofactor('ADP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
     pk3.generation = 0
+    pk3._add_compound(fadh, fadh)
     pk3.rxn_rules['2.7.1.a'] = rule
     pk3.transform_all(max_generations=2, num_workers=2)
-    assert len(pk3.compounds) == 32
+    assert len(pk3.compounds) == 31
     assert len(pk3.reactions) == 49
+    comp_gens = set([x['Generation'] for x in pk3.compounds.values()])
+    assert comp_gens == {-1, 0, 1, 2}
+    return pk3
 
 
 def test_save_as_MINE():
-    pk.save_to_MINE("MINE_test")
+    pk3 = test_multiprocessing()
+    pk3.save_to_MINE("MINE_test")
     mine_db = MINE('MINE_test')
     try:
-        assert mine_db.compounds.count() == 25
-        assert mine_db.reactions.count() == 7
+        assert mine_db.compounds.count() == 31
+        assert mine_db.reactions.count() == 49
         assert mine_db.operators.count() == 1
-        assert mine_db.operators.find_one()["Reactions_predicted"] == 7
-        assert os.path.exists("Tests/C9c69cbeb40f083118c1913599c12c7f4e5e68d03.svg")
+        assert mine_db.operators.find_one()["Reactions_predicted"] == 49
+        assert os.path.exists(data_dir+'/C9c69cbeb40f083118c1913599c12c7f4e5e68d03.svg')
+        start_comp = mine_db.compounds.find_one({'Generation': 0})
+        assert len(start_comp['Reactant_in'])
+        product = mine_db.compounds.find_one({'Generation': 2})
+        assert len(product['Product_of'])
+        assert len(product['Sources'])
     finally:
         mine_db.compounds.drop()
         mine_db.reactions.drop()
         mine_db.operators.drop()
-        purge('Tests', ".*\.svg$")
+        purge(data_dir, ".*\.svg$")

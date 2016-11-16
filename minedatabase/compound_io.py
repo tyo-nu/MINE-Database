@@ -1,17 +1,13 @@
-#!/usr/bin/env python
-"""Databases.py: Functions to load MINE databases from and dump compounds into common cheminformatics formats"""
-
-__author__ = 'JGJeffryes'
-
-from pymongo import DESCENDING
-from rdkit.Chem import AllChem
-from databases import MINE
-import utils
-import sys
-import hashlib
-import os
-import datetime
 import csv
+import datetime
+import os
+import sys
+
+from minedatabase import utils
+from minedatabase.databases import MINE
+from rdkit.Chem import AllChem
+
+"""Databases.py: Functions to load MINE databases from and dump compounds into common cheminformatics formats"""
 
 
 def export_sdf(mine_db, dir_path, max_compounds=None):
@@ -26,7 +22,7 @@ def export_sdf(mine_db, dir_path, max_compounds=None):
         mine_db.add_rxn_pointers()
 
     print("Exporting %s compounds from %s as an SDF file" %(mine_db.compounds.count(), mine_db.name))
-    target = utils.prevent_overwrite(os.path.join(dir_path, mine_db.name)+"_1.sdf")
+    target = utils.prevent_overwrite(os.path.join(dir_path, mine_db.name) + "_1.sdf")
     w = AllChem.SDWriter(target)
     w.SetKekulize(True)
     n_files = 1
@@ -60,7 +56,7 @@ def export_smiles(mine_db, dir_path, max_compounds=None):
         mine_db.add_rxn_pointers()
 
     print("Exporting %s compounds from %s as SMILES file" % (mine_db.compounds.count(), mine_db.name))
-    target = open(utils.prevent_overwrite(os.path.join(dir_path, mine_db.name)+"_1.smiles"), 'w')
+    target = open(utils.prevent_overwrite(os.path.join(dir_path, mine_db.name) + "_1.smiles"), 'w')
 
     w = csv.DictWriter(target, fieldnames=header, dialect='excel-tab')
     n_files = 1
@@ -70,7 +66,7 @@ def export_smiles(mine_db, dir_path, max_compounds=None):
         i += 1
         if max_compounds and not (i % max_compounds):
             n_files += 1
-            target = open(utils.prevent_overwrite(os.path.join(dir_path, mine_db.name)+"_%s.smiles" % n_files), 'w')
+            target = open(utils.prevent_overwrite(os.path.join(dir_path, mine_db.name) + "_%s.smiles" % n_files), 'w')
             w = csv.DictWriter(target, fieldnames=header, dialect='excel-tab')
 
 
@@ -128,6 +124,27 @@ def import_smiles(mine_db, target,):
     mine_db.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "SDF Imported", "Filepath": target})
 
 
+def import_mol_dir(mine_db, target, name_field="Name", overwrite=False):
+    """
+    Imports a directory of molfiles as a MINE database
+    :param mine_db: a MINE object, the database to insert the compound into
+    :param target: a path, the molfile directory to be loaded
+    :param overwrite: a bool, if true, new compounds replace the old compounds in the database
+    :return:
+    """
+    for file in os.listdir(target):
+        if ".mol" in file:
+            mol = AllChem.MolFromMolFile(target+'/'+file)
+            name = file.rstrip('.mol')
+            if mol:
+                comphash = utils.compound_hash(mol)
+                if not overwrite and mine_db.compounds.count({"_id": comphash}):
+                    mine_db.compounds.update({"_id": comphash}, {"$addToSet": {name_field: name}})
+                else:
+                    mine_db.insert_compound(mol, compound_dict={name_field: [name], 'Generation': 0}, pubchem_db=None,
+                                            kegg_db=None, modelseed_db=None)
+    mine_db.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "MolFiles Imported", "Filepath": target})
+
 if __name__ == '__main__':
     task = sys.argv[1]
     db_name = sys.argv[2]
@@ -152,5 +169,7 @@ if __name__ == '__main__':
         import_sdf(database, path)
     elif task == 'import-smi':
         import_smiles(database, path)
+    elif task == 'import-mol':
+        import_mol_dir(database, path)
     else:
         print("ERROR: Unrecognised Task")
