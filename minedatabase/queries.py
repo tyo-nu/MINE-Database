@@ -57,11 +57,10 @@ def advanced_search(db, mongo_query, search_projection=default_projection):
     :param search_projection: Dictionary, The fields which should be returned
     :return:
     """
-    if db != 'admin':  # we don't want users poking around here
-        query_dict = literal_eval(mongo_query)  # this transforms the string into a dictionary
-        return [x for x in db.compounds.find(query_dict, search_projection)]
-    else:
-        return ['Illegal query']
+    if db.name == 'admin' or not mongo_query:
+        raise ValueError('Illegal query')  # we don't want users poking around here
+    query_dict = literal_eval(mongo_query)  # this transforms the string into a dictionary
+    return [x for x in db.compounds.find(query_dict, search_projection)]
 
 def similarity_search(db, comp_structure, min_tc, fp_type, limit, search_projection=default_projection):
     """

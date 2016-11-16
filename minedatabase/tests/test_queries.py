@@ -1,4 +1,5 @@
 from os.path import dirname
+from nose.tools import assert_raises, raises
 
 from .. import databases, queries
 
@@ -24,7 +25,10 @@ def test_quick_search():
 
 
 def test_database_query():
-    assert queries.advanced_search('admin', '') == ['Illegal query']
+    with assert_raises(ValueError):
+        queries.advanced_search(databases.MINE('admin'), "{'MINE_id': 19160}")
+    with assert_raises(ValueError):
+        queries.advanced_search(test_db, "")
     assert queries.advanced_search(test_db, "{'MINE_id': 19160}") == [glucose]
     assert queries.advanced_search(test_db, "{'Names': 'Glucose'}") == [glucose]
     assert queries.advanced_search(test_db, "{'MINE_id': 19160}", {'_id': 1}) == [glucose_id]
