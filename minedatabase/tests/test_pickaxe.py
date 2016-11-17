@@ -21,10 +21,12 @@ l_ala = 'C[C@H](N)C(=O)O'
 d_ala = 'C[C@@H](N)C(=O)O'
 fadh = 'Cc1cc2c(cc1C)N(CC(O)C(O)C(O)COP(=O)(O)OP(=O)(O)OCC1OC(n3cnc4c(N)ncnc43)C(O)C1O)c1nc(O)nc(O)c1N2'
 
+
 def test_cofactor_loading():
     pk2 = pickaxe.Pickaxe(cofactor_list=data_dir + '/test_cofactors.tsv')
     assert "O=C=O" in pk2._raw_compounds
     assert isinstance(pk2.cofactors['ATP'], rdkit.Chem.rdchem.Mol)
+
 
 def test_reaction_rule_loading():
     global rule
@@ -36,12 +38,14 @@ def test_reaction_rule_loading():
     assert "Products" in rule[1]
     assert "Comments" in rule[1]
 
+
 def test_compound_loading():
     compound_smiles = pk.load_compound_set(compound_file=data_dir+'/test_compounds.tsv')
     assert len(compound_smiles) == 14
     pk2 = pickaxe.Pickaxe(database='mongotest')
     compound_smiles = pk2.load_compound_set()
     assert len(compound_smiles) == 26
+
 
 def test_transform_compounds():
     pk._add_compound("Start", smi=fadh)
@@ -51,6 +55,7 @@ def test_transform_compounds():
     pk.transform_compound(fadh)
     pk.assign_ids()
 
+
 def test_hashing():
     pk2 = pickaxe.Pickaxe(explicit_h=False, kekulize=False)
     pk2._load_cofactor('S-Adenosylmethionine	C[S+](CC[C@H](N)C(=O)O)C[C@H]1O[C@@H](n2cnc3c(N)ncnc32)[C@H](O)[C@@H]1O')
@@ -58,6 +63,7 @@ def test_hashing():
     len_rxns = len(pk2.reactions)
     pk2.transform_compound(d_ala)
     assert len(pk2.reactions) == 2 * len_rxns
+
 
 def test_product_racimization():
     pk2 = pickaxe.Pickaxe(raceimze=False, cofactor_list=data_dir + '/test_cofactors.tsv',
@@ -71,6 +77,7 @@ def test_product_racimization():
     assert len(rcomps) == 3
     assert len(rrxns) == 2
 
+
 def test_compound_output_writing():
     pk.write_compound_output_file(data_dir+'/testcompoundsout')
     assert os.path.exists(data_dir+'/testcompoundsout_new')
@@ -79,6 +86,7 @@ def test_compound_output_writing():
     finally:
         os.remove(data_dir+'/testcompoundsout_new')
 
+
 def test_reaction_output_writing():
     pk.write_reaction_output_file(data_dir+'/testreactionsout')
     assert os.path.exists(data_dir+'/testreactionsout_new')
@@ -86,6 +94,7 @@ def test_reaction_output_writing():
         assert filecmp.cmp(data_dir+'/testreactionsout', data_dir+'/testreactionsout_new')
     finally:
         os.remove(data_dir+'/testreactionsout_new')
+
 
 def test_transform_all():
     pk3 = pickaxe.Pickaxe(errors=False)

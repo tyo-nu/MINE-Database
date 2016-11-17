@@ -6,6 +6,7 @@ from rdkit.Chem import AllChem
 default_projection = {'SMILES': 1, 'Formula': 1, 'MINE_id': 1, 'Names': 1, 'Inchikey': 1, 'Mass': 1, 'Sources': 1,
                       'Generation': 1, 'NP_likeness': 1}
 
+
 def quick_search(db, query, search_projection=default_projection):
     """
     This function takes user provided compound identifiers and attempts to find a related database ID
@@ -48,6 +49,7 @@ def quick_search(db, query, search_projection=default_projection):
 
     return results
 
+
 def advanced_search(db, mongo_query, search_projection=default_projection):
     """
     Returns compounds in the indicated database which match the provided mongo query
@@ -61,6 +63,7 @@ def advanced_search(db, mongo_query, search_projection=default_projection):
         raise ValueError('Illegal query')  # we don't want users poking around here
     query_dict = literal_eval(mongo_query)  # this transforms the string into a dictionary
     return [x for x in db.compounds.find(query_dict, search_projection)]
+
 
 def similarity_search(db, comp_structure, min_tc, fp_type, limit, search_projection=default_projection):
     """
@@ -104,6 +107,7 @@ def similarity_search(db, comp_structure, min_tc, fp_type, limit, search_project
 
     return similarity_search_results
 
+
 def structure_search(db, comp_structure, search_projection=default_projection):
     """
     Returns compounds in the indicated database which are exact matches to the provided structure
@@ -125,6 +129,7 @@ def structure_search(db, comp_structure, search_projection=default_projection):
     # sure, we could look for a matching SMILES but this is faster
     return quick_search(db, inchi_key, search_projection)
 
+
 def substructure_search(db, comp_structure, limit, search_projection=default_projection):
     """
     Returns compounds in the indicated database which contain the provided structure
@@ -145,7 +150,7 @@ def substructure_search(db, comp_structure, limit, search_projection=default_pro
     query_fp = [i for i, bit in enumerate(AllChem.RDKFingerprint(mol)) if bit]
     for x in db.compounds.find({"RDKit": {"$all": query_fp}}, search_projection):
         comp = AllChem.MolFromSmiles(x['SMILES'])
-        if comp.HasSubstructMatch(mol):
+        if comp and comp.HasSubstructMatch(mol):
             substructure_search_results.append(x)
             if len(substructure_search_results) == limit:
                 break
