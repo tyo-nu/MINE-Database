@@ -19,7 +19,7 @@ from rdkit.Chem.Draw import MolToFile, rdMolDraw2D
 
 class Pickaxe:
     def __init__(self, rule_list=None, cofactor_list=None, explicit_h=True, kekulize=True, neutralise=True, errors=True,
-                 raceimze=False, split_stereoisomers=True, database=None, image_dir=None):
+                 raceimze=False, database=None, image_dir=None):
         """
         This class generates new compounds from user-specified starting compounds using a set of SMARTS-based reaction
         rules. It may be initialized with a text file containing the reaction rules and cofactors or this may be
@@ -39,8 +39,6 @@ class Pickaxe:
         :type errors: bool
         :param raceimze: Enumerate all possible chiral forms of a molecule if unspecified stereocenters exist
         :type raceimze: bool
-        :param split_stereoisomers: Split each possible stereoisomers into a separate reaction
-        :type split_stereoisomers: bool
         :param database: Name of desired Mongo Database
         :type database: str
         :param image_dir: Path to desired image folder
@@ -53,7 +51,6 @@ class Pickaxe:
         self.reactions = {}
         self.generation = -1
         self.explicit_h = explicit_h
-        self.split_stereoisomers = split_stereoisomers
         self.kekulize = kekulize
         self.raceimize = raceimze
         self.neutralise = neutralise
@@ -188,25 +185,25 @@ class Pickaxe:
     def _add_compound(self, id, smi, mol=None):
         """Adds a compound to the internal compound dictionary"""
         self._raw_compounds[smi] = smi
-        if smi in self.compounds:
-            return  # we don't want to overwrite the same compound from a prior generation
-        if not mol:
-            mol = AllChem.MolFromSmiles(smi)
-        i_key = AllChem.InchiToInchiKey(AllChem.MolToInchi(mol))
         _id = utils.compound_hash(smi)
-        self.compounds[smi] = {'ID': id, '_id': _id, "SMILES": smi, 'Inchikey': i_key, 'Generation': self.generation,
-                               'Reactant_in': [], 'Product_of': [], "Sources": []}
-        # if we are building a mine and generating images, do so here
-        if self.image_dir and self.mine:
-            try:
-                with open(os.path.join(self.image_dir, _id + '.svg'), 'w') as outfile:
-                    nmol = rdMolDraw2D.PrepareMolForDrawing(mol)
-                    d2d = rdMolDraw2D.MolDraw2DSVG(1000, 1000)
-                    d2d.DrawMolecule(nmol)
-                    d2d.FinishDrawing()
-                    outfile.write(d2d.GetDrawingText())
-            except OSError:
-                print("Unable to generate image for %s" % smi)
+        if smi not in self.compounds:  # we don't want to overwrite the same compound from a prior generation
+            if not mol:
+                mol = AllChem.MolFromSmiles(smi)
+            i_key = AllChem.InchiToInchiKey(AllChem.MolToInchi(mol))
+            self.compounds[smi] = {'ID': id, '_id': _id, "SMILES": smi, 'Inchikey': i_key,
+                                   'Generation': self.generation, 'Reactant_in': [], 'Product_of': [], "Sources": []}
+            # if we are building a mine and generating images, do so here
+            if self.image_dir and self.mine:
+                try:
+                    with open(os.path.join(self.image_dir, _id + '.svg'), 'w') as outfile:
+                        nmol = rdMolDraw2D.PrepareMolForDrawing(mol)
+                        d2d = rdMolDraw2D.MolDraw2DSVG(1000, 1000)
+                        d2d.DrawMolecule(nmol)
+                        d2d.FinishDrawing()
+                        outfile.write(d2d.GetDrawingText())
+                except OSError:
+                    print("Unable to generate image for %s" % smi)
+        return _id
 
     def transform_compound(self, compound_SMILES, rules=None):
         """
@@ -246,11 +243,11 @@ class Pickaxe:
                 print(compound_SMILES)
                 continue
             reactant_atoms = self._get_atom_count(reactant_mols)
-            reactants = next(self._make_compound_tups(reactant_mols, rule_name))  # no enumeration for reactants
+            reactants = next(self._make_half_rxn(reactant_mols))  # no enumeration for reactants
             reactants.sort()  # By sorting the reactant (and later products) we ensure that reactions are unique
             for product_mols in product_sets:
                 try:
-                    for stereo_prods in self._make_compound_tups(product_mols, rule_name, split_stereoisomers=self.split_stereoisomers):
+                    for stereo_prods in self._make_half_rxn(product_mols, split_stereoisomers=self.raceimize):
                         pred_compounds.update(x.c_id for x in stereo_prods)
                         stereo_prods.sort()
                         text_rxn = self._add_reaction(reactants, rule_name, stereo_prods)
@@ -261,6 +258,7 @@ class Pickaxe:
                             print(reactant_atoms, product_atoms)
                         pred_rxns.add(text_rxn)
                 except ValueError:
+                    print("Error Processing Rule: " + rule_name)
                     continue
         return pred_compounds, pred_rxns
 
@@ -287,44 +285,33 @@ class Pickaxe:
             self.reactions[rhash]['Operators'].add(rule_name)
         return text_rxn
 
-    def _make_compound_tups(self, mols, rule_name, split_stereoisomers=False):
-        """Takes a list of mol objects and returns an generator for (compound, stoich) tuples"""
-        # TODO: comment this function & next
-        comps = []
-        products = []
-        for m in mols:
-            r_smiles = AllChem.MolToSmiles(m, True)
-            try:
-                comps.append(self._calculate_compound_information(r_smiles, m))
-            except ValueError:
-                print("Product ERROR!: %s %s" % (rule_name, r_smiles))
-                raise ValueError
-        if split_stereoisomers:
-            for subrxn in itertools.product(*comps):
-                products.append(collections.Counter(subrxn))
-        else:
-            products = [collections.Counter(comps)]
-        for rxn in products:
-            yield [stoich_tuple(y, x) if len(x) > 1 else stoich_tuple(y, x[0]) for x, y in rxn.items()]
+    def _make_half_rxn(self, mols, split_stereoisomers=False):
+        """Takes a list of mol objects for a half reaction and returns an generator for stoich tuples"""
+        comps = [self._calculate_compound_information(m, split_stereoisomers) for m in mols]
+        half_rxns = [collections.Counter(subrxn) for subrxn in itertools.product(*comps)]
+        for rxn in half_rxns:
+            yield [stoich_tuple(y, x) if len(x) > 1 else stoich_tuple(y, x) for x, y in rxn.items()]
 
-    def _calculate_compound_information(self, raw, mol_obj):
+    def _calculate_compound_information(self, mol_obj, split_stereoisomers):
         """Calculate the standard data for a compound & return a tuple with compound_ids. Memoized with _raw_compound
         dict"""
+        # this is the raw smiles which may have explicit hydrogen
+        raw = AllChem.MolToSmiles(mol_obj, True)
         if raw not in self._raw_compounds:
             if self.explicit_h:
                 try:
                     mol_obj = AllChem.RemoveHs(mol_obj)  # this step slows down the process quite a bit
                 except:
+                    print("Product ERROR!: " + raw)
                     raise ValueError
             AllChem.SanitizeMol(mol_obj)
-            if self.raceimize:
-                mols = self._racemization(mol_obj)
+            if split_stereoisomers:
+                processed_mols = self._racemization(mol_obj)
             else:
-                mols = [mol_obj]
-            smiles = [AllChem.MolToSmiles(m, True) for m in mols]
-            for s, m in zip(smiles, mols):
-                if s not in self._raw_compounds:
-                    self._add_compound(None, s, mol=m)
+                processed_mols = [mol_obj]
+            smiles = [AllChem.MolToSmiles(m, True) for m in processed_mols]
+            for s, m in zip(smiles, processed_mols):
+                self._add_compound(None, s, mol=m)
             self._raw_compounds[raw] = tuple([self._raw_compounds[s] for s in smiles])
         return self._raw_compounds[raw] if isinstance(self._raw_compounds[raw], tuple) else (self._raw_compounds[raw],)
 
