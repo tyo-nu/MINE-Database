@@ -203,10 +203,13 @@ class MINE:
             self.reactions.save(reaction_dict)
         return reaction_dict['_id']
 
-    def map_reactions(self, ext_db):
+    def map_reactions(self, ext_db, match_field='_id'):
         lit_db = MINE(ext_db)
         for lit_rxn in lit_db.reactions.find():
-            mine_rxn = self.reactions.find_one({'_id': lit_rxn['_id']}, {'Operators': 1})
+            if match_field == "InChI_hash":
+                mine_rxn = self.reactions.find_one({match_field: {"$regex": lit_rxn[match_field].split('-')[0]}}, {'Operators': 1})
+            else:
+                mine_rxn = self.reactions.find_one({match_field: lit_rxn[match_field]}, {'Operators': 1})
             if mine_rxn:
                 for op in mine_rxn['Operators']:
                     self.operators.update({'_id': op}, {"$addToSet": {"Mapped_Rxns": lit_rxn["_id"],

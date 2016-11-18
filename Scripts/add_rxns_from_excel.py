@@ -1,12 +1,12 @@
 import os
 import subprocess
 import sys
+import hashlib
 
 import pandas as pd
 from minedatabase import utils
 from minedatabase.databases import MINE
 from rdkit.Chem import AllChem
-
 
 def load_cdmine_rxns(mine_db, excel_file, pic_dir=""):
     abrv = {"hn": "[*]"}
@@ -43,6 +43,7 @@ def load_cdmine_rxns(mine_db, excel_file, pic_dir=""):
             rxn['Type'] = str(row['Type of Reaction']).strip()
             rxn['Notes'] = str(row['Comments']).strip()
             rxn['Reactants'], rxn['Products'] = utils.parse_text_rxn(row['Equation (Abbreviations)'], ' = ', ' + ', abrv)
+            rxn['InChI_hash'] = utils._calculate_rxn_hash(mine_db, rxn['Reactants'], rxn['Products'])
             mine_db.insert_reaction(rxn)
         else:
             print('RXN missing from %s' % row.name)

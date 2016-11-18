@@ -162,6 +162,32 @@ def rxn2hash(reactants, products, return_text=False):
         return rhash
 
 
+def _calculate_rxn_hash(db, reactants, products):
+        """Calculates a unique reaction hash using inchikeys. First block is connectivity only, second block is stereo
+        only"""
+
+        def __get_blocks(tups):
+            first_block, second_block = [], []
+            for x in tups:
+                comp = db.compounds.find_one({"_id": x.c_id})
+                if comp and comp["Inchikey"]:
+                    split_inchikey = comp["Inchikey"].split('-')
+                    if len(split_inchikey) > 1:
+                        first_block.append("%s,%s" % (x.stoich, split_inchikey[0]))
+                        second_block.append("%s,%s" % (x.stoich, split_inchikey[1]))
+                else:
+                    print("No Inchikey for %s" % x.c_id)
+            return "+".join(first_block), "+".join(second_block)
+
+        reactants.sort()
+        products.sort()
+        r_1, r_2 = __get_blocks(reactants)
+        p_1, p_2 = __get_blocks(products)
+        first_block = r_1 + '<==>' + p_1
+        second_block = r_2 + '<==>' + p_2
+        return hashlib.sha256(first_block.encode()).hexdigest() + "-" + hashlib.md5(second_block.encode()).hexdigest()
+
+
 def parse_text_rxn(rxn, rp_del, cp_del, translation_dict=None):
     """Makes a list of product and reactant stoich_tuples"""
 
