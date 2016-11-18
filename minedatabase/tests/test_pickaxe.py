@@ -2,7 +2,7 @@ import filecmp
 import os
 import re
 
-import rdkit
+from rdkit.Chem import AllChem
 from .. import pickaxe
 from ..databases import MINE
 
@@ -25,14 +25,14 @@ fadh = 'Cc1cc2c(cc1C)N(CC(O)C(O)C(O)COP(=O)(O)OP(=O)(O)OCC1OC(n3cnc4c(N)ncnc43)C
 def test_cofactor_loading():
     pk2 = pickaxe.Pickaxe(cofactor_list=data_dir + '/test_cofactors.tsv')
     assert "O=C=O" in pk2._raw_compounds
-    assert isinstance(pk2.cofactors['ATP'], rdkit.Chem.rdchem.Mol)
+    assert isinstance(pk2.cofactors['ATP'], AllChem.Mol)
 
 
 def test_reaction_rule_loading():
     global rule
     pk2 = pickaxe.Pickaxe(cofactor_list=data_dir + '/test_cofactors.tsv', rule_list=data_dir + '/test_operators.tsv')
     rule = pk2.rxn_rules['2.7.1.a']
-    assert isinstance(rule[0], rdkit.Chem.rdChemReactions.ChemicalReaction)
+    assert isinstance(rule[0], AllChem.ChemicalReaction)
     assert isinstance(rule[1], dict)
     assert rule[1]['Reactants'] == ['ATP', 'Any']
     assert "Products" in rule[1]

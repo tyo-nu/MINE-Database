@@ -83,6 +83,8 @@ class MINE:
         self.compounds.ensure_index("DB_links.KEGG")
         self.compounds.ensure_index("MACCS")
         self.compounds.ensure_index("len_MACCS")
+        self.compounds.ensure_index("RDKit")
+        self.compounds.ensure_index("len_RDKit")
         self.compounds.ensure_index("Inchikey")
         self.compounds.ensure_index("MINE_id")
         self.reactions.ensure_index("Reactants.c_id")
@@ -187,8 +189,7 @@ class MINE:
         return compound_dict['_id']
 
     def insert_reaction(self, reaction_dict, bulk=None):
-        if '_id' not in reaction_dict:
-            reaction_dict['_id'] = utils.rxn2hash(reaction_dict['Reactants'], reaction_dict['Products'])
+        reaction_dict['_id'] = utils.rxn2hash(reaction_dict['Reactants'], reaction_dict['Products'])
 
         # by converting to a dict, mongo stores the data as objects not arrays allowing for queries by compound hash
         if isinstance(reaction_dict['Reactants'][0], utils.stoich_tuple):
@@ -201,3 +202,13 @@ class MINE:
         else:
             self.reactions.save(reaction_dict)
         return reaction_dict['_id']
+
+    def map_reactions(self, ext_db):
+        lit_db = MINE(ext_db)
+        for lit_rxn in lit_db.reactions.find():
+            mine_rxn = self.reactions.find_one({'_id': lit_rxn['_id']}, {'Operators': 1})
+            if mine_rxn:
+                for op in mine_rxn['Operators']:
+                    self.operators.update({'_id': op}, {"$addToSet": {"Mapped_Rxns": lit_rxn["_id"],
+                                                                      "References": {"$each": lit_rxn['References']}}})
+                lit_db.reactions.update({"_id": lit_rxn["_id"]}, {"$set": {"Mapped_Rules": mine_rxn['Operators']}})

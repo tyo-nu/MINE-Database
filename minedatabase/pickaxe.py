@@ -290,7 +290,7 @@ class Pickaxe:
         comps = [self._calculate_compound_information(m, split_stereoisomers) for m in mols]
         half_rxns = [collections.Counter(subrxn) for subrxn in itertools.product(*comps)]
         for rxn in half_rxns:
-            yield [stoich_tuple(y, x) if len(x) > 1 else stoich_tuple(y, x) for x, y in rxn.items()]
+            yield [stoich_tuple(y, x) for x, y in rxn.items()]
 
     def _calculate_compound_information(self, mol_obj, split_stereoisomers):
         """Calculate the standard data for a compound & return a tuple with compound_ids. Memoized with _raw_compound
@@ -487,13 +487,13 @@ class Pickaxe:
             _tmpr, _tmpp = [], []  # having temp variables for the lists avoids pointer issues
             for i, x in enumerate(rxn['Reactants']):
                 self.compounds[x.c_id]['Reactant_in'].append(rxn['_id'])
-                _tmpr.append({"stoich": x.stoich, "c_id": utils.compound_hash(x.c_id)})
+                _tmpr.append(stoich_tuple(x.stoich, utils.compound_hash(x.c_id)))
             rxn['Reactants'] = _tmpr
             for i, x in enumerate(rxn['Products']):
                 self.compounds[x.c_id]['Product_of'].append(rxn['_id'])
                 self.compounds[x.c_id]['Sources'].append(
-                    {"Compounds": [x['c_id'] for x in rxn['Reactants']], "Operators": list(rxn["Operators"])})
-                _tmpp.append({"stoich": x.stoich, "c_id": utils.compound_hash(x.c_id)})
+                    {"Compounds": [x.c_id for x in rxn['Reactants']], "Operators": list(rxn["Operators"])})
+                _tmpp.append(stoich_tuple(x.stoich, utils.compound_hash(x.c_id)))
             rxn["Products"] = _tmpp
             # iterate the number of reactions predicted
             for op in rxn['Operators']:
