@@ -252,6 +252,7 @@ class Pickaxe:
                         stereo_prods.sort()
                         text_rxn = self._add_reaction(reactants, rule_name, stereo_prods)
                         product_atoms = self._get_atom_count(product_mols)
+                        # If the SMARTS rule is not atom balanced, this check detects the accidental alchemy.
                         if reactant_atoms - product_atoms or product_atoms - reactant_atoms:
                             print("Warning: Unbalanced Reaction produced by " + rule_name)
                             print(text_rxn)
@@ -263,6 +264,7 @@ class Pickaxe:
         return pred_compounds, pred_rxns
 
     def _get_atom_count(self, molecules):
+        """Takes a set of mol objects and returns a counter with each element type in the set"""
         if self.explicit_h:
             return 0
         atoms = collections.Counter()
@@ -278,9 +280,11 @@ class Pickaxe:
     def _add_reaction(self, reactants, rule_name, stereo_prods):
         """Hashes and inserts reaction into reaction dictionary"""
         rhash, text_rxn = rxn2hash(reactants, stereo_prods, True)
+        inchi_rxn_hash = self._calculate_rxn_hash(reactants, stereo_prods)
         if rhash not in self.reactions:
             self.reactions[rhash] = {"_id": rhash, "Reactants": reactants, "Products": stereo_prods,
-                                     "Operators": {rule_name}, "SMILES_rxn": text_rxn, "Generation": self.generation}
+                                     "InChI_hash": inchi_rxn_hash, "Operators": {rule_name}, "SMILES_rxn": text_rxn,
+                                     "Generation": self.generation}
         else:
             self.reactions[rhash]['Operators'].add(rule_name)
         return text_rxn
@@ -349,13 +353,13 @@ class Pickaxe:
         def __get_blocks(tups):
             first_block, second_block = [], []
             for x in tups:
-                if self.compounds[x.compound]["Inchikey"]:
-                    split_inchikey = self.compounds[x.compound]["Inchikey"].split('-')
+                if self.compounds[x.c_id]["Inchikey"]:
+                    split_inchikey = self.compounds[x.c_id]["Inchikey"].split('-')
                     if len(split_inchikey) > 1:
                         first_block.append("%s,%s" % (x.stoich, split_inchikey[0]))
                         second_block.append("%s,%s" % (x.stoich, split_inchikey[1]))
                 else:
-                    print("No Inchikey for %s" % x.compound)
+                    print("No Inchikey for %s" % x.c_id)
             return "+".join(first_block), "+".join(second_block)
 
         reactants.sort()
