@@ -7,7 +7,7 @@ default_projection = {'SMILES': 1, 'Formula': 1, 'MINE_id': 1, 'Names': 1, 'Inch
                       'Generation': 1, 'NP_likeness': 1}
 
 
-def quick_search(db, query, search_projection=default_projection):
+def quick_search(db, query, search_projection=default_projection.copy()):
     """
     This function takes user provided compound identifiers and attempts to find a related database ID
 
@@ -26,18 +26,15 @@ def quick_search(db, query, search_projection=default_projection):
         query_field = 'DB_links.Model_SEED'
     elif len(query.split('-')[0]) == 14 and query.isupper():
         query_field = 'Inchikey'
-        query = query.split('-')[0]
     elif query.isdigit():
         query_field = "MINE_id"
         query = int(query)
     else:
         query_field = 'Names'
 
-    if query_field == 'Inchikey':
-        results = [x for x in db.compounds.find({query_field: {'$regex': '^'+query}}, search_projection).limit(500)
-                   if x['_id'][0] == "C"]
-    elif query_field == 'Names':
-        results = [x for x in db.compounds.find({"Names": {'$regex': '^'+query+'$', '$options': 'i'}}, search_projection) if x['_id'][0] == "C"]
+    if query_field == 'Names':
+        results = [x for x in db.compounds.find({"Names": {'$regex': '^'+query+'$', '$options': 'i'}},
+                                                search_projection) if x['_id'][0] == "C"]
         if not results:
             cursor = db.compounds.find({"$text": {"$search": query}}, {"score": {"$meta": "textScore"}, 'Formula': 1,
                                                                            'MINE_id': 1, 'Names': 1, 'Inchikey': 1,
@@ -50,7 +47,7 @@ def quick_search(db, query, search_projection=default_projection):
     return results
 
 
-def advanced_search(db, mongo_query, search_projection=default_projection):
+def advanced_search(db, mongo_query, search_projection=default_projection.copy()):
     """
     Returns compounds in the indicated database which match the provided mongo query
 
@@ -65,7 +62,7 @@ def advanced_search(db, mongo_query, search_projection=default_projection):
     return [x for x in db.compounds.find(query_dict, search_projection)]
 
 
-def similarity_search(db, comp_structure, min_tc, fp_type, limit, search_projection=default_projection):
+def similarity_search(db, comp_structure, min_tc, fp_type, limit, search_projection=default_projection.copy()):
     """
     Returns compounds in the indicated database which have structural similarity to the provided compound
 
@@ -104,11 +101,11 @@ def similarity_search(db, comp_structure, min_tc, fp_type, limit, search_project
             similarity_search_results.append(x)
             if len(similarity_search_results) == limit:
                 break
-
+    del search_projection[fp_type]
     return similarity_search_results
 
 
-def structure_search(db, comp_structure, search_projection=default_projection):
+def structure_search(db, comp_structure, stereo=True, search_projection=default_projection.copy()):
     """
     Returns compounds in the indicated database which are exact matches to the provided structure
 
@@ -127,10 +124,13 @@ def structure_search(db, comp_structure, search_projection=default_projection):
     inchi = AllChem.MolToInchi(mol)
     inchi_key = AllChem.InchiToInchiKey(inchi)
     # sure, we could look for a matching SMILES but this is faster
-    return quick_search(db, inchi_key, search_projection)
+    if stereo:
+        return quick_search(db, inchi_key, search_projection)
+    else:
+        return [x for x in db.compounds.find({"Inchikey": {'$regex': '^'+inchi_key.split('-')[0]}}, search_projection)]
 
 
-def substructure_search(db, comp_structure, limit, search_projection=default_projection):
+def substructure_search(db, comp_structure, limit, search_projection=default_projection.copy()):
     """
     Returns compounds in the indicated database which contain the provided structure
 
@@ -144,7 +144,7 @@ def substructure_search(db, comp_structure, limit, search_projection=default_pro
     if "\n" in comp_structure:
         mol = AllChem.MolFromMolBlock(str(comp_structure))
     else:
-        mol = AllChem.MolFromSmarts(str(comp_structure))
+        mol = AllChem.MolFromSmiles(str(comp_structure))
     if not mol:
         raise ValueError("Unable to parse comp_structure")
     query_fp = [i for i, bit in enumerate(AllChem.RDKFingerprint(mol)) if bit]
