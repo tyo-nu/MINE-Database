@@ -1,5 +1,5 @@
 from os.path import dirname
-from nose.tools import assert_raises, raises
+from nose.tools import assert_raises
 
 from .. import databases, queries
 
@@ -80,29 +80,3 @@ def test_substructure_search():
 def test_structure_search():
     assert glucose in queries.structure_search(test_db, 'OC[C@H]1OC(O)[C@H](O)[C@@H](O)[C@@H]1O', True)
     assert glucose in queries.structure_search(test_db, test_molfile, False)
-
-
-def test_ms_adduct_search():
-    """params = {'db': test_db, 'tolerance': 2.0, 'adducts': ['[M+H]+'], 'models': ['Bacteria'], 'ppm': False,
-              'charge': True, 'halogens': False}
-    result = queries.ms_adduct_search("181.071188116\n0.0", "form", params)
-    assert len(result) == 31
-    assert isinstance(result[0], dict)"""
-    raise NotImplementedError
-
-
-def test_ms2_search():
-    """params = {'db': test_db, 'tolerance': 5.0, 'adducts': ['[M-H]-'], 'models': ['Bacteria'], 'ppm': False,
-              'charge': False, 'halogens': False, 'scoring_function': 'dot_product', 'energy_level': 20}
-    result2 = queries.ms2_search(open("./scripts/folate.mgf").read(), "mgf", params)
-    assert result2
-    assert isinstance(result2[0], dict)
-    print(result2[0])
-    keys = [u'SMILES', u'NP_likeness', u'logP', u'adduct', u'maxKovatsRI', u'MINE_id', u'Inchikey', u'Generation',
-            u'Formula', u'Spectral_score', u'minKovatsRI', u'_id', u'peak_name']
-    assert u'Spectral_score' in result2[0].keys()
-    result2_2 = queries.ms2_search(open("./scripts/folate_form.txt").read(), "form", params)
-    assert len(result2) == len(result2_2)
-    result2_2 = queries.ms2_search(open("./scripts/2870575.msp").read(), "msp", params)
-    assert len(result2) == len(result2_2)"""
-    raise NotImplementedError
