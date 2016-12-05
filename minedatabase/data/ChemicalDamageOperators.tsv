@@ -53,7 +53,7 @@ DoubleNucleophilicAddition_Glyoxal	Any;Glyoxal	[#7H2:3]-[c:2](:[#7,#6;a:4]):[nH1
 DoubleNucleophilicAddition_Mglyoxal	Any;MGlyoxal	[#7H2:3]-[c:2](:[#7,#6;a:4]):[nH1:1].[O:5]=[#6:6]-[#6H1:7]=[O:8]>>[#8:8]-[#6:7]-1-[#7;v3:3]-[c:2](:[*:4])[n:1]-[#6:6]-1-[#8:5]	Any	11312885; 16970975
 DoubleNucleophilicCondensation_Malondialdehyde	Any;Malondialdehyde	[#7H2:1]-[c:2](:[n:4]):[nH1:3].[#8:5]=[#6:6]-[#6:7]-[#6:8]=[#8:9]>>[n:4]:[c:2]1[n:3][c:8][c:7][c:6][n:1]1.[#8:5].[#8:9]	Any;Water;Water
 EnaminoneFormation_Malondialdehyde	Any;Malondialdehyde	[#6:2]-[#7H2:1].[O:3]=[#6;R0:4]-[#6;R0:5]-[#6;R0:6]=[O:7]>>[#6:2]-[#7:1][#6:6]=[#6:5][#6:4]=[O:3].[#8:7]	Any;Water
-EnoneDeamination	Any;Water	[#7H2:2]-[#6;R0:1](=[#6;H2R0:3])-[#6;R0:4]=[O:5].[#8:6]>>[#6;R0:3]-[#6;R0:1](=[O:6])-[#6;R0:4]=[O:5].[#7:2]	Any;Ammonia
+EnoneDeamination	Any;Water	[#7H2:2]-[#6;R0:1](=[#6R0:3])-[#6;R0:4]=[O:5].[#8:6]>>[#6;R0:3]-[#6;R0:1](=[O:6])-[#6;R0:4]=[O:5].[#7:2]	Any;Ammonia
 EpsilonLactamFormation	Any	[#7;H1,H2:1]-[#6;R0:2]-[#6;R0:3]-[#6;R0:4]-[#6;R0:5]-[#6;R0:6](-[#8H1,#7H2:8])=[O:7]>>[O:7]=[#6:6]-1-[#6:5]-[#6:4]-[#6:3]-[#6:2]-[#7:1]-1.[*:8]	Any;Any	23014442; 14275125
 FuranoseRingOpening	Any	[#8H1:7]-[#6:3]-1-[#6:2]-[#8:1]-[#6:5](-[#8H1:6])-[#6:4]-1-[#8H1:8]>>[#8:1]-[#6:2]-[#6:3](-[#8:7])-[#6:4](-[#8:8])-[#6:5]=[O:6]	Any
 GammaHydroxyDehydration	Any	[#8;D2:5]-[#6;R0:4]-[#6;H1R0@:3](-[#8H1:6])-[#6R0:2]=[O:1]>>[#6:4]-[#6H0:3](=[O:6])-[#6:2]=[O:1].[#8:5]	Any;Any
