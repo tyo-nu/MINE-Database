@@ -26,7 +26,7 @@ Glucose	O=C[C@H](O)[C@@H](O)[C@H](O)[C@H](O)CO
 Glutamate	N[C@@H](CCC(=O)O)C(=O)O
 Glutamine	NC(=O)CC[C@H](N)C(=O)O
 Glutathione	N[C@@H](CCC(O)=N[C@@H](CS)C(O)=NCC(=O)O)C(=O)O
-Glycoaldehyde	O=CCO
+Glycolaldehyde	O=CCO
 Glyoxal	O=CC=O
 Glyoxylate	O=CC(=O)O
 H2O2	OO
@@ -35,7 +35,7 @@ HCl	Cl
 Histidine	N[C@@H](Cc1cnc[nH]1)C(=O)O
 HNE	CCCCCC(O)/C=C/C=O
 Lysine	NCCCC[C@H](N)C(=O)O
-Malonaldehyde	O=CCC=O
+Malondialdehyde	O=CCC=O
 MGlyoxal	CC(=O)C=O
 N2O3	O=N[N+](=O)[O-]
 NAD+	NC(=O)c1ccc[n+]([C@@H]2O[C@H](COP(=O)(O)OP(=O)(O)OC[C@H]3O[C@@H](n4cnc5c(N)ncnc54)[C@H](O)[C@@H]3O)[C@@H](O)[C@H]2O)c1
