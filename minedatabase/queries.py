@@ -84,9 +84,9 @@ def similarity_search(db, comp_structure, min_tc, fp_type, limit, search_project
         raise ValueError("Unable to parse comp_structure")
 
     if fp_type == 'MACCS':
-        query_fp = set([i for i, bit in enumerate(AllChem.GetMACCSKeysFingerprint(mol)) if bit])
+        query_fp = set(AllChem.GetMACCSKeysFingerprint(mol).GetOnBits())
     elif fp_type == 'RDKit':
-        query_fp = set([i for i, bit in enumerate(AllChem.RDKFingerprint(mol)) if bit])
+        query_fp = set(AllChem.RDKFingerprint(mol).GetOnBits())
     else:
         raise ValueError("Invalid FP_type")
 
@@ -147,7 +147,7 @@ def substructure_search(db, comp_structure, limit, search_projection=default_pro
         mol = AllChem.MolFromSmiles(str(comp_structure))
     if not mol:
         raise ValueError("Unable to parse comp_structure")
-    query_fp = [i for i, bit in enumerate(AllChem.RDKFingerprint(mol)) if bit]
+    query_fp = list(AllChem.RDKFingerprint(mol).GetOnBits())
     for x in db.compounds.find({"RDKit": {"$all": query_fp}}, search_projection):
         comp = AllChem.MolFromSmiles(x['SMILES'])
         if comp and comp.HasSubstructMatch(mol):

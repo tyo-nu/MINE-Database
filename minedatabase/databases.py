@@ -144,9 +144,9 @@ class MINE:
         compound_dict['Mass'] = AllChem.CalcExactMolWt(mol_object)
         compound_dict['Formula'] = AllChem.CalcMolFormula(mol_object)
         compound_dict['Charge'] = AllChem.GetFormalCharge(mol_object)
-        compound_dict['MACCS'] = [i for i, bit in enumerate(AllChem.GetMACCSKeysFingerprint(mol_object)) if bit]
+        compound_dict['MACCS'] = list(AllChem.GetMACCSKeysFingerprint(mol_object).GetOnBits())
         compound_dict['len_MACCS'] = len(compound_dict['MACCS'])
-        compound_dict['RDKit'] = [i for i, bit in enumerate(AllChem.RDKFingerprint(mol_object)) if bit]
+        compound_dict['RDKit'] = list(AllChem.RDKFingerprint(mol_object).GetOnBits())
         compound_dict['len_RDKit'] = len(compound_dict['RDKit'])
         compound_dict['logP'] = AllChem.CalcCrippenDescriptors(mol_object)[0]
         compound_dict['_id'] = utils.compound_hash(compound_dict['SMILES'], cofactor=compound_dict['Generation'] < 0)
