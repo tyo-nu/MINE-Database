@@ -14,6 +14,7 @@ Name	Reactants	SMARTS	Products	Comments
 1,4-BenzoquinoneAddition_Lysine	Any;Lysine	[O:7]=[#6:4]-1-[#6:3]=[#6H1:2]-[#6:1](=[O:8])-[#6:6]=[#6:5]-1.[#6:9]-[#7H2,#16H1:10]>>[#6:9]-[*:10]-[#6:2]-1=[#6:1](-[#8:8])-[#6:6]=[#6:5]-[#6:4](-[#8:7])=[#6:3]-1	Any	21527774
 AldehydeOxidation	Any;H2O2	[#6:1]-[#6H1:2]=[O:3].[#8:4]-[#8:5]>>[#6:1]-[#6:2](-[#8:5])=[O:3].[#8:4]	Any;Water	6365176; 12566068; 6099220; 21376711
 AldoseDehydration	Any	[#8:6]-[#6R0H1@:4]-[#6R0H1@:3](-[#8:5])-[#6;R0:2]=[O:1]>>[#8:6]-[#6;R0H0:4]=[#6;R0H1:3]-[#6;R0:2]=[O:1].[#8:5]	Any;Water
+AlkeneNitration	Any;NitrosooxidanylRadical;NitrosooxidanylRadical	[#6;R0D2:3]-[#6;R0H1:1]=[#6;R0D2:2].[#8H0:4]-[#7:5]=[O:6].[#8H0:7]-[#7:8]=[O:9]>>[#6:3]-[#6H0:1](=[#6:2])-[#7+:8](-[#8-:7])=[O:9].[#8H1:4]-[#7:5]=[O:6]	Any;Nitrite	18457679; 16227625
 AllylEtherCleavage	Any	[#8H1:6]-[#6;R1r6;@,@@:5]-[#6;R1r6:4]-;!@[#8:3]-[#6:2]=[#6H2:1]>>[#6:1]-[#6:2]=[O:3].[#8H1:6]-[#6;R1r6H0:5]=[#6;R1r6:4]	Any;Any
 AlphaCarboxyImineAdduct_Acetaldehyde	Any;Acetaldehyde	[#6;H2R1:7][#6;R1:6]=[#7;R1:5][#6;R1:4]-[#6:1](-[#8:3])=[O:2].[#6H1:9]=[O:8]>>[#8:3]-[#6:1](=[O:2])-[#6;R1:4][#7;R1:5]=[#6;R1:6][#6:7]=[#6:9].[#8:8]	Any;Water
 AlphaCarboxyImineAdduct_MGlyoxal	Any;MGlyoxal	[#6;H2R1:7][#6;R1:6]=[#7;R1:5][#6;R1:4]-[#6:1](-[#8:3])=[O:2].[#6H1:9]=[O:8]>>[#8:3]-[#6:1](=[O:2])-[#6;R1:4][#7;R1:5]=[#6;R1:6][#6:7]=[#6:9].[#8:8]	Any;Water
@@ -112,14 +113,13 @@ RadicalCatalysedLipidPeroxidation	Any;O2	[#6R0:6]-[#6R0H1:5]=[#6R0H1:4]-[#6R0H2:
 RibosideCyclization	Any	[#8:1]-[#6R1:2]-[#7;R1:3]-[#6;R1r5:4](-[#8;D2R1r5:6])-[#6;R1r5:5]-[#8:7]>>[#8:6]-[#6:4]-1-[#6:5]-[#8:7]-[#6:2]-[#7:3]-1.[#8:1]	Any;Water	3061454; 3304160
 RibosideOxidation	Any;O2;Water	[#6;R1r6:10]-[#7;R1r6:9](-[#6;R1r6:11])-[#6;H1R1:7]-1-[#6;R1:8]-[#6;R1:4]-[#6;R1:5]-[#8;R1:6]-1.[O:2]=[O:3].[#8:1]>>[#6:10]-[#7:9](-[#6:11])-[#6H0:7](=[O:1])-[#6:8]-[#6:4]-[#6:5]-[#8:6].[#8:2]-[#8:3]	Any;H2O2	20803196
 RibosideOxidativeCleavage	Any;O2;Water	[#6:6]-1-[#6:7]-[#8:8]-[#6H1:4](-[#6:5]-1)-[#7:2]-1-[#6:1]=[#6:9]-[#6:11]-[#6:10]=[#6:3]-1.[O:12]=[O:13].[#8:14]>>[#8:8]-[#6:7]-[#6:6]-[#6:5]-[#6:4]=[O:14].[c:11]1[c:9][c:1][n:2][c:3][c:10]1.[#8:12]-[#8:13]	Any;Any;H2O2	20803196
-S-nitrosothiolFormation	Any;N2O3	[#6:2]-[#16H1:1].[#8-:4]-[#7+:3](=[O:5])-[#7:6]=[O:7]>>[#6:2]-[#16:1]-[#7:6]=[O:7].[#8:4]-[#7:3]=[O:5]	Any;Nitrite	11807184
+S-nitrosothiolation	Any;N2O3	[#6:2]-[#16H1:1].[#8-:4]-[#7+:3](=[O:5])-[#7:6]=[O:7]>>[#6:2]-[#16:1]-[#7:6]=[O:7].[#8:4]-[#7:3]=[O:5]	Any;Nitrite	11807184
 SchiffBaseFormation_Acetaldehyde	Any;Acetaldehyde	[#6:2]-[#7H2:1].[#6:4]-[#6H1:5]=[O:6]>>[*:2]-[#7:1]=[#6:5]-[#6:4].[#8:6]	Any;Water
 SchiffBaseFormation_Glutamate	Any;Glutamate	[#6:4]-[#6H1:5]=[O:6].[#6:2]-[#7H2:1]>>[*:2]-[#7:1]=[#6:5]-[#6:4].[#8:6]	Any;Water
 SchiffBaseFormation_Glutamine	Any;Glutamine	[#6:4]-[#6H1:5]=[O:6].[#6:2]-[#7H2:1]>>[*:2]-[#7:1]=[#6:5]-[#6:4].[#8:6]	Any;Water
 SchiffBaseFormation_Glycolaldehyde	Any;Glycolaldehyde	[#6:2]-[#7H2:1].[#6:4]-[#6H1:5]=[O:6]>>[*:2]-[#7:1]=[#6:5]-[#6:4].[#8:6]	Any;Water	18079476
 SchiffBaseFormation_MGlyoxal	Any;MGlyoxal	[#6:2]-[#7H2:1].[#6:4]-[#6H1:5]=[O:6]>>[*:2]-[#7:1]=[#6:5]-[#6:4].[#8:6]	Any;Water
 SchiffBaseFormation_Pyridoxal	Any;PyridoxalP	[#6:2]-[#7H2:1].[#6:4]-[#6H1:5]=[O:6]>>[*:2]-[#7:1]=[#6:5]-[#6:4].[#8:6]	Any;Water
-SP2CarbonNitration	Any;NitrosooxidanylRadical;NitrosooxidanylRadical	[#6H1D2:2]=[#6,#7:1].[#8H0:5]-[#7:4]=[O:6].[#8H0:8]-[#7:7]=[O:9]>>[#8-:8]-[#7+:7](=[O:9])-[#6:2]=[*:1].[#8H1:5]-[#7:4]=[O:6]	Any;Nitrite	18457679; 16227625
 SuccinylHydrolysis	Any;Water	[#8H1:5]-[#6:1](=[O:6])-[#6:2]-[#6:3]-[#6:4](=[O:7])-[#8:8]-;!@[*:9].[#8:10]>>[#8:8]-[#6:4](=[O:7])-[#6:3]-[#6:2]-[#6:1](-[#8H1:5])=[O:6].[#8:10]-[*:9]	Any;Any	5472367
 SulfoniumHydrolysis	Any;Water	[#6:2][S+:1]([#6:3])[#6H3:4].[#8:5]>>[#6:2]-[#16:1]-[#6H3:4].[#6:3]-[#8:5]	Any;Any	13502398; 4311181
 TertiaryAmineMethylation	Any;S-Adenosylmethionine	[#6;R0:2]-[#7;R0D3H0+0:1].[#6H3:3]-[#16+;D3:4]>>[#6:2]-[#7+:1]-[#6:3].[#16+0:4]	Any;S-Adenosylhomocystine	3985978
@@ -133,5 +133,5 @@ ThioesterFormation_Glycolaldehyde	Any;Glycolaldehyde;O2	[#6:2]-[#16H1:1].[#8:6]-
 ThioesterHydrolysis	Any;Water	[#6:5]-[#16:4]-;!@[#6:2](-[#6:3])=[O:1].[#8:6]>>[#6:3]-[#6:2](-[#8:6])=[O:1].[#6:5]-[#16:4]	Any;Any	18487328; 15922108; 7122152; Tubbs PK and Garland PB (1969) Methods in Enzymology 13: 535-551
 ThiolNitration	Any;NitrosooxidanylRadical;NitrosooxidanylRadical	[#6:2]-[#16H1:1].[#8:4]-[#7:3]=[O:5].[#8:7]-[#7:6]=[O:8]>>[#6:2]-[#16:1]-[#7+:6](-[#8-:7])=[O:8].[#8H1:4]-[#7:3]=[O:5]	Any;Nitrite	10493809; 14661084
 ThiolOxidation	Any;H2O2;H2O2;H2O2	[#6:1]-[#16H1:2].[#8:3]-[#8:4].[#8:5]-[#8:6].[#8:7]-[#8:8]>>[#6:1][S:2]([#8:3])(=[O:4])=[O:5].[#8:6].[#8:7].[#8:8]	Any;Water;Water;Water	Yoshia M and Tamura Z (1971) Chem Pharm Bull 19: 178-185
-Transamination_Glutamate	Any;Glutamate	[#6:1]-[#6:2]=[OR0:3].[#6H1D3:4]-[#7H2:5]>>[#6H0:4]=[O:3].[#6:1]-[#6:2]-[#7H2:5]	Any;Any	13117860
-Transamination_Glyoxylate	Any;Glyoxylate	[#6H1D3:4]-[#7H2:5].[#6:1]-[#6:2]=[O:3]>>[#6H0:4]=[O:3].[#6:1]-[#6:2]-[#7H2:5]	Any;Any	13117860
+Transamination_Glutamate	Any;Glutamate	[O:3]=[#6;R0:2]-[#6;R0:1]=[O:4].[#6;H1D3:5]-[#7H2:6]>>[#7H2:6]-[#6:5]-[#6:1]=[O:4].[#6H0:2]=[O:3]	Any;Any	13117860
+Transamination_Glyoxylate	Any;Glyoxylate	[#6;H1D3:5]-[#7H2:6].[O:3]=[#6;R0:2]-[#6;R0:1]=[O:4]>>[#6H0:2]=[O:3].[#7H2:6]-[#6:5]-[#6:1]=[O:4]	Any;Any	13117860
