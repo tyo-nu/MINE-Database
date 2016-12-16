@@ -25,6 +25,8 @@ fadh = 'Cc1cc2c(cc1C)N(CC(O)C(O)C(O)COP(=O)(O)OP(=O)(O)OCC1OC(n3cnc4c(N)ncnc43)C
 def test_cofactor_loading():
     pk2 = pickaxe.Pickaxe(cofactor_list=data_dir + '/test_cofactors.tsv')
     assert "O=C=O" in pk2._raw_compounds
+    assert "O=C=O" in pk2.compounds
+    assert pk2.compounds['O=C=O']['Type'] == 'Coreactant'
     assert isinstance(pk2.cofactors['ATP'], AllChem.Mol)
 
 
@@ -100,28 +102,26 @@ def test_transform_all():
     pk3 = pickaxe.Pickaxe(errors=False)
     pk3._load_cofactor('ATP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
     pk3._load_cofactor('ADP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
-    pk3.generation = 0
-    pk3._add_compound(fadh, fadh)
+    pk3._add_compound(fadh, fadh, type='Starting Compound')
     pk3.rxn_rules['2.7.1.a'] = rule
     pk3.transform_all(max_generations=2)
     assert len(pk3.compounds) == 31
     assert len(pk3.reactions) == 49
     comp_gens = set([x['Generation'] for x in pk3.compounds.values()])
-    assert comp_gens == {-1, 0, 1, 2}
+    assert comp_gens == {0, 1, 2}
 
 
 def test_multiprocessing():
     pk3 = pickaxe.Pickaxe(database='MINE_test', errors=False)
     pk3._load_cofactor('ATP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
     pk3._load_cofactor('ADP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
-    pk3.generation = 0
-    pk3._add_compound(fadh, fadh)
+    pk3._add_compound(fadh, fadh, type='Starting Compound')
     pk3.rxn_rules['2.7.1.a'] = rule
     pk3.transform_all(max_generations=2, num_workers=2)
     assert len(pk3.compounds) == 31
     assert len(pk3.reactions) == 49
     comp_gens = set([x['Generation'] for x in pk3.compounds.values()])
-    assert comp_gens == {-1, 0, 1, 2}
+    assert comp_gens == {0, 1, 2}
     return pk3
 
 
@@ -135,11 +135,12 @@ def test_save_as_MINE():
         assert mine_db.operators.count() == 1
         assert mine_db.operators.find_one()["Reactions_predicted"] == 49
         assert os.path.exists(data_dir+'/C9c69cbeb40f083118c1913599c12c7f4e5e68d03.svg')
-        start_comp = mine_db.compounds.find_one({'Generation': 0})
+        start_comp = mine_db.compounds.find_one({'Type': 'Starting Compound'})
         assert len(start_comp['Reactant_in'])
         product = mine_db.compounds.find_one({'Generation': 2})
         assert len(product['Product_of'])
         assert len(product['Sources'])
+        assert product['Type'] == 'Predicted'
     finally:
         mine_db.compounds.drop()
         mine_db.reactions.drop()

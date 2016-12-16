@@ -49,7 +49,7 @@ class Pickaxe:
         self._raw_compounds = {}
         self.compounds = {}
         self.reactions = {}
-        self.generation = -1
+        self.generation = 0
         self.explicit_h = explicit_h
         self.kekulize = kekulize
         self.raceimize = raceimze
@@ -95,7 +95,7 @@ class Pickaxe:
             smi = AllChem.MolToSmiles(mol, True)
         except (IndexError, ValueError):
             raise ValueError("Unable to load cofactor: %s" % cofactor_text)
-        self._add_compound(split_text[0], smi, mol=mol)
+        self._add_compound(split_text[0], smi, mol=mol, type='Coreactant')
         if self.explicit_h:
             mol = AllChem.AddHs(mol)
         if self.kekulize:
@@ -148,7 +148,6 @@ class Pickaxe:
         :rtype: list
         """
         compound_smiles = []
-        self.generation = 0
         if compound_file:
             with open(compound_file) as infile:
                 reader = csv.DictReader(infile.readlines(), delimiter="\t")
@@ -168,21 +167,23 @@ class Pickaxe:
                     smi = AllChem.MolToSmiles(mol, True)
                     id = line[id_field]
                     if "C" in smi or "c" in smi:
-                        self._add_compound(id, smi, mol=mol)
+                        self._add_compound(id, smi, mol=mol, type='Starting Compound')
                         compound_smiles.append(smi)
         elif self.mine:
             db = MINE(self.mine)
             for compound in db.compounds.find():
                 id = compound['_id']
                 smi = compound['SMILES']
-                self._add_compound(id, smi)
+                if not 'type' in compound:
+                    compound['Type'] = 'Starting Compound'
+                self._add_compound(id, smi, type=compound['Type'])
                 compound_smiles.append(smi)
         else:
             raise ValueError('No input file or database specified for starting compounds')
         print("%s compounds loaded" % len(compound_smiles))
         return compound_smiles
 
-    def _add_compound(self, id, smi, mol=None):
+    def _add_compound(self, id, smi, mol=None, type='Predicted'):
         """Adds a compound to the internal compound dictionary"""
         self._raw_compounds[smi] = smi
         _id = utils.compound_hash(smi)
@@ -190,7 +191,7 @@ class Pickaxe:
             if not mol:
                 mol = AllChem.MolFromSmiles(smi)
             i_key = AllChem.InchiToInchiKey(AllChem.MolToInchi(mol))
-            self.compounds[smi] = {'ID': id, '_id': _id, "SMILES": smi, 'Inchikey': i_key,
+            self.compounds[smi] = {'ID': id, '_id': _id, "SMILES": smi, 'Inchikey': i_key, 'Type': type,
                                    'Generation': self.generation, 'Reactant_in': [], 'Product_of': [], "Sources": []}
             # if we are building a mine and generating images, do so here
             if self.image_dir and self.mine:
@@ -415,7 +416,8 @@ class Pickaxe:
             ti = time.time()
             n_comps = len(self.compounds)
             n_rxns = len(self.reactions)
-            compound_smiles = [c['SMILES'] for c in self.compounds.values() if c['Generation'] == self.generation - 1]
+            compound_smiles = [c['SMILES'] for c in self.compounds.values()
+                               if c['Generation'] == self.generation - 1 and c['Type'] != 'Coreactant']
             print_on = max(round(.05 * len(compound_smiles)), 1)
             if compound_smiles:
                 if num_workers > 1:
@@ -547,8 +549,7 @@ if __name__ == "__main__":
     if options.image_dir and not os.path.exists(options.image_dir):
         os.mkdir(options.image_dir)
     if options.smiles:
-        pk.generation = 0
-        pk._add_compound("Start", options.smiles)
+        pk._add_compound("Start", options.smiles, type='Starting Compound')
     else:
         pk.load_compound_set(compound_file=options.compound_file)
     pk.transform_all(max_generations=options.generations, num_workers=options.max_workers)
