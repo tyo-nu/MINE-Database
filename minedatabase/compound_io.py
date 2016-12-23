@@ -97,8 +97,8 @@ def export_mol(mine_db, target, name_field='_id'):
         AllChem.MolToMolFile(mol, os.path.join(target, compound[name_field]+'.mol'))
 
 
-def export_tsv(mine_db, target, compound_fields=('_id', 'Names', 'ModelSEED', 'Formula', 'Charge', 'Inchi'),
-               reaction_fields=('_id', 'SMILES_rxn', 'C_id_rxn', 'Reactants', 'Products')):
+def export_tsv(mine_db, target, compound_fields=('_id', 'Names', 'Model_SEED', 'Formula', 'Charge', 'Inchi'),
+               reaction_fields=('_id', 'SMILES_rxn', 'C_id_rxn')):
     """
     Exports MINE compound and reaction data as tab-separated values files amenable to use in ModelSEED.
     :param mine_db: The database to export
@@ -134,11 +134,15 @@ def export_tsv(mine_db, target, compound_fields=('_id', 'Names', 'ModelSEED', 'F
     with open(utils.prevent_overwrite(os.path.join(target, mine_db.name) + "_reactions.tsv"), 'w') as out:
         w = csv.DictWriter(out, fieldnames=reaction_fields, dialect='excel-tab')
         w.writeheader()
-        for rxn in mine_db.reactions.find({}, dict([('SMILES', 1)] + [(x, 1) for x in reaction_fields])):
+        for rxn in mine_db.reactions.find({}, dict([('Reactants', 1), ('Products', 1)] + [(x, 1) for x in reaction_fields])):
             if 'C_id_rxn' in reaction_fields:
                 def to_str(half_rxn):
                     return ['(%s) %s' % (x['stoich'], x['c_id']) for x in half_rxn]
                 rxn['C_id_rxn'] = ' + '.join(to_str(rxn['Reactants'])) + ' => ' + ' + '.join(to_str(rxn['Products']))
+            if 'Reactants' not in reaction_fields:
+                del rxn['Reactants']
+            if 'Products' not in reaction_fields:
+                del rxn['Products']
             w.writerow(rxn)
 
 
