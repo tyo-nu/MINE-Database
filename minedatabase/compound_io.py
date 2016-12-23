@@ -112,7 +112,7 @@ def export_tsv(mine_db, target, compound_fields=('_id', 'Names', 'Model_SEED', '
     :return:
     :rtype:
     """
-    db_links = ('KEGG', 'ModelSEED', 'PubChem')
+    db_links = ('KEGG', 'Model_SEED', 'PubChem')
     print("Exporting %s compounds from %s to tsv" % (mine_db.compounds.count(), mine_db.name))
     with open(utils.prevent_overwrite(os.path.join(target, mine_db.name) + "_compounds.tsv"), 'w') as out:
         w = csv.DictWriter(out, fieldnames=compound_fields, dialect='excel-tab')
@@ -125,8 +125,8 @@ def export_tsv(mine_db, target, compound_fields=('_id', 'Names', 'Model_SEED', '
             if 'SMILES' not in compound_fields:
                 del compound['SMILES']
             if 'DB_links' in compound:
-                for k, v in compound['DB_links']:
-                    compound[k] = v
+                for k, v in compound['DB_links'].items():
+                    compound[k] = ", ".join(v)
                 del compound['DB_links']
             w.writerow(compound)
 
