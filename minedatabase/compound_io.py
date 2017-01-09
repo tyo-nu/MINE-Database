@@ -9,7 +9,7 @@ from rdkit.Chem import AllChem
 
 """Databases.py: Functions to load MINE databases from and dump compounds into common cheminformatics formats"""
 
-
+# Test commit
 def export_sdf(mine_db, dir_path, max_compounds=None):
     """
     Exports compounds from the database as an MDL SDF file
