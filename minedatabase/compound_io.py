@@ -154,9 +154,12 @@ def import_sdf(mine_db, target,):
     :param target: a path, the SDF file to be loaded
     :return:
     """
+    # SDMolSupplier (rdkit) takes entries from sdf file and returns Mol objects
     sdf_gen = AllChem.SDMolSupplier(target)
+    # Go through each generated Mol object and add each to MINE database
     for mol in sdf_gen:
         mine_db.insert_compound(mol, compound_dict=mol.GetPropsAsDict(), pubchem_db=None, kegg_db=None, modelseed_db=None)
+    # Add to log file (metadata)
     mine_db.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "SDF Imported", "Filepath": target})
 
 
@@ -167,10 +170,14 @@ def import_smiles(mine_db, target,):
     :param target: a path, the SDF file to be loaded
     :return:
     """
+    # SmilesMolSupplier (rdkit) generates Mol objects from smiles file (.smi)
     mols = AllChem.SmilesMolSupplier(target, delimiter='\t', nameColumn=0)
+    # Go through each generated mol file and add molecule to MINE database
+    # Stores compound properties in dict (GetPropsAsDict() from rdkit Mol class)
     for mol in mols:
         if mol:
             mine_db.insert_compound(mol, compound_dict=mol.GetPropsAsDict(), pubchem_db=None, kegg_db=None, modelseed_db=None)
+    # Add to log file (metadata)
     mine_db.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "SDF Imported", "Filepath": target})
 
 
@@ -182,17 +189,28 @@ def import_mol_dir(mine_db, target, name_field="Name", overwrite=False):
     :param overwrite: a bool, if true, new compounds replace the old compounds in the database
     :return:
     """
+    # For each .mol file in the directory of the target folder (path):
     for file in os.listdir(target):
         if ".mol" in file:
+            # MolFromMolFile (rdkit) generates Mol objects from .mol files
             mol = AllChem.MolFromMolFile(target+'/'+file)
+            # Mol object name is name of mol file without .mol extension
             name = file.rstrip('.mol')
+            # If Mol object successfully generated from mol file
             if mol:
+                # Create hashkey for the compound (fingerprint?)
                 comphash = utils.compound_hash(mol)
+                # If we want to overwrite old compounds in database, then we
+                # check that the hashkey exists and update the name for it.
+                # # # Why if NOT overwrite? What is $addToSet?
                 if not overwrite and mine_db.compounds.count({"_id": comphash}):
                     mine_db.compounds.update({"_id": comphash}, {"$addToSet": {name_field: name}})
+                # If we don't want to overwrite old compounds, then we simply
+                # insert the new compound into the database as a new object
                 else:
                     mine_db.insert_compound(mol, compound_dict={name_field: [name], 'Generation': 0}, pubchem_db=None,
                                             kegg_db=None, modelseed_db=None)
+    # Add to log file (metadata)
     mine_db.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "MolFiles Imported", "Filepath": target})
 
 if __name__ == '__main__':
