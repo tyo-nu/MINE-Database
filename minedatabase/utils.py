@@ -73,6 +73,7 @@ def prevent_overwrite(write_path):
     """
     while path.exists(write_path):
         sp = write_path.split('.')
+        # Why do we have to make sure that the length of sp > 1?
         if len(sp) > 1:
             sp[-2] += '_new'
             write_path = '.'.join(sp)

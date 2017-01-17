@@ -19,16 +19,21 @@ def export_sdf(mine_db, dir_path, max_compounds=None):
     :param max_compounds: maximum number of compounds per file (defaults to 100000)
     :return:
     """
+
+    # Make sure that all compounds point to all their reactants
     if not mine_db.compounds.find_one({"Product_of": {'$exists': 1}}):
         mine_db.add_rxn_pointers()
 
     print("Exporting %s compounds from %s as an SDF file" %(mine_db.compounds.count(), mine_db.name))
     target = utils.prevent_overwrite(os.path.join(dir_path, mine_db.name) + "_1.sdf")
+    # SDWriter (rdkit) writes Mol objects to SD files
     w = AllChem.SDWriter(target)
     w.SetKekulize(True)
     n_files = 1
     for compound in mine_db.compounds.find():
+        # Convert SMILES string to Mol object, replacing 'CoA' and 'R' by '*'
         mol = AllChem.MolFromSmiles(compound['SMILES'], True, {'CoA': '*', 'R': "*"})
+        # if Mol object successfully generated, annotate properties
         if mol:
             mol.SetProp('_id', compound['_id'])
             mol.SetProp('Generation', str(compound['Generation']))
@@ -37,6 +42,8 @@ def export_sdf(mine_db, dir_path, max_compounds=None):
             if 'Product_of' in compound:
                 mol.SetProp('Product_of', str(compound['Product_of']))
             w.write(mol)
+            # Start writing a new sdf file if the maximum (set by user) has
+            # been reached for the current file
             if max_compounds and (w.NumMols() >= max_compounds):
                 n_files += 1
                 target = utils.prevent_overwrite(os.path.join(dir_path, mine_db.name) + "_%s.sdf" % n_files)
@@ -145,15 +152,15 @@ def import_mol_dir(mine_db, target, name_field="Name", overwrite=False):
         if ".mol" in file:
             # MolFromMolFile (rdkit) generates Mol objects from .mol files
             mol = AllChem.MolFromMolFile(target+'/'+file)
-            # Mol object name is name of mol file without .mol extension
+            # Mol object name becomes name of mol file without .mol extension
             name = file.rstrip('.mol')
-            # If Mol object successfully generated from mol file
+            # # # If Mol object successfully generated from mol file?
             if mol:
                 # Create hashkey for the compound (fingerprint?)
                 comphash = utils.compound_hash(mol)
                 # If we want to overwrite old compounds in database, then we
                 # check that the hashkey exists and update the name for it.
-                # # # Why if NOT overwrite? What is $addToSet?
+                # # # Why if NOT overwrite? How does $addToSet work?
                 if not overwrite and mine_db.compounds.count({"_id": comphash}):
                     mine_db.compounds.update({"_id": comphash}, {"$addToSet": {name_field: name}})
                 # If we don't want to overwrite old compounds, then we simply
