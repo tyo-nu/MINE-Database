@@ -9,9 +9,14 @@ stoich_tuple = collections.namedtuple("stoich_tuple", 'stoich,c_id')
 
 
 def compound_hash(compound, cofactor=False):
+    """Creates hash string for given compound"""
+    # Check to see if compound is a Mol object. If true, convert that Mol object
+    # to a SMILES string
     if isinstance(compound, AllChem.Mol):
         compound = AllChem.MolToSmiles(compound, True)
+    # Create hash string using hashlib module
     chash = hashlib.sha1(compound.encode('utf-8')).hexdigest()
+    # Mark cofactors with an X at the beginning, all else with a C
     if cofactor:
         return "X"+chash
     else:
