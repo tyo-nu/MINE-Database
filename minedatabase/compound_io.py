@@ -154,17 +154,15 @@ def import_mol_dir(mine_db, target, name_field="Name", overwrite=False):
             mol = AllChem.MolFromMolFile(target+'/'+file)
             # Mol object name becomes name of mol file without .mol extension
             name = file.rstrip('.mol')
-            # # # If Mol object successfully generated from mol file?
+            # Check that Mol object is successfully generated
             if mol:
-                # Create hashkey for the compound (fingerprint?)
+                # Create hashkey for the compound
                 comphash = utils.compound_hash(mol)
-                # If we want to overwrite old compounds in database, then we
-                # check that the hashkey exists and update the name for it.
-                # # # Why if NOT overwrite? How does $addToSet work?
+                # If we don't want to overwrite, and the compound (comphash)
+                # already exists, then add an extra comphash for that molecule
                 if not overwrite and mine_db.compounds.count({"_id": comphash}):
                     mine_db.compounds.update({"_id": comphash}, {"$addToSet": {name_field: name}})
-                # If we don't want to overwrite old compounds, then we simply
-                # insert the new compound into the database as a new object
+                # If we don't care about overwriting, just
                 else:
                     mine_db.insert_compound(mol, compound_dict={name_field: [name], 'Generation': 0}, pubchem_db=None,
                                             kegg_db=None, modelseed_db=None)
