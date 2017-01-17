@@ -73,7 +73,9 @@ def prevent_overwrite(write_path):
     """
     while path.exists(write_path):
         sp = write_path.split('.')
-        # Why do we have to make sure that the length of sp > 1?
+        # Make sure that files without an extension are still valid (otherwise,
+        # split would create a list of one string which would give an index
+        # error when sp[-2] is called)
         if len(sp) > 1:
             sp[-2] += '_new'
             write_path = '.'.join(sp)
