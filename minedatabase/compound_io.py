@@ -7,7 +7,8 @@ from minedatabase import utils
 from minedatabase.databases import MINE
 from rdkit.Chem import AllChem
 
-"""Databases.py: Functions to load MINE databases from and dump compounds into common cheminformatics formats"""
+"""Compound_io.py: Functions to load MINE databases from and dump compounds
+into common cheminformatics formats"""
 
 
 def export_sdf(mine_db, dir_path, max_compounds=None):
