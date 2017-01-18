@@ -53,25 +53,32 @@ def export_sdf(mine_db, dir_path, max_compounds=None):
 
 def export_smiles(mine_db, dir_path, max_compounds=None):
     """
-    Exports compounds from the database as an SMILES file
+    Exports compounds from the database as a SMILES file
     :param mine_db: a MINE object
     :param dir_path: directory for files
     :param max_compounds: maximum number of compounds per file (defaults to unlimited)
     :return:
     """
     header = ['SMILES', "_id", "Generation", 'Reactant_in', 'Product_of']
+    # Make sure that all compounds point to all their reactants
     if not mine_db.compounds.find_one({"Product_of": {'$exists': 1}}):
         mine_db.add_rxn_pointers()
 
     print("Exporting %s compounds from %s as SMILES file" % (mine_db.compounds.count(), mine_db.name))
     target = open(utils.prevent_overwrite(os.path.join(dir_path, mine_db.name) + "_1.smiles"), 'w')
 
+    # DictWriter allows for each key:value pair of a dictionary to be written
+    # on its own row (by writerow)
     w = csv.DictWriter(target, fieldnames=header, dialect='excel-tab')
     n_files = 1
     i = 0
+    #Ask James about this loop
     for compound in mine_db.compounds.find({}, dict([(x, 1) for x in header])):
         w.writerow(compound)
         i += 1
+        # If max compounds per file has been set by user and our number of
+        # compounds that we have written so far is divisible by the max number,
+        # then we start a new file
         if max_compounds and not (i % max_compounds):
             n_files += 1
             target = open(utils.prevent_overwrite(os.path.join(dir_path, mine_db.name) + "_%s.smiles" % n_files), 'w')
@@ -90,18 +97,28 @@ def export_mol(mine_db, target, name_field='_id'):
     :return:
     :rtype:
     """
+    # Create the file if it doesn't yet exist
     if not os.path.exists(target):
         os.mkdir(target)
 
+    # Let user know if an id does not exist for every compound in database
     if mine_db.compounds.find().count() != mine_db.compounds.find({name_field: {'$exists': 1}}).count():
         raise ValueError('%s does not exist for every compound in the database' % name_field)
 
+    #Ask James about this too, also what is __init__.py?
     for compound in mine_db.compounds.find({'_id': {'$regex': '^C'}}):
+        # Create Mol object from SMILES code for each compound using
+        # MolFromSmiles (rdkit). Take stereochemistry into account (True),
+        # and replace CoA and R with *.
         mol = AllChem.MolFromSmiles(compound['SMILES'], True, {'CoA': '*', 'R': "*"})
+        #Why would there be a . in name field?
         if "." in name_field:
             compound[name_field] = utils.get_dotted_field(compound, name_field)
+        #Why would we check if the name field is a list type?
         if isinstance(compound[name_field], list):
             compound[name_field] = ','.join(compound[name_field])
+        # Use MolToMolFile (rdkit) to create a mol file from the Mol object
+        # with the file path specified.
         AllChem.MolToMolFile(mol, os.path.join(target, compound[name_field]+'.mol'))
 
 
@@ -211,7 +228,8 @@ def import_mol_dir(mine_db, target, name_field="Name", overwrite=False):
                 # already exists, then add an extra comphash for that molecule
                 if not overwrite and mine_db.compounds.count({"_id": comphash}):
                     mine_db.compounds.update({"_id": comphash}, {"$addToSet": {name_field: name}})
-                # If we don't care about overwriting, just
+                # If we don't care about overwriting, just insert the new
+                # compound into the database
                 else:
                     mine_db.insert_compound(mol, compound_dict={name_field: [name], 'Generation': 0}, pubchem_db=None,
                                             kegg_db=None, modelseed_db=None)
