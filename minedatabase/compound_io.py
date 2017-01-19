@@ -237,23 +237,36 @@ def import_mol_dir(mine_db, target, name_field="Name", overwrite=False):
     mine_db.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "MolFiles Imported", "Filepath": target})
 
 if __name__ == '__main__':
+    # User inputs task as first argument (export-sdf, export-smi, export-mol,
+    #  import-sdf, import-smi, or import-mol)
     task = sys.argv[1]
+    # User inputs database name as second argument
     db_name = sys.argv[2]
+    # User inputs file path as third argument
     path = sys.argv[3]
     database = MINE(db_name)
     if task == 'export-sdf':
+        # If a maximum molecules per file is specified (fourth argument
+        # entered by user), then pass that to the export function.
         if len(sys.argv) == 5:
             export_sdf(database, path, int(sys.argv[4]))
+        # Otherwise, assume an unlimited number of molecules per file
         else:
             export_sdf(database, path)
     elif task == 'export-smi':
+        # If a maximum molecules per file is specified (fourth argument
+        # entered by user), then pass that to the export function.
         if len(sys.argv) == 5:
             export_smiles(database, path, int(sys.argv[4]))
+        # Otherwise, assume an unlimited number of molecules per file
         else:
             export_smiles(database, path)
     elif task == 'export-mol':
+        # If a maximum molecules per file is specified (fourth argument
+        # entered by user), then pass that to the export function.
         if len(sys.argv) == 5:
             export_mol(database, path, sys.argv[4])
+        # Otherwise, assume an unlimited number of molecules per file
         else:
             export_mol(database, path)
     elif task == 'export-tsv':
