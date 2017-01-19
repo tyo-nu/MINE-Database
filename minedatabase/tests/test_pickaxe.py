@@ -25,9 +25,11 @@ fadh = 'Cc1cc2c(cc1C)N(CC(O)C(O)C(O)COP(=O)(O)OP(=O)(O)OCC1OC(n3cnc4c(N)ncnc43)C
 def test_cofactor_loading():
     pk2 = pickaxe.Pickaxe(cofactor_list=data_dir + '/test_cofactors.tsv')
     assert "O=C=O" in pk2._raw_compounds
-    assert "O=C=O" in pk2.compounds
-    assert pk2.compounds['O=C=O']['Type'] == 'Coreactant'
-    assert isinstance(pk2.cofactors['ATP'], AllChem.Mol)
+    c_id = pk2._raw_compounds['O=C=O']
+    assert c_id in pk2.compounds
+    assert pk2.compounds[c_id]['Type'] == 'Coreactant'
+    assert isinstance(pk2.cofactors['ATP'][0], AllChem.Mol)
+    assert pk2.cofactors['ATP'][1][0] == "X"
 
 
 def test_reaction_rule_loading():
@@ -134,7 +136,7 @@ def test_save_as_MINE():
         assert mine_db.reactions.count() == 49
         assert mine_db.operators.count() == 1
         assert mine_db.operators.find_one()["Reactions_predicted"] == 49
-        assert os.path.exists(data_dir+'/C9c69cbeb40f083118c1913599c12c7f4e5e68d03.svg')
+        assert os.path.exists(data_dir+'/X9c69cbeb40f083118c1913599c12c7f4e5e68d03.svg')
         start_comp = mine_db.compounds.find_one({'Type': 'Starting Compound'})
         assert len(start_comp['Reactant_in'])
         product = mine_db.compounds.find_one({'Generation': 2})

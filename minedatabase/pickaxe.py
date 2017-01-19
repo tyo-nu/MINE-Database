@@ -95,12 +95,12 @@ class Pickaxe:
             smi = AllChem.MolToSmiles(mol, True)
         except (IndexError, ValueError):
             raise ValueError("Unable to load cofactor: %s" % cofactor_text)
-        self._add_compound(split_text[0], smi, mol=mol, type='Coreactant')
+        _id = self._add_compound(split_text[0], smi, mol=mol, type='Coreactant')
         if self.explicit_h:
             mol = AllChem.AddHs(mol)
         if self.kekulize:
             AllChem.Kekulize(mol, clearAromaticFlags=True)
-        self.cofactors[split_text[0]] = mol
+        self.cofactors[split_text[0]] = (mol, _id,)
 
     def load_rxn_rules(self, rule_path):
         """
@@ -117,8 +117,7 @@ class Pickaxe:
                     rule['Reactants'] = rule['Reactants'].split(';')
                     for reactant_name in rule['Reactants']:
                         if reactant_name not in self.cofactors and reactant_name != "Any":
-                            # try to proceed as if name is SMILES
-                            self._load_cofactor(reactant_name + "\t" + reactant_name)
+                            raise ValueError('Undefined Cofactor:%s' % reactant_name)
                     rxn = AllChem.ReactionFromSmarts(rule['SMARTS'])
                     rule.update({"_id": rule["Name"], "Reactions_predicted": 0})
                     if rxn.GetNumReactantTemplates() != len(rule['Reactants']):
@@ -185,13 +184,13 @@ class Pickaxe:
 
     def _add_compound(self, id, smi, mol=None, type='Predicted'):
         """Adds a compound to the internal compound dictionary"""
-        self._raw_compounds[smi] = smi
-        _id = utils.compound_hash(smi)
-        if smi not in self.compounds:  # we don't want to overwrite the same compound from a prior generation
+        _id = utils.compound_hash(smi, type == 'Coreactant')
+        self._raw_compounds[smi] = _id
+        if _id not in self.compounds:  # we don't want to overwrite the same compound from a prior generation
             if not mol:
                 mol = AllChem.MolFromSmiles(smi)
             i_key = AllChem.InchiToInchiKey(AllChem.MolToInchi(mol))
-            self.compounds[smi] = {'ID': id, '_id': _id, "SMILES": smi, 'Inchikey': i_key, 'Type': type,
+            self.compounds[_id] = {'ID': id, '_id': _id, "SMILES": smi, 'Inchikey': i_key, 'Type': type,
                                    'Generation': self.generation, 'Reactant_in': [], 'Product_of': [], "Sources": []}
             # if we are building a mine and generating images, do so here
             if self.image_dir and self.mine:
@@ -233,10 +232,10 @@ class Pickaxe:
             AllChem.Kekulize(mol, clearAromaticFlags=True)
         if self.explicit_h:
             mol = AllChem.AddHs(mol)
-        self.cofactors['Any'] = mol
         for rule_name in rules:
             rule = self.rxn_rules[rule_name]
-            reactant_mols = tuple([self.cofactors[x] for x in rule[1]['Reactants']])
+            # get RDKit Mol objects for reactants
+            reactant_mols = tuple([mol if x == 'Any' else self.cofactors[x][0] for x in rule[1]['Reactants']])
             try:
                 product_sets = rule[0].RunReactants(reactant_mols)
             except RuntimeError:  # This error should be addressed in a new version of RDKit
@@ -244,11 +243,11 @@ class Pickaxe:
                 print(compound_SMILES)
                 continue
             reactant_atoms = self._get_atom_count(reactant_mols)
-            reactants = next(self._make_half_rxn(reactant_mols))  # no enumeration for reactants
+            reactants = next(self._make_half_rxn(reactant_mols, rule[1]['Reactants']))  # no enumeration for reactants
             reactants.sort()  # By sorting the reactant (and later products) we ensure that reactions are unique
             for product_mols in product_sets:
                 try:
-                    for stereo_prods in self._make_half_rxn(product_mols, split_stereoisomers=self.raceimize):
+                    for stereo_prods in self._make_half_rxn(product_mols, rule[1]['Products'], self.raceimize):
                         pred_compounds.update(x.c_id for x in stereo_prods)
                         stereo_prods.sort()
                         text_rxn = self._add_reaction(reactants, rule_name, stereo_prods)
@@ -280,8 +279,8 @@ class Pickaxe:
 
     def _add_reaction(self, reactants, rule_name, stereo_prods):
         """Hashes and inserts reaction into reaction dictionary"""
-        rhash, text_rxn = rxn2hash(reactants, stereo_prods, True)
-        inchi_rxn_hash = self._calculate_rxn_hash(reactants, stereo_prods)
+        rhash = rxn2hash(reactants, stereo_prods)
+        inchi_rxn_hash, text_rxn = self._calculate_rxn_hash_and_text(reactants, stereo_prods)
         if rhash not in self.reactions:
             self.reactions[rhash] = {"_id": rhash, "Reactants": reactants, "Products": stereo_prods,
                                      "InChI_hash": inchi_rxn_hash, "Operators": {rule_name}, "SMILES_rxn": text_rxn,
@@ -290,9 +289,11 @@ class Pickaxe:
             self.reactions[rhash]['Operators'].add(rule_name)
         return text_rxn
 
-    def _make_half_rxn(self, mols, split_stereoisomers=False):
-        """Takes a list of mol objects for a half reaction and returns an generator for stoich tuples"""
-        comps = [self._calculate_compound_information(m, split_stereoisomers) for m in mols]
+    def _make_half_rxn(self, mols, roles, split_stereoisomers=False):
+        """Takes a list of mol objects for a half reaction, combines like compounds and returns an generator for
+        stoich tuples"""
+        comps = [self._calculate_compound_information(m, split_stereoisomers) if r == 'Any'
+                 else (self.cofactors[r][1],) for m, r in zip(mols, roles)]
         half_rxns = [collections.Counter(subrxn) for subrxn in itertools.product(*comps)]
         for rxn in half_rxns:
             yield [stoich_tuple(y, x) for x, y in rxn.items()]
@@ -315,9 +316,7 @@ class Pickaxe:
             else:
                 processed_mols = [mol_obj]
             smiles = [AllChem.MolToSmiles(m, True) for m in processed_mols]
-            for s, m in zip(smiles, processed_mols):
-                self._add_compound(None, s, mol=m)
-            self._raw_compounds[raw] = tuple([self._raw_compounds[s] for s in smiles])
+            self._raw_compounds[raw] = tuple([self._add_compound(None, s, mol=m) for s, m in zip(smiles, processed_mols)])
         return self._raw_compounds[raw] if isinstance(self._raw_compounds[raw], tuple) else (self._raw_compounds[raw],)
 
     def _racemization(self, compound, max_centers=3, carbon_only=True):
@@ -348,29 +347,32 @@ class Pickaxe:
             new_comps.append(deepcopy(compound))
         return new_comps
 
-    def _calculate_rxn_hash(self, reactants, products):
-        """Calculates a unique reaction hash using inchikeys. First block is connectivity only, second block is stereo
-        only"""
+    def _calculate_rxn_hash_and_text(self, reactants, products):
+        """Calculates a unique reaction hash using inchikeys. First block is connectivity only,
+        second block is stereo only"""
         def __get_blocks(tups):
-            first_block, second_block = [], []
+            first_block, second_block, smiles = [], [], []
             for x in tups:
-                if self.compounds[x.c_id]["Inchikey"]:
-                    split_inchikey = self.compounds[x.c_id]["Inchikey"].split('-')
+                comp = self.compounds[x.c_id]
+                smiles.append('(%s) %s' % (x.stoich, comp['SMILES']))
+                if comp["Inchikey"]:
+                    split_inchikey = comp["Inchikey"].split('-')
                     if len(split_inchikey) > 1:
                         first_block.append("%s,%s" % (x.stoich, split_inchikey[0]))
                         second_block.append("%s,%s" % (x.stoich, split_inchikey[1]))
                 else:
                     print("No Inchikey for %s" % x.c_id)
-            return "+".join(first_block), "+".join(second_block)
+            return "+".join(first_block), "+".join(second_block), " + ".join(smiles)
 
         reactants.sort()
         products.sort()
-        r_1, r_2 = __get_blocks(reactants)
-        p_1, p_2 = __get_blocks(products)
+        r_1, r_2, r_s= __get_blocks(reactants)
+        p_1, p_2, p_s = __get_blocks(products)
         first_block = r_1+'<==>'+p_1
         second_block = r_2+'<==>'+p_2
+        smiles_rxn = r_s+' => '+p_s
 
-        return hashlib.sha256(first_block.encode()).hexdigest()+"-"+hashlib.md5(second_block.encode()).hexdigest()
+        return hashlib.sha256(first_block.encode()).hexdigest()+"-"+hashlib.md5(second_block.encode()).hexdigest(), smiles_rxn
 
     def assign_ids(self):
         """Assigns a numerical ID to compounds for ease of reference. Unique only to the CURRENT run."""
@@ -382,7 +384,7 @@ class Pickaxe:
             if not comp['ID']:
                 comp['ID'] = 'pk_cpd'+str(i).zfill(7)
                 i += 1
-                self.compounds[comp['SMILES']] = comp
+                self.compounds[comp['_id']] = comp
                 # if we are not loading into the mine, we generate the image here
                 if self.image_dir and not self.mine:
                     mol = AllChem.MolFromSmiles(comp['SMILES'])
@@ -490,17 +492,12 @@ class Pickaxe:
         # links to comps 3. add source information to compounds 4. iterate the reactions predicted for each relevant
         # operator
         for rxn in self.reactions.values():
-            _tmpr, _tmpp = [], []  # having temp variables for the lists avoids pointer issues
             for i, x in enumerate(rxn['Reactants']):
                 self.compounds[x.c_id]['Reactant_in'].append(rxn['_id'])
-                _tmpr.append(stoich_tuple(x.stoich, utils.compound_hash(x.c_id)))
-            rxn['Reactants'] = _tmpr
             for i, x in enumerate(rxn['Products']):
                 self.compounds[x.c_id]['Product_of'].append(rxn['_id'])
                 self.compounds[x.c_id]['Sources'].append(
                     {"Compounds": [x.c_id for x in rxn['Reactants']], "Operators": list(rxn["Operators"])})
-                _tmpp.append(stoich_tuple(x.stoich, utils.compound_hash(x.c_id)))
-            rxn["Products"] = _tmpp
             # iterate the number of reactions predicted
             for op in rxn['Operators']:
                 self.rxn_rules[op][1]['Reactions_predicted'] += 1
