@@ -23,16 +23,18 @@ fadh = 'Cc1cc2c(cc1C)N(CC(O)C(O)C(O)COP(=O)(O)OP(=O)(O)OCC1OC(n3cnc4c(N)ncnc43)C
 
 
 def test_cofactor_loading():
-    pk2 = pickaxe.Pickaxe(cofactor_list=data_dir + '/test_cofactors.tsv')
+    pk2 = pickaxe.Pickaxe(coreactant_list=data_dir + '/test_coreactants.tsv')
     assert "O=C=O" in pk2._raw_compounds
-    assert "O=C=O" in pk2.compounds
-    assert pk2.compounds['O=C=O']['Type'] == 'Coreactant'
-    assert isinstance(pk2.cofactors['ATP'], AllChem.Mol)
+    c_id = pk2._raw_compounds['O=C=O']
+    assert c_id in pk2.compounds
+    assert pk2.compounds[c_id]['Type'] == 'Coreactant'
+    assert isinstance(pk2.coreactants['ATP'][0], AllChem.Mol)
+    assert pk2.coreactants['ATP'][1][0] == "X"
 
 
 def test_reaction_rule_loading():
     global rule
-    pk2 = pickaxe.Pickaxe(cofactor_list=data_dir + '/test_cofactors.tsv', rule_list=data_dir + '/test_operators.tsv')
+    pk2 = pickaxe.Pickaxe(coreactant_list=data_dir + '/test_coreactants.tsv', rule_list=data_dir + '/test_reaction_rules.tsv')
     rule = pk2.rxn_rules['2.7.1.a']
     assert isinstance(rule[0], AllChem.ChemicalReaction)
     assert isinstance(rule[1], dict)
@@ -51,8 +53,8 @@ def test_compound_loading():
 
 def test_transform_compounds():
     pk._add_compound("Start", smi=fadh)
-    pk._load_cofactor('ATP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
-    pk._load_cofactor('ADP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
+    pk._load_coreactant('ATP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
+    pk._load_coreactant('ADP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
     pk.rxn_rules['2.7.1.a'] = rule
     pk.transform_compound(fadh)
     pk.assign_ids()
@@ -60,7 +62,7 @@ def test_transform_compounds():
 
 def test_hashing():
     pk2 = pickaxe.Pickaxe(explicit_h=False, kekulize=False)
-    pk2._load_cofactor('S-Adenosylmethionine	C[S+](CC[C@H](N)C(=O)O)C[C@H]1O[C@@H](n2cnc3c(N)ncnc32)[C@H](O)[C@@H]1O')
+    pk2._load_coreactant('S-Adenosylmethionine	C[S+](CC[C@H](N)C(=O)O)C[C@H]1O[C@@H](n2cnc3c(N)ncnc32)[C@H](O)[C@@H]1O')
     pk2.transform_compound(l_ala)
     len_rxns = len(pk2.reactions)
     pk2.transform_compound(d_ala)
@@ -68,13 +70,13 @@ def test_hashing():
 
 
 def test_product_racimization():
-    pk2 = pickaxe.Pickaxe(raceimze=False, cofactor_list=data_dir + '/test_cofactors.tsv',
-                          rule_list=data_dir+'/test_operators.tsv')
+    pk2 = pickaxe.Pickaxe(raceimze=False, coreactant_list=data_dir + '/test_coreactants.tsv',
+                          rule_list=data_dir+'/test_reaction_rules.tsv')
     comps, rxns = pk2.transform_compound(meh, rules=['2.6.1.a'])
     assert len(comps) == 2
     assert len(rxns) == 1
-    pk2 = pickaxe.Pickaxe(raceimze=True, cofactor_list=data_dir + '/test_cofactors.tsv',
-                          rule_list=data_dir+'/test_operators.tsv')
+    pk2 = pickaxe.Pickaxe(raceimze=True, coreactant_list=data_dir + '/test_coreactants.tsv',
+                          rule_list=data_dir+'/test_reaction_rules.tsv')
     rcomps, rrxns = pk2.transform_compound(meh, rules=['2.6.1.a'])
     assert len(rcomps) == 3
     assert len(rrxns) == 2
@@ -100,8 +102,8 @@ def test_reaction_output_writing():
 
 def test_transform_all():
     pk3 = pickaxe.Pickaxe(errors=False)
-    pk3._load_cofactor('ATP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
-    pk3._load_cofactor('ADP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
+    pk3._load_coreactant('ATP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
+    pk3._load_coreactant('ADP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
     pk3._add_compound(fadh, fadh, type='Starting Compound')
     pk3.rxn_rules['2.7.1.a'] = rule
     pk3.transform_all(max_generations=2)
@@ -113,8 +115,8 @@ def test_transform_all():
 
 def test_multiprocessing():
     pk3 = pickaxe.Pickaxe(database='MINE_test', errors=False)
-    pk3._load_cofactor('ATP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
-    pk3._load_cofactor('ADP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
+    pk3._load_coreactant('ATP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
+    pk3._load_coreactant('ADP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
     pk3._add_compound(fadh, fadh, type='Starting Compound')
     pk3.rxn_rules['2.7.1.a'] = rule
     pk3.transform_all(max_generations=2, num_workers=2)
@@ -134,7 +136,7 @@ def test_save_as_MINE():
         assert mine_db.reactions.count() == 49
         assert mine_db.operators.count() == 1
         assert mine_db.operators.find_one()["Reactions_predicted"] == 49
-        assert os.path.exists(data_dir+'/C9c69cbeb40f083118c1913599c12c7f4e5e68d03.svg')
+        assert os.path.exists(data_dir+'/X9c69cbeb40f083118c1913599c12c7f4e5e68d03.svg')
         start_comp = mine_db.compounds.find_one({'Type': 'Starting Compound'})
         assert len(start_comp['Reactant_in'])
         product = mine_db.compounds.find_one({'Generation': 2})
