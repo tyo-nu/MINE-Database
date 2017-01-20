@@ -17,7 +17,9 @@ def quick_search(db, query, search_projection=default_projection.copy()):
     :return:
     """
     results = []
-    #check if query already is a _id
+    # Determine what kind of query was input (e.g. KEGG code, MINE id, etc.)
+    # If it can't be determined to be an id or a key, assume it is the name
+    # of a compound.
     if (len(query) == 41) and (query[0] == 'C'):
         query_field = '_id'
     elif (len(query) == 6) and (query[0] == 'C'):
@@ -33,14 +35,19 @@ def quick_search(db, query, search_projection=default_projection.copy()):
         query_field = 'Names'
 
     if query_field == 'Names':
+        # Return results for all compounds with specified name
         results = [x for x in db.compounds.find({"Names": {'$regex': '^'+query+'$', '$options': 'i'}},
                                                 search_projection) if x['_id'][0] == "C"]
+        #If no results come up for specified name, then return results that
+        #are the closest? Why == "C"?
         if not results:
             cursor = db.compounds.find({"$text": {"$search": query}}, {"score": {"$meta": "textScore"}, 'Formula': 1,
                                                                            'MINE_id': 1, 'Names': 1, 'Inchikey': 1,
                                                                            'SMILES': 1, 'Mass': 1})
             results.extend(x for x in cursor.sort([("score", {"$meta": "textScore"})]).limit(500) if x['_id'][0] == "C")
     else:
+        # If query isn't a compound name, then return compounds with
+        # specified query
         results = [x for x in db.compounds.find({query_field: query}, search_projection).limit(500)
                    if x['_id'][0] == "C"]
 
@@ -67,8 +74,8 @@ def similarity_search(db, comp_structure, min_tc, fp_type, limit, search_project
     Returns compounds in the indicated database which have structural similarity to the provided compound
 
     :param db: A Mongo Database, DB to search
-    :param comp_structure: String, A molecule in Molfile or or SMILES format
-    :param min_tc: Float, Minimum Tannimoto score
+    :param comp_structure: String, A molecule in Molfile or SMILES format
+    :param min_tc: Float, Minimum Tanimoto score
     :param fp_type: String, Fingerprint type. Currently accepts MACCS or RDKit
     :param limit: Integer, the maximum number of compounds to return
     :param search_projection: Dictionary, The fields which should be returned
@@ -76,13 +83,18 @@ def similarity_search(db, comp_structure, min_tc, fp_type, limit, search_project
     """
     similarity_search_results = []
     fp_type = str(fp_type)
+    # Create Mol object from Molfile (has newlines)
     if "\n" in comp_structure:
         mol = AllChem.MolFromMolBlock(str(comp_structure))
+    # Create Mol object from SMILES string (does not have newlines)
     else:
         mol = AllChem.MolFromSmiles(str(comp_structure))
     if not mol:
         raise ValueError("Unable to parse comp_structure")
 
+    # Based on fingerprint type specified by user, get the finger print as an
+    # explicit bit vector (series of 1s and 0s). Then, return a set of all
+    # indices where a bit is 1 in the bit vector.
     if fp_type == 'MACCS':
         query_fp = set(AllChem.GetMACCSKeysFingerprint(mol).GetOnBits())
     elif fp_type == 'RDKit':
@@ -91,16 +103,23 @@ def similarity_search(db, comp_structure, min_tc, fp_type, limit, search_project
         raise ValueError("Invalid FP_type")
 
     len_fp = len(query_fp)
+    #Why set this to 1?
     search_projection[fp_type] = 1
+    #Filter compounds that meet tanimoto coefficient requirements (but why lte?)
     for x in db.compounds.find({"$and": [{"len_"+fp_type: {"$gte": min_tc*len_fp}},
                                {"len_"+fp_type: {"$lte": len_fp/min_tc}}]}, search_projection):
+        #Put the returned compounds into a set for testing
         test_fp = set(x[fp_type])
+        #What is & and |?
         tc = len(query_fp & test_fp)/float(len(query_fp | test_fp))
+        # If a sufficient tanimoto coefficient is calculated, append the
+        # compound to the search results (until the limit is reached)
         if tc >= min_tc:
             del x[fp_type]
             similarity_search_results.append(x)
             if len(similarity_search_results) == limit:
                 break
+    #What
     del search_projection[fp_type]
     return similarity_search_results
 
@@ -114,16 +133,21 @@ def structure_search(db, comp_structure, stereo=True, search_projection=default_
     :param search_projection: Dictionary, The fields which should be returned
     :return:
     """
+    #Should stereo be in docstring?
+    # Create Mol object from Molfile (has newlines)
     if "\n" in comp_structure:
         mol = AllChem.MolFromMolBlock(str(comp_structure))
+    # Create Mol object from SMILES string (does not have newlines)
     else:
         mol = AllChem.MolFromSmiles(str(comp_structure))
     if not mol:
         raise ValueError("Unable to parse comp_structure")
 
+    # Get InChI string from mol file (rdkit)
     inchi = AllChem.MolToInchi(mol)
+    # Get InChI key from InChI string (rdkit)
     inchi_key = AllChem.InchiToInchiKey(inchi)
-    # sure, we could look for a matching SMILES but this is faster
+    # Sure, we could look for a matching SMILES but this is faster
     if stereo:
         return quick_search(db, inchi_key, search_projection)
     else:
@@ -140,16 +164,25 @@ def substructure_search(db, comp_structure, limit, search_projection=default_pro
     :param search_projection: Dictionary, The fields which should be returned
     :return:
     """
+    #Should rename comp_structure as sub_structure maybe?
     substructure_search_results = []
+    # Create Mol object from Molfile (has newlines)
     if "\n" in comp_structure:
         mol = AllChem.MolFromMolBlock(str(comp_structure))
+    # Create Mol object from SMILES string (does not have newlines)
     else:
         mol = AllChem.MolFromSmiles(str(comp_structure))
     if not mol:
         raise ValueError("Unable to parse comp_structure")
+    # Based on fingerprint type specified by user, get the finger print as an
+    # explicit bit vector (series of 1s and 0s). Then, return a set of all
+    # indices where a bit is 1 in the bit vector.
     query_fp = list(AllChem.RDKFingerprint(mol).GetOnBits())
     for x in db.compounds.find({"RDKit": {"$all": query_fp}}, search_projection):
+        # Get Mol object from SMILES string (rdkit)
         comp = AllChem.MolFromSmiles(x['SMILES'])
+        # Use HasSubstructMatch (rdkit) to determine if compound has a
+        # specified substructure. If so, append it to the results (until limit).
         if comp and comp.HasSubstructMatch(mol):
             substructure_search_results.append(x)
             if len(substructure_search_results) == limit:
