@@ -87,6 +87,7 @@ class MINE:
         self.compounds.ensure_index("len_RDKit")
         self.compounds.ensure_index("Inchikey")
         self.compounds.ensure_index("MINE_id")
+        self.compounds.ensure_index("Names")
         self.reactions.ensure_index("Reactants.c_id")
         self.reactions.ensure_index("Products.c_id")
         self.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "Database indexes built"})
@@ -149,7 +150,8 @@ class MINE:
         compound_dict['RDKit'] = list(AllChem.RDKFingerprint(mol_object).GetOnBits())
         compound_dict['len_RDKit'] = len(compound_dict['RDKit'])
         compound_dict['logP'] = AllChem.CalcCrippenDescriptors(mol_object)[0]
-        compound_dict['_id'] = utils.compound_hash(compound_dict['SMILES'], cofactor=compound_dict['Generation'] < 0)
+        compound_dict['_id'] = utils.compound_hash(compound_dict['SMILES'],
+                                                   ('Type' in compound_dict and compound_dict['Type'] == 'Coreactant'))
 
         if "Reactant_in" in compound_dict and isinstance(compound_dict['Reactant_in'], str) and compound_dict['Reactant_in']:
             compound_dict['Reactant_in'] = ast.literal_eval(compound_dict['Reactant_in'])

@@ -99,7 +99,6 @@ NucleophilicCondensation_Glycolaldehyde	Any;Glycolaldehyde	[#7H2:1]-[#6:2]-[c:3]
 NucleophilicLactolFormation	Any	[#8H1:5]-[#6:1][#6:2]=[#6:3][#6:4]=[O:6]>>[#8:6]-[#6:4]-1-[#8:5]-[#6:1]-[#6:2]=[#6:3]-1	Any	Nielsen H and Sorensen PE (1977) Acts Chemica Scandinavica A 31: 739-742
 OlefinEpoxidation	Any;H2O2	[#6:5][#6:4]=[#6:3][#6:1]=[O:2].[#8:6]-[#8:7]>>[#6:5]-[#6:4]-1-[#8:6]-[#6:3]-1-[#6:1]=[O:2].[#8:7]	Any;Water	8924609; 7696543
 OxidativeDecarboxylation	Any;H2O2	[#8H1:1]-[#6:2](=[O:3])-[#6:4]=[O:5].[#8:6]-[#8:7]>>[#8:6]-[#6:4]=[O:5].[O:3]=[C:2]=[O:1].[#8:7]	Any;CO2;Water	13502398; 4311181
-PhenazineOxidation	Any;O2	[#6;R2:1]1[#6;R2:2][#7H1:3][#6;R2:4][#6;R2:5][#7H1:6]1.O=O>>[#6;R2:1]1[#6;R2:2][#7H0:3][#6;R2:4][#6;R2:5][#7H0:6]1.[#8]-[#8]	Any;H2O2	RXN-17696;RXN-17694;RXN-17687
 PhosphosugarCyclization	Any	[#8:9]-[#6:3]-[#6:2](-[#8H1:10])-[#6:1]-[#8:4][P;D4R0:5]([#8:6])(=[O:11])[#8:7]-[#15;D4R0:8]>>[#8:9]-[#6:3]-[#6:2]-1-[#6:1]-[#8:4][P;D4:5]([#8:6])(=[O:11])[#8:10]-1.[#8:7]-[#15;D4:8]	Any;Pi	13271449; 5503385; 24147537; Flaks JG (1963) Methods of Enzymology 6: 473-479
 Pictet-Spengler_Acetaldehyde	Any;Acetaldehyde	[#7H2:1]-[#6R0:2]-[#6R0:3]-[c:4]:[$(c[nr5]),$(c[cr6]c[OH]);H1:5].[#6h:7](=[O:8])>>[#6H1:7]-1-[#7H1:1]-[#6:2]-[#6:3]-[c:4][c:5]-1.[#8:8]	Any;Water
 Pictet-Spengler_Formaldehyde	Any;Formaldehyde	[#7H2:1]-[#6R0:2]-[#6R0:3]-[c:4]:[$(c[nr5]),$(c[cr6]c[OH]);H1:5].[#6h:7](=[O:8])>>[#6H1:7]-1-[#7H1:1]-[#6:2]-[#6:3]-[c:4][c:5]-1.[#8:8]	Any;Water
