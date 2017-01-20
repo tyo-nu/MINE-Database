@@ -115,20 +115,19 @@ class Pickaxe:
             for rule in rdr:
                 try:
                     rule['Reactants'] = rule['Reactants'].split(';')
-                    for reactant_name in rule['Reactants']:
-                        if reactant_name not in self.coreactants and reactant_name != "Any":
-                            raise ValueError('Undefined coreactant:%s' % reactant_name)
+                    rule['Products'] = rule['Products'].split(';')
+                    for coreactant_name in rule['Reactants']+rule['Products']:
+                        if coreactant_name not in self.coreactants and coreactant_name != "Any":
+                            raise ValueError('Undefined coreactant:%s' % coreactant_name)
                     rxn = AllChem.ReactionFromSmarts(rule['SMARTS'])
                     rule.update({"_id": rule["Name"], "Reactions_predicted": 0})
-                    if rxn.GetNumReactantTemplates() != len(rule['Reactants']):
+                    if rxn.GetNumReactantTemplates() != len(rule['Reactants']) or rxn.GetNumProductTemplates() != len(rule['Products']):
                         raise ValueError("Number of coreactants does not match supplied reaction rule")
                     if rule["Name"] in self.rxn_rules:
                         raise ValueError("Duplicate reaction rule name")
-                    if rule['Products']:
-                        rule['Products'] = rule['Products'].split(';')
                     self.rxn_rules[rule["Name"]] = (rxn, rule)
-                except Exception:
-                    raise ValueError("Failed to parse %s" % (rule["Name"]))
+                except Exception as e:
+                    raise ValueError(str(e) + "Failed to parse %s" % (rule["Name"]))
 
     def load_compound_set(self, compound_file=None, structure_field='structure', id_field='id', fragmented_mols=False):
         """

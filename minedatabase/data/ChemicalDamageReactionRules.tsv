@@ -22,7 +22,7 @@ AlphaCarboxyImineAdduct_Pyridoxal	Any;PyridoxalP	[#6;H2R1:7][#6;R1:6]=[#7;R1:5][
 AlphaCarboxyImineAdductRearr_Acetaldehyde	Any;Acetaldehyde	[#6;H2R1:7]-[#6;R1H2:6][#7;R1:5]=[#6;R1:4][#6R0:1](-[#8:3])=[O:2].[#6H1:9]=[O:8]>>[#8:3]-[#6:1](=[O:2])-[#6;R1:4][#7;R1:5]=[#6;R1H1:6][#6H0:7]=[#6:9].[#8:8]	Any;Water
 AlphaCarboxyImineAdductRearr_MGlyoxal	Any;MGlyoxal	[#6;H2R1:7]-[#6;R1H2:6][#7;R1:5]=[#6;R1:4][#6R0:1](-[#8:3])=[O:2].[#6H1:9]=[O:8]>>[#8:3]-[#6:1](=[O:2])-[#6;R1:4][#7;R1:5]=[#6;R1H1:6][#6H0:7]=[#6:9].[#8:8]	Any;Water
 AlphaCarboxyImineAdductRearr_Pyridoxal	Any;PyridoxalP	[#6;H2R1:7]-[#6;R1H2:6][#7;R1:5]=[#6;R1:4][#6R0:1](-[#8:3])=[O:2].[#6H1:9]=[O:8]>>[#8:3]-[#6:1](=[O:2])-[#6;R1:4][#7;R1:5]=[#6;R1H1:6][#6H0:7]=[#6:9].[#8:8]	Any;Water
-AlphaEnolDecarboxylation	Any	[#8H1:1][#6:2]=[#6:3][#6:4](-[#8H1:6])=[O:5]>>[#8:1]-[#6:2]=[#6:3].[O:5]=[C:4]=[O:6]	Any:CO2	RXN-7859;RXN-7858;RXN-7857;RXN-12063
+AlphaEnolDecarboxylation	Any	[#8H1:1][#6:2]=[#6:3][#6:4](-[#8H1:6])=[O:5]>>[#8:1]-[#6:2]=[#6:3].[O:5]=[C:4]=[O:6]	Any;CO2	RXN-7859;RXN-7858;RXN-7857;RXN-12063
 AlphaHydroxyAldehydeOxidation	Any;O2	[#8:1]-[#6H2:2]-[#6:3]=[O:4].[O:5]=[O:6]>>[#8:1]-[#6:2](=[O:5])-[#6:3]=[O:4].[#8:6]	Any;Water
 AlphaHydroxyImineOxidativeCleavage	Any;H2O2	[#6:1]-[#6:2](-[#8H1:3])-;!@[#6:4](-[#6:6])=[#7:5].[#8:7]-[#8:8]>>[#6:1]-[#6:2]=[O:3].[#6:6]-[#6:4](-[#7:5])=[O:7].[#8:8]	Any;Any;Water
 AlphaKetoAddition_Acetaldehyde	Any;Acetaldehyde	[O:6]=[#6H1:4]-[#6:5]=[O:7].[#6H3:1]-[#6:2]=[O:3]>>[#8:6]-[#6:4](-[#6:1]-[#6:2]=[O:3])-[#6:5]=[O:7]	Any	Gomez-Sanchez A et al (1992) Carbohydrate Research 229:307-322
@@ -33,7 +33,7 @@ AlphaKetoDecarboxylationRearr	Any	[#8H1:6]-[#6H1@:5]-[#6:4](=[O:7])-[#6:1](-[#8H
 AlphaKetoPhosphoesterHydrolysis	Any;Water	[#15;D4:4]-[#8:2]-[#6:1]=[O:3].[#8:5]>>[#8:2]-[#6:1]=[O:3].[#8:5]-[#15;D4:4]	Any;Any	5472367
 AlphaNitroCondensation_Cysteine	Any;Cysteine	[#6;H2R0:1][N+:2](=[O:3])-[O-:4].[#6:6]-[#16H1:5]>>[#6:6]-[#16:5][#6:1]=[#7:2][#8:3].[#8:4]	Any;Water	RXN-11427;RXN-11420;RXN-11421;RXN-11423;RXN-11422;RXN-11425
 AlphaNitroCondensation_Glutathione	Any;Glutathione	[#6;H2R0:1][N+:2](=[O:3])-[O-:4].[#6:6]-[#16H1:5]>>[#6:6]-[#16:5][#6:1]=[#7:2][#8:3].[#8:4]	Any;Water	RXN-11427;RXN-11420;RXN-11421;RXN-11423;RXN-11422;RXN-11425
-AmineMethylation	Any;S-Adenosylmethionine	[#6;R0:2]-[#7;R0;H1,H2:1].[#6H3:3]-[#16;D3:4]>>[#6:2]-[#7v3:1]-[#6:3].[#16:4]	Any;S-Adenosylhomocystine	3985978
+AmineMethylation	Any;S-Adenosylmethionine	[#6;R0:2]-[#7;R0;H1,H2:1].[#6H3:3]-[#16;D3:4]>>[#6:2]-[#7v3:1]-[#6:3].[#16:4]	Any;S-Adenosylhomocysteine	3985978
 AmineRiboseHydrolysis	Any;Water	[#6;R1:5]-[#7H1:4]-[#6;R1r5:2](-[#6;R1r5:3])-[#8;R1r5:1].[#8:6]>>[#6;R1r5:3]-[#6;R1r5:2](-[#7:4])-[#8;R1r5:1].[#6;R1:5]-[#8:6]	Any;Any	25431972; 8897600
 AromaticDeamination	Any;Water	[#6;a:1]-[#7H2:2].[#8:3]>>[#6;a:1]-[#8:3].[#7:2]	Any;Ammonia
 AromaticDecarboxylation	Any	[#8R0:1][cR1:2][cR1:3][C:4](-[#8H1:6])=[O:5]>>[#8:1]-[c:2][c:3].[O:5]=[C:4]=[O:6]	Any;CO2	RXN-7859;RXN-7858;RXN-7857;RXN-12063
@@ -47,8 +47,8 @@ CyclohexadieneDecarboxylation	Any	[#8H1:7]-[#6:4]-1-[#6:3]=[#6:2]-[#6:1](-[#6:6]
 CyclohexadieneDehydration	Any	[#8H1:7]-[#6H1:4]-1-[#6:3]=[#6:2]-[#6H1:1]-[#6:6]=[#6:5]-1>>[c:1]1[c:2][c:3][c:4][c:5][c:6]1.[#8:7]	Any;Water	5787238; 16464106
 CyclohexadieneRearrangement	Any	[#8:10]-[#6:6]-1-[#6:5]=[#6:4]-[#6:3]=[#6:2]-[#6:1]-1-[#8:7]-[#6:8]=[#6:9]>>[#8:10]-[#6:4]-1-[#6:5]=[#6:6]-[#6:1](-[#8:7]-[#6:8]=[#6:9])-[#6:2]=[#6:3]-1	Any	Gibson F (1970) Methods of Enzymology 17 Part A: 362-364
 Decarbamylation	Any;Water	[#6;a:1]-[#7H1:2]-[#6:3](-[#8H1:4])=[O:5].[#8:6]>>[#6;a:1]-[#7:2].[#8:6]-[#6:3](-[#8H1:4])=[O:5]	Any;Any	8117684
-DihydropyridineHydration	Any;Water	[#8;D2R1r5:1]-[#6;R1r5:2]-[#7;R1r6:3]-[#6;R1r6:4]=[#6R1r6:6].[#8:5]>>[#6:6]-[#6:4](-[#8H1:5])-[#7;R1r6:3]-[#6;R1r5:2]-[#8;D2R1r5:1]	Any;H+;H+	3061454; 3304160; 8214579
-DihydroxylOxidativeCleavage	Any;H2O2	[#6:2]-[#6:4](=[#7:3])-[#6h:5](-[#8H1:1])-[#6h:6]-[#8H1:7].[#8:8]-[#8:9]>>[#6:2]-[#6:4](=[#7:3])-[#6:5]=[O:1].[O:7]=[*:6].[#8:8].[#8:9]	Any;Water;Water
+DihydropyridineHydration	Any;Water	[#8;D2R1r5:1]-[#6;R1r5:2]-[#7;R1r6:3]-[#6;R1r6:4]=[#6R1r6:6].[#8:5]>>[#6:6]-[#6:4](-[#8H1:5])-[#7;R1r6:3]-[#6;R1r5:2]-[#8;D2R1r5:1]	Any	3061454; 3304160; 8214579
+DihydroxylOxidativeCleavage	Any;H2O2	[#6:2]-[#6:4](=[#7:3])-[#6h:5](-[#8H1:1])-[#6h:6]-[#8H1:7].[#8:8]-[#8:9]>>[#6:2]-[#6:4](=[#7:3])-[#6:5]=[O:1].[O:7]=[*:6].[#8:8].[#8:9]	Any;Any;Water;Water
 DiketoneOxidativeCleavage	Any;H2O2	[#6:5]-[#6:3](=[O:4])-;!@[#6:1]=[O:2].[#8:6]-[#8:7]>>[#8:6]-[#6:1]=[O:2].[#6:5]-[#6:3](-[#8:7])=[O:4]	Any;Any
 DisulfideFormation	Any;Any	[#6:1]-[#16H1:2].[#6:4]-[#16H1:3]>>[#6:1]-[#16:2]-[#16:3]-[#6:4].[#1+].[#1+]	Any;H+;H+	Tubbs PK and Garland PB (1969) Methods in Enzymology 13: 535-551
 DisulfideFormation_Cysteamine	Any;Cysteamine	[#6:1]-[#16H1:2].[#6:4]-[#16H1:3]>>[#6:1]-[#16:2]-[#16:3]-[#6:4].[#1+].[#1+]	Any;H+;H+	Tubbs PK and Garland PB (1969) Methods in Enzymology 13: 535-551
@@ -131,10 +131,10 @@ SuccinylHydrolysis	Any;Water	[#8H1:5]-[#6:1](=[O:6])-[#6:2]-[#6:3]-[#6:4](=[O:7]
 SulfenateCondensation	Any;Any	[#6:1]-[#16:2]-[#8H1:3].[#6:4]-[#16:5]-[#8H1:6]>>[#6:1]-[#16:2][S+:5]([#6:4])[O-:6].[#8:3]	Any;Water	27008862;RXN-16200;RXN-16199
 SulfiniteHydrolysis	Any;Water	[#6:4][S:1]([#8H1:3])=[O:2].[#8:5]>>[#6:4].[#8:3][S:1]([#8:5])=[O:2]	Any;Any	RXN-14908;RXN-16574;RXN-16015;3-SULFINYL-PYRUVATE-SPON-RXN
 SulfoniumHydrolysis	Any;Water	[#6:2][S+:1]([#6:3])[#6H3:4].[#8:5]>>[#6:2]-[#16:1]-[#6H3:4].[#6:3]-[#8:5]	Any;Any	13502398; 4311181
-TertiaryAmineMethylation	Any;S-Adenosylmethionine	[#6;R0:2]-[#7;R0D3H0+0:1].[#6H3:3]-[#16+;D3:4]>>[#6:2]-[#7+:1]-[#6:3].[#16+0:4]	Any;S-Adenosylhomocystine	3985978
+TertiaryAmineMethylation	Any;S-Adenosylmethionine	[#6;R0:2]-[#7;R0D3H0+0:1].[#6H3:3]-[#16+;D3:4]>>[#6:2]-[#7+:1]-[#6:3].[#16+0:4]	Any;S-Adenosylhomocysteine	3985978
 ThiazoleHydrolysis	Any;Water	[#6:6]-[n+:4]1[c:5][c:1][s:2][c:3]1.[#8:7]>>[c:5]1[c:1][s:2][c:3][n:4]1.[#6:6]-[#8:7]	Any;Any	14007458; 4565919
 ThiazoleOxidation	Any;H2O2	[#6:6]-[n+:4]1[c:5][c:1][s:2][cH1:3]1.[#8:7]-[#8:8]>>[#6:6]-[n+:4]1[c:5][c:1][s:2][c:3]1-[#8:7].[#8:8]	Any;Water	17342415; 8399183
-ThiazoleRingOpening	Any;[OH-]	[#6:6]-[n+:4]1[c:5][c:1][s:2][c:3]1.[#8H1-:7]>>[#6:6]-[#7+0:4](-[#6:3]=[O+0:7])-[#6:5]=[#6:1]-[#16:2]	Any;Any	17618314; 4565919
+ThiazoleRingOpening	Any;Water	[#6:6]-[n+:4]1[c:5][c:1][s:2][c:3]1.[#8:7]>>[#6:6]-[#7+0:4](-[#6:3]=[O+0:7])-[#6:5]=[#6:1]-[#16:2].[H+]	Any;H+	17618314; 4565919
 ThiazolidineFormation_Cysteamine	Any;Cysteamine	[#6:3]-[$([CH1]),$(CC(=O)O):2]=[O:1].[#7H2:7]-[#6;R0:6]-[#6;R0:5]-[#16H:4]>>[#6:3]-[*:2]-1-[#7:7]-[#6:6]-[#6:5]-[#16:4]-1.[#8:1]	Any;Water	9771914; 6629729; Jan Velisek (2014) The Chemistry of Food: 374-375
 ThiazolidineFormation_Cysteine	Any;Cysteine	[#6:3]-[$([CH1]),$(CC(=O)O):2]=[O:1].[#7H2:7]-[#6;R0:6]-[#6;R0:5]-[#16H:4]>>[#6:3]-[*:2]-1-[#7:7]-[#6:6]-[#6:5]-[#16:4]-1.[#8:1]	Any;Water	9771914; 6629729; Jan Velisek (2014) The Chemistry of Food: 374-375
 ThiazolidineFormation_Glyoxylate	Any;Glyoxylate	[#7H2:7]-[#6;R0:6]-[#6;R0:5]-[#16H:4].[#6:3]-[$([CH1]),$(CC(=O)O):2]=[O:1]>>[#6:3]-[*:2]-1-[#7:7]-[#6:6]-[#6:5]-[#16:4]-1.[#8:1]	Any;Water	9771914; 6629729; Jan Velisek (2014) The Chemistry of Food: 374-375
