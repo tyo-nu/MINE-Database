@@ -1,5 +1,5 @@
 Name	Reactants	SMARTS	Products	Comments
-1,2-BenzoquinoneAdditionCyclization 	Any	[#7H2,SH1:11]-[#6:10]-[#6:9]-[#6:6]-1=[#6:1]-[#6:2](=[O:8])-[#6:3](=[O:7])-[#6:4]=[#6;h1:5]-1>>[#8:8]-[#6:2]-1=[#6:3](-[#8:7])-[#6:4]=[#6:5]-2-[*:11]-[#6:10]-[#6:9]-[#6:6]-2=[#6:1]-1	Any	 1246050; 17503772
+1,2-BenzoquinoneAdditionCyclization	Any	[#7H2,SH1:11]-[#6:10]-[#6:9]-[#6:6]-1=[#6:1]-[#6:2](=[O:8])-[#6:3](=[O:7])-[#6:4]=[#6;h1:5]-1>>[#8:8]-[#6:2]-1=[#6:3](-[#8:7])-[#6:4]=[#6:5]-2-[*:11]-[#6:10]-[#6:9]-[#6:6]-2=[#6:1]-1	Any	 1246050; 17503772
 1,2-BenzoquinoneAlphaAddition_1,2-Benzoquinone	Any;1,2-Benzoquinone	[#6:10]-[#7H2,#16H1:9].[O:7]=[#6:3]-1-[#6;h1:4]=[#6:5]-[#6:6]=[#6:1]-[#6:2]-1=[O:8]>>[#6:10]-[*:9]-[#6:4]-1=[#6:5]-[#6:6]=[#6:1]-[#6:2](-[#8:8])=[#6:3]-1-[#8:7]	Any	Dudley ED, Hotchkiss JH (1989) J Food Biochem 13: 65-75; 2691341
 1,2-BenzoquinoneAlphaAddition_Cystine	Any;Cysteine	[O:7]=[#6:3]-1-[#6;h1:4]=[#6:5]-[#6:6]=[#6:1]-[#6:2]-1=[O:8].[#6:10]-[#7H2,#16H1:9]>>[#6:10]-[*:9]-[#6:4]-1=[#6:5]-[#6:6]=[#6:1]-[#6:2](-[#8:8])=[#6:3]-1-[#8:7]	Any	Dudley ED, Hotchkiss JH (1989) J Food Biochem 13: 65-75; 2691341
 1,2-BenzoquinoneAlphaAddition_Glutathione	Any;Glutathione	[O:7]=[#6:3]-1-[#6;h1:4]=[#6:5]-[#6:6]=[#6:1]-[#6:2]-1=[O:8].[#6:10]-[#7H2,#16H1:9]>>[#6:10]-[*:9]-[#6:4]-1=[#6:5]-[#6:6]=[#6:1]-[#6:2](-[#8:8])=[#6:3]-1-[#8:7]	Any	Dudley ED, Hotchkiss JH (1989) J Food Biochem 13: 65-75; 2691341
@@ -141,5 +141,5 @@ ThioesterFormation_Glycolaldehyde	Any;Glycolaldehyde;O2	[#6:2]-[#16H1:1].[#8:6]-
 ThioesterHydrolysis	Any;Water	[#6:5]-[#16:4]-;!@[#6:2](-[#6:3])=[O:1].[#8:6]>>[#6:3]-[#6:2](-[#8:6])=[O:1].[#6:5]-[#16:4]	Any;Any	18487328; 15922108; 7122152; Tubbs PK and Garland PB (1969) Methods in Enzymology 13: 535-551
 ThiolNitration	Any;NitrosooxidanylRadical;NitrosooxidanylRadical	[#6:2]-[#16H1:1].[#8:4]-[#7:3]=[O:5].[#8:7]-[#7:6]=[O:8]>>[#6:2]-[#16:1]-[#7+:6](-[#8-:7])=[O:8].[#8H1:4]-[#7:3]=[O:5]	Any;Nitrite	10493809; 14661084
 ThiolOxidation	Any;H2O2;H2O2;H2O2	[#6:1]-[#16H1:2].[#8:3]-[#8:4].[#8:5]-[#8:6].[#8:7]-[#8:8]>>[#6:1][S:2]([#8:3])(=[O:4])=[O:5].[#8:6].[#8:7].[#8:8]	Any;Water;Water;Water	Yoshia M and Tamura Z (1971) Chem Pharm Bull 19: 178-185
-Transamination_Glutamate	Any;Glutamate	[O:3]=[#6;R0:2]-[#6;R0:1]=[O:4].[#6;H1D3:5]-[#7H2:6]>>[#7H2:6]-[#6:5]-[#6:1]=[O:4].[#6H0:2]=[O:3]	Any;Any	13117860
-Transamination_Glyoxylate	Any;Glyoxylate	[#6;H1D3:5]-[#7H2:6].[O:3]=[#6;R0:2]-[#6;R0:1]=[O:4]>>[#6H0:2]=[O:3].[#7H2:6]-[#6:5]-[#6:1]=[O:4]	Any;Any	13117860
+Transamination_Glutamate	Any;Glutamate	[O:3]=[#6;R0:2]-[#6;R0:1]=[O:4].[#6;H1D3:5]-[#7H2:6]>>[#7H2:6]-[#6:2]-[#6:1]=[O:4].[#6H0:5]=[O:3]	Any;Any	13117860
+Transamination_Glyoxylate	Any;Glyoxylate	[#6;H1D3:5]-[#7H2:6].[O:3]=[#6;R0:2]-[#6;R0:1]=[O:4]>>[#6H0:5]=[O:3].[#7H2:6]-[#6:2]-[#6:1]=[O:4]	Any;Any	13117860
