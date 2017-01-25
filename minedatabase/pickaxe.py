@@ -416,15 +416,15 @@ class Pickaxe:
         # This is the raw SMILES which may have explicit hydrogen
         raw = AllChem.MolToSmiles(mol_obj, True)
         if raw not in self._raw_compounds:
-            if self.explicit_h:
+            try:
                 # Remove hydrogens if explicit (this step slows down the
                 # process quite a bit)
-                try:
-                    mol_obj = AllChem.RemoveHs(mol_obj)
-                except:
-                    print("Product ERROR!: " + raw)
-                    raise ValueError
-            AllChem.SanitizeMol(mol_obj)
+                if self.explicit_h:
+                        mol_obj = AllChem.RemoveHs(mol_obj)
+                AllChem.SanitizeMol(mol_obj)
+            except:
+                print("Product ERROR!: " + raw)
+                raise ValueError
             # In case we want to have separate entries for stereoisomers
             if split_stereoisomers:
                 processed_mols = self._racemization(mol_obj)
