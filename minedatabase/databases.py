@@ -13,15 +13,15 @@ from rdkit.Chem import AllChem
 def establish_db_client():
     """This establishes a mongo database client in various environments"""
     try:
-        #special case for working on a sapphire node
+        # Special case for working on a sapphire node
         if 'node' in platform.node():
             client = pymongo.MongoClient(host='master')
-        #special case for working on a SEED cluster
+        # Special case for working on a SEED cluster
         elif 'bio' in platform.node() or 'twig' == platform.node() or 'branch' == platform.node():
             client = pymongo.MongoClient(host='branch')
             admin = client['admin']
             admin.authenticate('worker', 'bnice14bot')
-        #local database
+        # Local database
         else:
             client = pymongo.MongoClient()
     except:
@@ -53,25 +53,36 @@ class MINE:
         reactions_count = self.reactions.count()
         print("Linking compounds to %s reactions" % reactions_count)
         for reaction in self.reactions.find().batch_size(500):
+            # Update pointers for compounds that are reactants
             for compound in reaction['Reactants']:
                 self.compounds.update({"_id": compound["c_id"]}, {'$push': {"Reactant_in": reaction['_id']}})
+            # Update pointers for compounds that are products
             for compound in reaction['Products']:
                 self.compounds.update({"_id": compound["c_id"]}, {'$push': {"Product_of": reaction['_id']}})
+        # Write to log file
         self.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "Add Reaction Pointers"})
 
     def add_compound_sources(self, rxn_key_type="_id"):
         """Adds a field detailing the compounds and reactions from which a compound is produced. This enables
-        filtering search results to only include compounds which are relevant to a specified metabolic contex"""
+        filtering search results to only include compounds which are relevant to a specified metabolic context.
+        This is different from add_rxn_pointers in that this provides the precursor compounds rather than the
+        reactions that the compound participates in."""
         for compound in self.compounds.find({"Sources": {"$exists": 0}}):
             compound['Sources'] = []
+            #Not sure how this really works but it adds a list of compounds that
+            #go into reactions forming the specified compound
             for reaction in self.reactions.find({"Products.c_id": compound[rxn_key_type]}):
                 compound['Sources'].append({"Compounds": [x['c_id'] for x in reaction['Reactants']], "Operators": reaction["Operators"]})
+            # If there are sources, then save them and make sure there aren't
+            #  too many for a single compound.
             if compound['Sources']:
                 try:
                     self.compounds.save(compound)
                 except pymongo.errors.DocumentTooLarge:
                     print("Too Many Sources for %s" % compound['SMILES'])
+        #What dis
         self.compounds.ensure_index([("Sources.Compound", pymongo.ASCENDING), ("Sources.Operators", pymongo.ASCENDING)])
+        # Write to log file
         self.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action": "Add Compound Source field"})
 
     def build_indexes(self):
@@ -106,12 +117,16 @@ class MINE:
         if compound:
             ext = MINE(external_database)
             projection = dict([("_id", 0,)] + [(x[0], 1,) for x in fields_to_copy])
+            # Find compounds that have same name in another database
             for ext_comp in ext.compounds.find({match_field: compound[match_field]}, projection):
                 for field in fields_to_copy:
                     if field[0] in ext_comp:
+                        # dict_merge merges two dictionaries using sets to
+                        # avoid duplicate values
                         utils.dict_merge(compound, utils.save_dotted_field(field[1], utils.get_dotted_field(ext_comp, field[0])))
             return compound
 
+        # If compound is None, link all compounds in database
         else:
             for comp in self.compounds.find():
                 self.compounds.save(self.link_to_external_database(external_database, compound=comp,
@@ -139,25 +154,34 @@ class MINE:
         :rtype:
         """
 
+        # Store all different representations of the molecule (SMILES, Formula,
+        #  InChI key, etc.) as well as its properties in a dictionary
         compound_dict['SMILES'] = AllChem.MolToSmiles(mol_object, True)
         compound_dict['Inchi'] = AllChem.MolToInchi(mol_object)
         compound_dict['Inchikey'] = AllChem.InchiToInchiKey(compound_dict['Inchi'])
         compound_dict['Mass'] = AllChem.CalcExactMolWt(mol_object)
         compound_dict['Formula'] = AllChem.CalcMolFormula(mol_object)
         compound_dict['Charge'] = AllChem.GetFormalCharge(mol_object)
+        # Get indices where bits are 1
         compound_dict['MACCS'] = list(AllChem.GetMACCSKeysFingerprint(mol_object).GetOnBits())
         compound_dict['len_MACCS'] = len(compound_dict['MACCS'])
+        # Get indices where bits are 1
         compound_dict['RDKit'] = list(AllChem.RDKFingerprint(mol_object).GetOnBits())
         compound_dict['len_RDKit'] = len(compound_dict['RDKit'])
         compound_dict['logP'] = AllChem.CalcCrippenDescriptors(mol_object)[0]
         compound_dict['_id'] = utils.compound_hash(compound_dict['SMILES'],
                                                    ('Type' in compound_dict and compound_dict['Type'] == 'Coreactant'))
 
+        # If the compound is a reactant, then make sure the reactant name is
+        # in a correct format.
         if "Reactant_in" in compound_dict and isinstance(compound_dict['Reactant_in'], str) and compound_dict['Reactant_in']:
             compound_dict['Reactant_in'] = ast.literal_eval(compound_dict['Reactant_in'])
+        # If the compound is a product, then make sure the reactant name is
+        # in a correct format.
         if "Product_of" in compound_dict and isinstance(compound_dict['Product_of'], str) and compound_dict['Product_of']:
             compound_dict['Product_of'] = ast.literal_eval(compound_dict['Product_of'])
 
+        # Store links to external databases where compound is present
         if compound_dict['Inchikey']:
             if kegg_db:
                 compound_dict = self.link_to_external_database(kegg_db, compound=compound_dict, fields_to_copy=[
@@ -171,19 +195,25 @@ class MINE:
                 compound_dict = self.link_to_external_database(modelseed_db, compound=compound_dict, fields_to_copy=[
                     ('DB_links', 'DB_links')])
 
+        # Calculate natural product likeness score and store in dict
         if not self.np_model:
             self.np_model = np.readNPModel()
         compound_dict["NP_likeness"] = np.scoreMol(mol_object, self.np_model)
 
         compound_dict = utils.convert_sets_to_lists(compound_dict)
+        # Assign an id to the compound
         if self.id_db:
             mine_comp = self.id_db.compounds.find_one({"Inchikey": compound_dict['Inchikey']})
+            # If compound already exists in MINE, store its MINE id in the dict
             if mine_comp:
                 compound_dict['MINE_id'] = mine_comp['MINE_id']
+            # If compound does not exist, create new id based on number of
+            # current ids in the MINE
             else:
                 compound_dict['MINE_id'] = self.id_db.compounds.count()
                 self.id_db.compounds.save(compound_dict)
 
+        # If bulk insertion, upsert (insert and update) the database
         if bulk:
             bulk.find({'_id': compound_dict['_id']}).upsert().replace_one(compound_dict)
         else:
@@ -193,12 +223,14 @@ class MINE:
     def insert_reaction(self, reaction_dict, bulk=None):
         reaction_dict['_id'] = utils.rxn2hash(reaction_dict['Reactants'], reaction_dict['Products'])
 
-        # by converting to a dict, mongo stores the data as objects not arrays allowing for queries by compound hash
+        # By converting to a dict, mongo stores the data as objects not
+        # arrays allowing for queries by compound hash
         if isinstance(reaction_dict['Reactants'][0], utils.stoich_tuple):
             reaction_dict['Reactants'] = [x._asdict() for x in reaction_dict['Reactants']]
             reaction_dict['Products'] = [x._asdict() for x in reaction_dict['Products']]
 
         reaction_dict = utils.convert_sets_to_lists(reaction_dict)
+        # If bulk insertion, upsert (insert and update) the database
         if bulk:
             bulk.find({'_id': reaction_dict['_id']}).upsert().replace_one(reaction_dict)
         else:
@@ -206,6 +238,7 @@ class MINE:
         return reaction_dict['_id']
 
     def map_reactions(self, ext_db, match_field='_id'):
+        # Update operators by adding the reactions they participate in
         lit_db = MINE(ext_db)
         for lit_rxn in lit_db.reactions.find():
             if match_field == "InChI_hash":

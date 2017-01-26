@@ -211,7 +211,7 @@ def parse_text_rxn(rxn, rp_del, cp_del, translation_dict=None):
 
     return [parse_half(x, translation_dict) for x in rxn.split(rp_del)]
 
-
+#WHAT IS THIS DOING HERE???
 _reactions = None
 def neutralise_charges(mol, reactions=None):
     def _InitialiseNeutralisationReactions():
