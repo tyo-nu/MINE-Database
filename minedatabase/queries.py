@@ -3,20 +3,22 @@ from rdkit.Chem import AllChem
 
 """Queries.py: Contains functions which power the API queries"""
 
-default_projection = {'SMILES': 1, 'Formula': 1, 'MINE_id': 1, 'Names': 1, 'Inchikey': 1, 'Mass': 1, 'Sources': 1,
-                      'Generation': 1, 'NP_likeness': 1}
+default_projection = {'SMILES': 1, 'Formula': 1, 'MINE_id': 1, 'Names': 1,
+                      'Inchikey': 1, 'Mass': 1, 'Sources': 1, 'Generation': 1,
+                      'NP_likeness': 1}
 
 
 def quick_search(db, query, search_projection=default_projection.copy()):
     """
-    This function takes user provided compound identifiers and attempts to find a related database ID
+    This function takes user provided compound identifiers and attempts to find
+    a related database ID
 
     :param db: A Mongo Database, DB to search
     :param query: String, a MINE id, KEGG code, ModelSEED id, Inchikey or Name
     :param search_projection: Dictionary, The fields which should be returned
     :return:
     """
-    results = []
+
     # Determine what kind of query was input (e.g. KEGG code, MINE id, etc.)
     # If it can't be determined to be an id or a key, assume it is the name
     # of a compound.
@@ -36,42 +38,51 @@ def quick_search(db, query, search_projection=default_projection.copy()):
 
     if query_field == 'Names':
         # Return results for all compounds with specified name
-        results = [x for x in db.compounds.find({"Names": {'$regex': '^'+query+'$', '$options': 'i'}},
-                                                search_projection) if x['_id'][0] == "C"]
-        #If no results come up for specified name, then return results that
-        #are the closest? Why == "C"?
+        # Make sure that cofactors are not included
+        results = [x for x in db.compounds.find(
+                              {"Names": {'$regex': '^'+query+'$', '$options':
+                               'i'}}, search_projection) if x['_id'][0] == "C"]
         if not results:
-            cursor = db.compounds.find({"$text": {"$search": query}}, {"score": {"$meta": "textScore"}, 'Formula': 1,
-                                                                           'MINE_id': 1, 'Names': 1, 'Inchikey': 1,
-                                                                           'SMILES': 1, 'Mass': 1})
-            results.extend(x for x in cursor.sort([("score", {"$meta": "textScore"})]).limit(500) if x['_id'][0] == "C")
+            cursor = db.compounds.find({"$text": {"$search": query}},
+                                       {"score": {"$meta": "textScore"},
+                                        'Formula': 1, 'MINE_id': 1, 'Names': 1,
+                                        'Inchikey': 1, 'SMILES': 1, 'Mass': 1})
+            results.extend(x for x in cursor.sort(
+                [("score",
+                 {"$meta": "textScore"})]).limit(500) if x['_id'][0] == "C")
     else:
         # If query isn't a compound name, then return compounds with
         # specified query
-        results = [x for x in db.compounds.find({query_field: query}, search_projection).limit(500)
-                   if x['_id'][0] == "C"]
+        results = [x for x in db.compounds.find({query_field: query},
+                   search_projection).limit(500) if x['_id'][0] == "C"]
 
     return results
 
 
-def advanced_search(db, mongo_query, search_projection=default_projection.copy()):
+def advanced_search(db, mongo_query,
+                    search_projection=default_projection.copy()):
     """
-    Returns compounds in the indicated database which match the provided mongo query
+    Returns compounds in the indicated database which match the provided mongo
+    query
 
     :param db: A Mongo Database, DB to search
     :param mongo_query: String, A valid mongo query
     :param search_projection: Dictionary, The fields which should be returned
     :return:
     """
+    # We don't want users poking around here
     if db.name == 'admin' or not mongo_query:
-        raise ValueError('Illegal query')  # we don't want users poking around here
-    query_dict = literal_eval(mongo_query)  # this transforms the string into a dictionary
+        raise ValueError('Illegal query')
+    # This transforms the string into a dictionary
+    query_dict = literal_eval(mongo_query)
     return [x for x in db.compounds.find(query_dict, search_projection)]
 
 
-def similarity_search(db, comp_structure, min_tc, fp_type, limit, search_projection=default_projection.copy()):
+def similarity_search(db, comp_structure, min_tc, fp_type, limit,
+                      search_projection=default_projection.copy()):
     """
-    Returns compounds in the indicated database which have structural similarity to the provided compound
+    Returns compounds in the indicated database which have structural similarity
+     to the provided compound
 
     :param db: A Mongo Database, DB to search
     :param comp_structure: String, A molecule in Molfile or SMILES format
@@ -103,14 +114,16 @@ def similarity_search(db, comp_structure, min_tc, fp_type, limit, search_project
         raise ValueError("Invalid FP_type")
 
     len_fp = len(query_fp)
-    #Why set this to 1?
+    # Return only id and fingerprint vector
     search_projection[fp_type] = 1
-    #Filter compounds that meet tanimoto coefficient requirements (but why lte?)
-    for x in db.compounds.find({"$and": [{"len_"+fp_type: {"$gte": min_tc*len_fp}},
-                               {"len_"+fp_type: {"$lte": len_fp/min_tc}}]}, search_projection):
-        #Put the returned compounds into a set for testing
+    # Filter compounds that meet tanimoto coefficient size requirements
+    for x in db.compounds.find({"$and": [{"len_"+fp_type: {"$gte": min_tc*len_fp
+                                                           }},
+                               {"len_"+fp_type: {"$lte": len_fp/min_tc}}]},
+                               search_projection):
+        # Put the returned compounds into a set for testing
         test_fp = set(x[fp_type])
-        #What is & and |?
+        # Calculate tanimoto coefficient
         tc = len(query_fp & test_fp)/float(len(query_fp | test_fp))
         # If a sufficient tanimoto coefficient is calculated, append the
         # compound to the search results (until the limit is reached)
@@ -119,21 +132,24 @@ def similarity_search(db, comp_structure, min_tc, fp_type, limit, search_project
             similarity_search_results.append(x)
             if len(similarity_search_results) == limit:
                 break
-    #What
+
     del search_projection[fp_type]
     return similarity_search_results
 
 
-def structure_search(db, comp_structure, stereo=True, search_projection=default_projection.copy()):
+def structure_search(db, comp_structure, stereo=True,
+                     search_projection=default_projection.copy()):
     """
-    Returns compounds in the indicated database which are exact matches to the provided structure
+    Returns compounds in the indicated database which are exact matches to the
+    provided structure
 
     :param db: A Mongo Database, DB to search
     :param comp_structure: String, A molecule in Molfile or or SMILES format
     :param search_projection: Dictionary, The fields which should be returned
+    :param stereo: Bool, if true, uses stereochemistry in finding exact match
     :return:
     """
-    #Should stereo be in docstring?
+
     # Create Mol object from Molfile (has newlines)
     if "\n" in comp_structure:
         mol = AllChem.MolFromMolBlock(str(comp_structure))
@@ -151,34 +167,39 @@ def structure_search(db, comp_structure, stereo=True, search_projection=default_
     if stereo:
         return quick_search(db, inchi_key, search_projection)
     else:
-        return [x for x in db.compounds.find({"Inchikey": {'$regex': '^'+inchi_key.split('-')[0]}}, search_projection)]
+        return [x for x in db.compounds.find(
+            {"Inchikey": {'$regex': '^'+inchi_key.split('-')[0]}},
+            search_projection)]
 
 
-def substructure_search(db, comp_structure, limit, search_projection=default_projection.copy()):
+def substructure_search(db, sub_structure, limit,
+                        search_projection=default_projection.copy()):
     """
-    Returns compounds in the indicated database which contain the provided structure
+    Returns compounds in the indicated database which contain the provided
+    structure
 
     :param db: A Mongo Database, DB to search
-    :param comp_structure: String, A molecule in Molfile or or SMILES format
+    :param sub_structure: String, A molecule in Molfile or or SMILES format
     :param limit: Integer, the maximum number of compounds to return
     :param search_projection: Dictionary, The fields which should be returned
     :return:
     """
-    #Should rename comp_structure as sub_structure maybe?
+
     substructure_search_results = []
     # Create Mol object from Molfile (has newlines)
-    if "\n" in comp_structure:
-        mol = AllChem.MolFromMolBlock(str(comp_structure))
+    if "\n" in sub_structure:
+        mol = AllChem.MolFromMolBlock(str(sub_structure))
     # Create Mol object from SMILES string (does not have newlines)
     else:
-        mol = AllChem.MolFromSmiles(str(comp_structure))
+        mol = AllChem.MolFromSmiles(str(sub_structure))
     if not mol:
         raise ValueError("Unable to parse comp_structure")
     # Based on fingerprint type specified by user, get the finger print as an
     # explicit bit vector (series of 1s and 0s). Then, return a set of all
     # indices where a bit is 1 in the bit vector.
     query_fp = list(AllChem.RDKFingerprint(mol).GetOnBits())
-    for x in db.compounds.find({"RDKit": {"$all": query_fp}}, search_projection):
+    for x in db.compounds.find({"RDKit": {"$all": query_fp}},
+                               search_projection):
         # Get Mol object from SMILES string (rdkit)
         comp = AllChem.MolFromSmiles(x['SMILES'])
         # Use HasSubstructMatch (rdkit) to determine if compound has a
