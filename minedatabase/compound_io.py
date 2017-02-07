@@ -123,7 +123,6 @@ def export_mol(mine_db, target, name_field='_id'):
         # and replace CoA and R with *.
         mol = AllChem.MolFromSmiles(compound['SMILES'], True,
                                     {'CoA': '*', 'R': "*"})
-        #
         if "." in name_field:
             compound[name_field] = utils.get_dotted_field(compound, name_field)
         # Make things more compact and look nicer
