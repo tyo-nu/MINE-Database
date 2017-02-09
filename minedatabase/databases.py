@@ -159,8 +159,8 @@ class MINE:
                     external_database, compound=comp, match_field=match_field,
                     fields_to_copy=fields_to_copy))
 
-    #Should this be compound_dict={dict}? (was compound_dict={})
-    def insert_compound(self, mol_object, compound_dict={dict}, bulk=None,
+    #TODO check this
+    def insert_compound(self, mol_object, compound_dict=None, bulk=None,
                         kegg_db="KEGG", pubchem_db='PubChem-8-28-2015',
                         modelseed_db='ModelSEED'):
         """

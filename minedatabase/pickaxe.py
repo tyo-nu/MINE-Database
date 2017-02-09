@@ -303,7 +303,7 @@ class Pickaxe:
         if self.explicit_h:
             mol = AllChem.AddHs(mol)
         for rule_name in rules:
-            # Create or overwrite rule from file/database
+            # Lookup rule in dictionary from rule name
             rule = self.rxn_rules[rule_name]
             # Get RDKit Mol objects for reactants
             reactant_mols = tuple([mol if x == 'Any' else self.coreactants[x][0]
@@ -317,12 +317,12 @@ class Pickaxe:
                 print(compound_SMILES)
                 continue
             reactant_atoms = self._get_atom_count(reactant_mols)
-            #No enumeration for reactants. _make_half_rxn returns a
-            # generator, the first element of which is the reactants.
+            # No enumeration for reactant stereoisomers. _make_half_rxn
+            # returns a generator, the first element of which is the reactants.
             reactants = next(self._make_half_rxn(reactant_mols,
                                                  rule[1]['Reactants']))
             # By sorting the reactant (and later products) we ensure that
-            # reactions are unique
+            # compound order is fixed.
             reactants.sort()
             for product_mols in product_sets:
                 try:
@@ -394,18 +394,18 @@ class Pickaxe:
             self.reactions[rhash]['Reaction_rules'].add(rule_name)
         return text_rxn
 
-    #Should roles be rules?
-    def _make_half_rxn(self, mols, roles, split_stereoisomers=False):
+    def _make_half_rxn(self, mols, rules, split_stereoisomers=False):
         """Takes a list of mol objects for a half reaction, combines like
         compounds and returns a generator for stoich tuples"""
-        # Get reactants from rules
+        # Get compound ids from Mol objects, except for coreactants, in which
+        #  case we look them up in the coreactant dictionary
         comps = [self._calculate_compound_information(m, split_stereoisomers)
                  if r == 'Any' else (self.coreactants[r][1],)
-                 for m, r in zip(mols, roles)]
-        #Get all possible combinations of compounds and store in generator
+                 for m, r in zip(mols, rules)]
+        # Remove duplicates from comps
         half_rxns = [collections.Counter(subrxn) for subrxn
                      in itertools.product(*comps)]
-        #What is stoich_tuple?
+        # Yield generator with stoichiometry tuples (of form stoichiometry, id)
         for rxn in half_rxns:
             yield [stoich_tuple(y, x) for x, y in rxn.items()]
 
@@ -479,7 +479,8 @@ class Pickaxe:
                 else:
                     compound.GetAtomWithIdx(atomId).SetChiralTag(
                         AllChem.rdchem.ChiralType.CHI_TETRAHEDRAL_CCW)
-            #Why deep copy?
+            # Duplicate C++ object so that we don't get multiple pointers to
+            # same object
             new_comps.append(deepcopy(compound))
         return new_comps
 
@@ -490,7 +491,6 @@ class Pickaxe:
             first_block, second_block, smiles = [], [], []
             for x in tups:
                 comp = self.compounds[x.c_id]
-                #What does this stoich do?
                 smiles.append('(%s) %s' % (x.stoich, comp['SMILES']))
                 if comp["Inchikey"]:
                     # InChI keys are separated by a hyphen, where the first
@@ -504,7 +504,6 @@ class Pickaxe:
                                                        split_inchikey[1]))
                 else:
                     print("No Inchikey for %s" % x.c_id)
-            #Returning 3 things here but only got 2 in call?
             return "+".join(first_block), "+".join(second_block), \
                    " + ".join(smiles)
 
@@ -588,8 +587,9 @@ class Pickaxe:
             compound_smiles = [c['SMILES'] for c in self.compounds.values()
                                if c['Generation'] == self.generation - 1
                                and c['Type'] != 'Coreactant']
-            #Why max and not just round?
             # Use print_on to print % completion roughly every 5 percent
+            # Include max to print no more than once per compound (e.g. if
+            # less than 20 compounds)
             print_on = max(round(.05 * len(compound_smiles)), 1)
             if compound_smiles:
                 if num_workers > 1:
@@ -761,7 +761,6 @@ if __name__ == "__main__":
         os.mkdir(options.image_dir)
     # If starting compound specified as SMILES string, then add it
     if options.smiles:
-        #Is this allowed?
         pk._add_compound("Start", options.smiles, type='Starting Compound')
     else:
         pk.load_compound_set(compound_file=options.compound_file)
