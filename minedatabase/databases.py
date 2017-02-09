@@ -159,7 +159,6 @@ class MINE:
                     external_database, compound=comp, match_field=match_field,
                     fields_to_copy=fields_to_copy))
 
-    #TODO check this
     def insert_compound(self, mol_object, compound_dict=None, bulk=None,
                         kegg_db="KEGG", pubchem_db='PubChem-8-28-2015',
                         modelseed_db='ModelSEED'):
@@ -184,6 +183,9 @@ class MINE:
         :return:
         :rtype:
         """
+
+        if compound_dict is None:
+            compound_dict = {}
 
         # Store all different representations of the molecule (SMILES, Formula,
         #  InChI key, etc.) as well as its properties in a dictionary
