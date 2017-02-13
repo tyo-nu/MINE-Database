@@ -71,7 +71,7 @@ class Pickaxe:
             self.mine = None
 
         # Use RDLogger to catch errors in log file. SetLevel indicates mode (
-        # 0 - debug, 1 - info, 2 - warning, 3 - critical)
+        # 0 - debug, 1 - info, 2 - warning, 3 - critical). Default is no errors.
         from rdkit import RDLogger
         lg = RDLogger.logger()
         if not errors:
@@ -97,7 +97,7 @@ class Pickaxe:
         :return:
         :rtype:
         """
-        # If no coreactants (or last one has gone through), then do nothing
+        # If coreactant is commented out (with '#') then don't import
         if coreactant_text[0] == "#":
             return
         split_text = coreactant_text.strip().split('\t')
@@ -204,7 +204,8 @@ class Pickaxe:
                     # If compound is disconnected (determined by GetMolFrags
                     # from rdkit) and loading of these molecules is not
                     # allowed (i.e. fragmented_mols == 1), then don't add to
-                    # internal dictionary
+                    # internal dictionary. This is most common when compounds
+                    # are salts.
                     if not fragmented_mols and len(AllChem.GetMolFrags(mol)) \
                             > 1:
                         continue

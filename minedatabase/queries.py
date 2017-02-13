@@ -121,7 +121,8 @@ def similarity_search(db, comp_structure, min_tc, fp_type, limit,
                                                            }},
                                {"len_"+fp_type: {"$lte": len_fp/min_tc}}]},
                                search_projection):
-        # Put the returned compounds into a set for testing
+        # Put fingerprint in set for fast union (&) and intersection (|)
+        # calculations
         test_fp = set(x[fp_type])
         # Calculate tanimoto coefficient
         tc = len(query_fp & test_fp)/float(len(query_fp | test_fp))
