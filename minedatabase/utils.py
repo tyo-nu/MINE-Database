@@ -3,15 +3,21 @@ import hashlib
 import collections
 from os import path
 
-"""Utils.py: contains basic functions reused in various contexts in other modules"""
+"""Utils.py: contains basic functions reused in various contexts in other
+modules"""
 
 stoich_tuple = collections.namedtuple("stoich_tuple", 'stoich,c_id')
 
 
 def compound_hash(compound, cofactor=False):
+    """Creates hash string for given compound"""
+    # Check to see if compound is a Mol object. If true, convert that Mol object
+    # to a SMILES string
     if isinstance(compound, AllChem.Mol):
         compound = AllChem.MolToSmiles(compound, True)
+    # Create hash string using hashlib module
     chash = hashlib.sha1(compound.encode('utf-8')).hexdigest()
+    # Mark cofactors with an X at the beginning, all else with a C
     if cofactor:
         return "X"+chash
     else:
@@ -21,8 +27,9 @@ def compound_hash(compound, cofactor=False):
 def convert_sets_to_lists(obj):
     """Recursively converts dictionaries that contain sets to lists"""
     if isinstance(obj, set):
+        # This brings short names to the top of the list
         try:
-            obj = sorted(list(obj), key=lambda x: len(x))  # this brings short names to the top of the list
+            obj = sorted(list(obj), key=lambda x: len(x))
         except TypeError:
             obj = list(obj)
     elif isinstance(obj, dict):
@@ -68,6 +75,9 @@ def prevent_overwrite(write_path):
     """
     while path.exists(write_path):
         sp = write_path.split('.')
+        # Make sure that files without an extension are still valid (otherwise,
+        # split would create a list of one string which would give an index
+        # error when sp[-2] is called)
         if len(sp) > 1:
             sp[-2] += '_new'
             write_path = '.'.join(sp)
@@ -78,8 +88,10 @@ def prevent_overwrite(write_path):
 
 def approximate_matches(list1, list2, epsilon=0.01):
     """
-    Takes two list of tuples and searches for matches of tuples first value within the supplied epsilon. Emits tuples
-    with the tuples second values where found. if a value in one dist does not match the other list, it is emitted alone.
+    Takes two list of tuples and searches for matches of tuples first value
+    within the supplied epsilon. Emits tuples with the tuples second values
+    where found. if a value in one dist does not match the other list, it is
+    emitted alone.
     :param list1: first list of tuples
     :type list1: list
     :param list2: second list of tuples
@@ -150,11 +162,15 @@ def dict_merge(finaldict, sourcedict):
 
 def rxn2hash(reactants, products, return_text=False):
     """Hashes reactant and product lists"""
+    # Get text reaction to be hashed
     def to_str(half_rxn):
-        return ['(%s) %s' % (x[0], x[1]) if (len(x) == 2 and not isinstance(x, str)) else '(1) %s' % x
-                for x in sorted(half_rxn)]
+        return ['(%s) %s' % (x[0], x[1]) if (len(x) == 2
+                                             and not isinstance(x, str))
+                else '(1) %s' % x for x in sorted(half_rxn)]
 
-    text_rxn = ' + '.join(to_str(reactants)) + ' => ' + ' + '.join(to_str(products))
+    text_rxn = ' + '.join(to_str(reactants)) + ' => ' + \
+               ' + '.join(to_str(products))
+    # Hash text reaction
     rhash = hashlib.sha256(text_rxn.encode()).hexdigest()
     if return_text:
         return rhash, text_rxn
@@ -163,8 +179,8 @@ def rxn2hash(reactants, products, return_text=False):
 
 
 def _calculate_rxn_hash(db, reactants, products):
-        """Calculates a unique reaction hash using inchikeys. First block is connectivity only, second block is stereo
-        only"""
+        """Calculates a unique reaction hash using inchikeys. First block is
+        connectivity only, second block is stereo only"""
 
         def __get_blocks(tups):
             first_block, second_block = [], []
@@ -173,8 +189,10 @@ def _calculate_rxn_hash(db, reactants, products):
                 if comp and comp["Inchikey"]:
                     split_inchikey = comp["Inchikey"].split('-')
                     if len(split_inchikey) > 1:
-                        first_block.append("%s,%s" % (x.stoich, split_inchikey[0]))
-                        second_block.append("%s,%s" % (x.stoich, split_inchikey[1]))
+                        first_block.append("%s,%s" %
+                                           (x.stoich, split_inchikey[0]))
+                        second_block.append("%s,%s" %
+                                            (x.stoich, split_inchikey[1]))
                 else:
                     print("No Inchikey for %s" % x.c_id)
             return "+".join(first_block), "+".join(second_block)
@@ -185,7 +203,8 @@ def _calculate_rxn_hash(db, reactants, products):
         p_1, p_2 = __get_blocks(products)
         first_block = r_1 + '<==>' + p_1
         second_block = r_2 + '<==>' + p_2
-        return hashlib.sha256(first_block.encode()).hexdigest() + "-" + hashlib.md5(second_block.encode()).hexdigest()
+        return hashlib.sha256(first_block.encode()).hexdigest() + "-" + \
+            hashlib.md5(second_block.encode()).hexdigest()
 
 
 def parse_text_rxn(rxn, rp_del, cp_del, translation_dict=None):
@@ -194,11 +213,13 @@ def parse_text_rxn(rxn, rp_del, cp_del, translation_dict=None):
     def parse_half(half_rxn, td):
         if translation_dict:
             return [stoich_tuple(1, td[x.strip()]) if len(x.split()) == 1
-                    else stoich_tuple(int(x.split()[0].strip('()')), td[x.split()[1].strip()])
+                    else stoich_tuple(int(x.split()[0].strip('()')),
+                                      td[x.split()[1].strip()])
                     for x in half_rxn.split(cp_del)]
         else:
             return [stoich_tuple(1, x.strip()) if len(x.split()) == 1
-                    else stoich_tuple(int(x.split()[0].strip('()')), x.split()[1].strip())
+                    else stoich_tuple(int(x.split()[0].strip('()')),
+                                      x.split()[1].strip())
                     for x in half_rxn.split(cp_del)]
 
     return [parse_half(x, translation_dict) for x in rxn.split(rp_del)]
@@ -228,18 +249,20 @@ def neutralise_charges(mol, reactions=None):
             ('[$([N-]C=O)]', 'N'),
 
         )
-        return [(AllChem.MolFromSmarts(x), AllChem.MolFromSmiles(y, False)) for x, y in patts]
+        return [(AllChem.MolFromSmarts(x), AllChem.MolFromSmiles(y, False))
+                for x, y in patts]
 
     global _reactions
     if reactions is None:
         if _reactions is None:
-            _reactions=_InitialiseNeutralisationReactions()
-        reactions=_reactions
+            _reactions = _InitialiseNeutralisationReactions()
+        reactions = _reactions
     for i,(reactant, product) in enumerate(reactions):
         while mol.HasSubstructMatch(reactant):
             rms = AllChem.ReplaceSubstructs(mol, reactant, product)
             mol = rms[0]
     return mol
+
 
 def do_profile(func):
     from line_profiler import LineProfiler
