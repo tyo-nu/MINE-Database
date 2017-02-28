@@ -13,9 +13,6 @@ def test_insert_compound():
     try:
         entry = test_db.compounds.find_one({"SMILES": smiles})
         assert entry
-        assert 'C00033' in entry['DB_links']['KEGG']
-        assert 'cpd00029' in entry['DB_links']['Model_SEED']
-        assert '3335' in entry['DB_links']['PubChem']
         assert isinstance(entry['Mass'], float)
         assert len(entry['RDKit'])
         assert len(entry['RDKit']) == entry['len_RDKit']
