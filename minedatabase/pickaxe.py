@@ -753,7 +753,7 @@ if __name__ == "__main__":
                              "created compounds")
     options = parser.parse_args()
     pk = Pickaxe(coreactant_list=options.coreactant_list,
-                 rule_list=options.rule_list, racemize=options.raceimize,
+                 rule_list=options.rule_list, racemize=options.racemize,
                  errors=options.verbose, explicit_h=options.bnice,
                  kekulize=options.bnice, neutralise=options.bnice,
                  image_dir=options.image_dir, database=options.database)
