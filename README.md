@@ -34,6 +34,6 @@ Valid formats are:
 ###Pickaxe command-line usage
 Pickaxe.py can be called independently to generate predictions with or 
 without database storage. To list all options call `python pickaxe.py -h`. 
-To predict all chemical damage reactions on compounds in the iAF1260 
-model one would call `python -C ./data/ChemicalDamageCofactors.tsv -r 
+To predict all chemical damage reactions for one generation on compounds in the iAF1260 
+model one would call `python pickaxe.py -C ./data/ChemicalDamageCofactors.tsv -r 
 ./data/ChemicalDamageOperators.tsv -g 1 -c ./data/iAF1260.tsv`
