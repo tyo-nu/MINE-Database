@@ -75,11 +75,11 @@ def load_cfm_results(result_dir, db_list, pos=True, cleanup=False):
             try:
                 for db in db_list:
                     if pos:
-                        db.compounds.update({"Inchikey": {"$regex": "^"+spec_file[:-4]}}, {"$set": {"Pos_CFM_spectra":
-                                            {"10 V": data[0], "20 V": data[1], "40 V": data[2]}}}, {"multi": 1})
+                        db.compounds.update_many({"Inchikey": {"$regex": "^"+spec_file[:-4]}}, {"$set":
+                                                 {"Pos_CFM_spectra": {"10 V": data[0], "20 V": data[1], "40 V": data[2]}}})
                     else:
-                        db.compounds.update({"Inchikey": {"$regex": "^"+spec_file[:-4]}}, {"$set": {"Neg_CFM_spectra":
-                                            {"10 V": data[0], "20 V": data[1], "40 V": data[2]}}}, {"multi": 1})
+                        db.compounds.update_many({"Inchikey": {"$regex": "^"+spec_file[:-4]}}, {"$set":
+                                                 {"Neg_CFM_spectra": {"10 V": data[0], "20 V": data[1], "40 V": data[2]}}})
             except IndexError:
                 print(spec_file)
         if cleanup:
