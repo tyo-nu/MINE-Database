@@ -205,10 +205,9 @@ class MINE:
             mol_object).GetOnBits())
         compound_dict['len_RDKit'] = len(compound_dict['RDKit'])
         compound_dict['logP'] = AllChem.CalcCrippenDescriptors(mol_object)[0]
-        compound_dict['_id'] = utils.compound_hash(compound_dict['SMILES'],
-                                                   ('Type' in compound_dict and
-                                                    compound_dict['Type'] ==
-                                                    'Coreactant'))
+        compound_dict['_id'] = utils.compound_hash(
+            compound_dict['SMILES'], ('Type' in compound_dict and
+                                      compound_dict['Type'] == 'Coreactant'))
 
         # If the compound is a reactant, then make sure the reactant name is
         # in a correct format.
@@ -254,10 +253,15 @@ class MINE:
         # Assign an id to the compound
         if self.id_db:
             mine_comp = self.id_db.compounds.find_one(
-                {"Inchikey": compound_dict['Inchikey']})
+                {"Inchikey": compound_dict['Inchikey']},
+                {'MINE_id': 1, "Pos_CFM_spectra": 1, "Neg_CFM_spectra": 1})
             # If compound already exists in MINE, store its MINE id in the dict
             if mine_comp:
                 compound_dict['MINE_id'] = mine_comp['MINE_id']
+                if 'Pos_CFM_spectra' in mine_comp:
+                    compound_dict['Pos_CFM_spectra'] = mine_comp['Pos_CFM_spectra']
+                if 'Neg_CFM_spectra' in mine_comp:
+                    compound_dict['Neg_CFM_spectra'] = mine_comp['Neg_CFM_spectra']
             # If compound does not exist, create new id based on number of
             # current ids in the MINE
             else:
