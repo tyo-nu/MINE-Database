@@ -2,6 +2,7 @@ import csv
 import datetime
 import os
 import sys
+import collections
 
 from minedatabase import utils
 from minedatabase.databases import MINE
@@ -196,6 +197,69 @@ def export_tsv(mine_db, target, compound_fields=('_id', 'Names', 'Model_SEED',
             w.writerow(rxn)
 
 
+def export_kbase(mine_db, target):
+    """
+    Exports MINE compound and reaction data as tab-separated values files
+    amenable to use in ModelSEED.
+    :param mine_db: The database to export
+    :type mine_db: a MINE object
+    :param target: a directory in which to place the files
+    :type target: string
+    :return:
+    :rtype:
+    """
+    compound_fields = collections.OrderedDict([('id', "_id"), ('name', ""),
+                                               ('formula','Formula'),
+                                               ('charge', 'Charge')])
+    reaction_fields = collections.OrderedDict(
+        [('id', "_id"), ('direction', ">"), ('compartment', "c0"), ('gpr', ''),
+         ('name', ''), ('enzyme', ''), ('pathway', ''), ('reference', ''),
+         ('equation', '')])
+    print("Exporting %s compounds from %s to tsv" % (mine_db.compounds.count(),
+                                                     mine_db.name))
+    with open(utils.prevent_overwrite(os.path.join(target, mine_db.name)
+                                      + "_compounds.tsv"), 'w') as out:
+        w = csv.DictWriter(out, fieldnames=compound_fields,
+                           dialect='excel-tab')
+        w.writeheader()
+        for compound in mine_db.compounds.find(
+                {}, dict([("Names", 1)]
+                          + [(x, 1) for x in compound_fields.values()])):
+            for k, v in compound_fields.items():
+                if v in compound:
+                    compound[k] = compound[v]
+                    del compound[v]
+            if 'name' in compound_fields and 'Names' in compound:
+                compound['name'] = compound['Names'][0]
+                del compound['Names']
+            w.writerow(compound)
+
+    print("Exporting %s reactions from %s to tsv" % (mine_db.reactions.count(),
+                                                     mine_db.name))
+    with open(utils.prevent_overwrite(os.path.join(target, mine_db.name)
+                                      + "_reactions.tsv"), 'w') as out:
+        w = csv.DictWriter(out, fieldnames=reaction_fields, dialect='excel-tab')
+        w.writeheader()
+        for rxn in mine_db.reactions.find(
+                {}, dict([('Reactants', 1), ('Products', 1)] +
+                         [(x, 1) for x in reaction_fields.values()])):
+            for k, v in reaction_fields.items():
+                if v in rxn:
+                    rxn[k] = rxn[v]
+                    del rxn[v]
+            if 'equation' in reaction_fields:
+                def to_str(half_rxn):
+                    return ['(%s) %s' % (x['stoich'], x['c_id'])
+                            for x in half_rxn]
+                rxn['equation'] = ' + '.join(to_str(rxn['Reactants'])) + \
+                                  ' => ' + ' + '.join(to_str(rxn['Products']))
+            if 'Reactants' not in reaction_fields:
+                del rxn['Reactants']
+            if 'Products' not in reaction_fields:
+                del rxn['Products']
+            w.writerow(rxn)
+
+
 def import_sdf(mine_db, target,):
     """
     Imports a SDF file as a MINE database
@@ -309,6 +373,8 @@ if __name__ == '__main__':
             export_mol(database, path)
     elif task == 'export-tsv':
         export_tsv(database, path)
+    elif task == 'export-kbase':
+        export_kbase(database, path)
     elif task == 'import-sdf':
         import_sdf(database, path)
     elif task == 'import-smi':
