@@ -224,7 +224,9 @@ def export_kbase(mine_db, target):
         w.writeheader()
         for compound in mine_db.compounds.find(
                 {}, dict([("Names", 1)]
-                          + [(x, 1) for x in compound_fields.values()])):
+                         + [(x, 1) for x in compound_fields.values()])):
+            if compound['_id'][0] == 'X':
+                continue
             for k, v in compound_fields.items():
                 if v in compound:
                     compound[k] = compound[v]
@@ -249,7 +251,8 @@ def export_kbase(mine_db, target):
                     del rxn[v]
             if 'equation' in reaction_fields:
                 def to_str(half_rxn):
-                    return ['(%s) %s' % (x['stoich'], x['c_id'])
+                    return ['(%s) %s' % (x['stoich'],
+                                         x['c_id'].replace('X', 'C'))
                             for x in half_rxn]
                 rxn['equation'] = ' + '.join(to_str(rxn['Reactants'])) + \
                                   ' => ' + ' + '.join(to_str(rxn['Products']))
