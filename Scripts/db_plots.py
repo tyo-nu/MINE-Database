@@ -13,18 +13,17 @@ def make_violin_plots(db_list, prop_list=['Mass', 'logP', 'NP_likeness']):
     for db_name in db_list:
         db = MINE(db_name)
         l = []
-        cursor = db.compounds.find(projection=dict([('_id', 0)]+[(x, 1) for x in prop_list]))
+        cursor = db.compounds.find({"Type":{'$ne': 'Coreactant'}},
+                                   dict([('_id', 0), ('Type', 1)]
+                                        + [(x, 1) for x in prop_list]))
         for x in cursor:
             x['DB'] = str(db_name.strip('exp2'))
-            if "exp" in db_name:
-                x['Type'] = 'MINE'
-            else:
-                x['Type'] = 'Source'
             l.append(x)
         df = df.append(l)
     f, ax = plt.subplots(1, len(prop_list))
     for i, prop in enumerate(prop_list):
-        seaborn.violinplot(split=True, hue='Type', x='DB', y=prop, data=df, ax=ax[i])
+        seaborn.violinplot(split=True, hue='Type', x='DB', y=prop, data=df,
+                           ax=ax[i])
         if i > 0:
             ax[i].legend_.remove()
     plt.tight_layout()
