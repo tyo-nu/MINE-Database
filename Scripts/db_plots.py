@@ -30,6 +30,26 @@ def make_violin_plots(db_list, prop_list=['Mass', 'logP', 'NP_likeness']):
     plt.savefig("MINE property comparison.png")
 
 
+def make_box_plots(db_list, prop_list=['Mass', 'logP', 'NP_likeness']):
+        df = pandas.DataFrame()
+        for db_name in db_list:
+            db = MINE(db_name)
+            new_name = str(db_name.replace('exp2', 'MINE').split('-')[0])
+            l = []
+            cursor = db.compounds.find({}, dict([('_id', 0)] + [(x, 1) for x
+                                                                in prop_list]))
+            for x in cursor:
+                x['DB'] = new_name
+                l.append(x)
+            df = df.append(l)
+        f, ax = plt.subplots(1, len(prop_list))
+        for i, prop in enumerate(prop_list):
+            seaborn.boxplot(x='DB', y=prop, data=df, ax=ax[i],
+                            showfliers=False)
+        plt.tight_layout()
+        plt.savefig("MINE property comparison.png")
+
+
 def make_fp_heatmap(db_name, fp_type='MACCS', n_rows=25):
     db = MINE(db_name)
     data = defaultdict(Counter)
@@ -54,5 +74,11 @@ if __name__ == "__main__":
     if sys.argv[1] == "violin":
         make_violin_plots(sys.argv[2:])
 
-    if sys.argv[1] == 'heatmap':
+    elif sys.argv[1] == "boxplot":
+        make_box_plots(sys.argv[2:])
+
+    elif sys.argv[1] == 'heatmap':
         make_fp_heatmap(*sys.argv[2:])
+
+    else:
+        print("Unrecognised plot type")
