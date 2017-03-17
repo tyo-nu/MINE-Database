@@ -36,8 +36,10 @@ def make_box_plots(db_list, prop_list=['Mass', 'logP', 'NP_likeness']):
             db = MINE(db_name)
             new_name = str(db_name.replace('exp2', 'MINE').split('-')[0])
             l = []
-            cursor = db.compounds.find({}, dict([('_id', 0)] + [(x, 1) for x
-                                                                in prop_list]))
+            cursor = db.compounds.find(dict([(x, {'$exists': 1})
+                                             for x in prop_list]),
+                                       dict([('_id', 0)]
+                                            + [(x, 1) for x in prop_list]))
             for x in cursor:
                 x['DB'] = new_name
                 l.append(x)
