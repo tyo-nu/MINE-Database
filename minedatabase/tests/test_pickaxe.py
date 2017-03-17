@@ -148,3 +148,16 @@ def test_save_as_MINE():
         mine_db.reactions.drop()
         mine_db.operators.drop()
         purge(data_dir, ".*\.svg$")
+
+def test_save_no_rxn_MINE():
+    pk3 = pickaxe.Pickaxe(database='MINE_test')
+    pk3.load_compound_set(compound_file=data_dir + '/test_compounds.tsv')
+    pk3.save_to_MINE("MINE_test")
+    mine_db = MINE('MINE_test')
+    try:
+        assert mine_db.compounds.count() == 14
+        assert mine_db.reactions.count() == 0
+    finally:
+        mine_db.compounds.drop()
+        mine_db.reactions.drop()
+        mine_db.operators.drop()

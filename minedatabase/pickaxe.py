@@ -690,9 +690,10 @@ class Pickaxe:
             for op in rxn['Reaction_rules']:
                 self.rxn_rules[op][1]['Reactions_predicted'] += 1
             db.insert_reaction(rxn, bulk=bulk_r)
-        bulk_r.execute()
-        db.meta_data.insert({"Timestamp": datetime.datetime.now(),
-                             "Action": "Reactions Inserted"})
+        if self.reactions:
+            bulk_r.execute()
+            db.meta_data.insert({"Timestamp": datetime.datetime.now(),
+                                 "Action": "Reactions Inserted"})
 
         for comp_dict in self.compounds.values():
             db.insert_compound(AllChem.MolFromSmiles(comp_dict['SMILES']),
