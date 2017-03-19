@@ -210,7 +210,8 @@ def export_kbase(mine_db, target):
     """
     compound_fields = collections.OrderedDict([('id', "_id"), ('name', ""),
                                                ('formula','Formula'),
-                                               ('charge', 'Charge')])
+                                               ('charge', 'Charge'),
+                                               ('aliases', "Names")])
     reaction_fields = collections.OrderedDict(
         [('id', "_id"), ('direction', ">"), ('compartment', "c0"), ('gpr', ''),
          ('name', ''), ('enzyme', ''), ('pathway', ''), ('reference', ''),
@@ -223,7 +224,7 @@ def export_kbase(mine_db, target):
                            dialect='excel-tab')
         w.writeheader()
         for compound in mine_db.compounds.find(
-                {}, dict([("Names", 1)]
+                {}, dict([("Names", 1), ('DB_links.Model_SEED',1)]
                          + [(x, 1) for x in compound_fields.values()])):
             if compound['_id'][0] == 'X':
                 continue
@@ -234,6 +235,13 @@ def export_kbase(mine_db, target):
             if 'name' in compound_fields and 'Names' in compound:
                 compound['name'] = compound['Names'][0]
                 del compound['Names']
+            if 'aliases' in compound:
+                compound['aliases'] = "|".join(compound['aliases'])
+                if 'Model_SEED' in compound['DB_links']:
+                    compound['aliases'] += "|" + "|".join(sorted(
+                        compound['DB_links']['Model_SEED']))
+            if 'DB_links' in compound:
+                del compound['DB_links']
             w.writerow(compound)
 
     print("Exporting %s reactions from %s to tsv" % (mine_db.reactions.count(),
