@@ -14,7 +14,7 @@ def purge(dir, pattern):
         if re.search(pattern, f):
             os.remove(os.path.join(dir, f))
 
-pk = pickaxe.Pickaxe(image_dir=data_dir, database='MINE_test')
+pk = pickaxe.Pickaxe()
 rule = None
 meh = 'CCC(=O)C(=O)O'
 l_ala = 'C[C@H](N)C(=O)O'
@@ -46,9 +46,6 @@ def test_reaction_rule_loading():
 def test_compound_loading():
     compound_smiles = pk.load_compound_set(compound_file=data_dir+'/test_compounds.tsv')
     assert len(compound_smiles) == 14
-    pk2 = pickaxe.Pickaxe(database='mongotest')
-    compound_smiles = pk2.load_compound_set()
-    assert len(compound_smiles) == 26
 
 
 def test_transform_compounds():
@@ -113,8 +110,11 @@ def test_transform_all():
     assert comp_gens == {0, 1, 2}
 
 
-def test_multiprocessing():
-    pk3 = pickaxe.Pickaxe(database='MINE_test', errors=False)
+def test_multiprocessing(params=None):
+    if params:
+        pk3 = pickaxe.Pickaxe(**params)
+    else:
+        pk3 = pickaxe.Pickaxe()
     pk3._load_coreactant('ATP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
     pk3._load_coreactant('ADP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
     pk3._add_compound(fadh, fadh, type='Starting Compound')
@@ -127,8 +127,15 @@ def test_multiprocessing():
     return pk3
 
 
+def test_load_compounds_from_MINE():
+    pk2 = pickaxe.Pickaxe(database='mongotest')
+    compound_smiles = pk2.load_compound_set()
+    assert len(compound_smiles) == 26
+
+
 def test_save_as_MINE():
-    pk3 = test_multiprocessing()
+    pk3 = test_multiprocessing({'database': 'MINE_test', 'image_dir':
+        data_dir})
     pk3.save_to_MINE("MINE_test")
     mine_db = MINE('MINE_test')
     try:

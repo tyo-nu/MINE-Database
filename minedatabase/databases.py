@@ -16,16 +16,18 @@ def establish_db_client():
     try:
         # Special case for working on a sapphire node
         if 'node' in platform.node():
-            client = pymongo.MongoClient(host='master')
+            client = pymongo.MongoClient(host='master',
+                                         serverSelectionTimeoutMS=5)
         # Special case for working on a SEED cluster
         elif 'bio' in platform.node() or 'twig' == platform.node() \
                 or 'branch' == platform.node():
-            client = pymongo.MongoClient(host='branch')
+            client = pymongo.MongoClient(host='branch',
+                                         serverSelectionTimeoutMS=5)
             admin = client['admin']
             admin.authenticate('worker', 'bnice14bot')
         # Local database
         else:
-            client = pymongo.MongoClient()
+            client = pymongo.MongoClient(serverSelectionTimeoutMS=5)
     except:
         raise IOError("Failed to load database client. Please verify that "
                       "mongod is running")
