@@ -1,6 +1,9 @@
 import ast
 import datetime
 import platform
+import os
+from subprocess import call
+from shutil import move
 
 import pymongo
 from minedatabase import utils
@@ -98,6 +101,57 @@ class MINE:
         # Write to log file
         self.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action":
                                "Add Compound Source field"})
+
+    def generate_image_files(self, path, query=None, dir_depth=0,
+                             img_type='svg:-a,nosource,w500,h500'):
+        """
+        Generates image files for compounds in database using ChemAxon's
+        MolConvert.
+
+        :param path: Target directory for image files
+        :type path: string
+        :param query: A query to limit the number of files generated
+        :type query: dict
+        :param dir_depth: The number of directory levels to split the
+        compounds into for files system efficiency. Ranges from 0 (all in
+        top level directory to the length of the file name (40 for MINE hashes)
+        :type dir_depth: int
+        :param img_type: The type of image file to be generated. See molconvert
+        documentation for valid options
+        :type img_type: string
+        :return:
+        :rtype:
+        """
+        ids = []
+        extension = img_type.split(":")[0]
+        structure_file = 'tmp.smiles'
+        if not query:
+            query = {}
+
+        if not os.path.exists(path):
+            os.mkdir(path)
+        with open(structure_file, 'w') as outfile:
+            for comp in self.compounds.find(query, {'SMILES': 1}):
+                outfile.write("%s\n" % comp['SMILES'])
+                ids.append(comp['_id'])
+
+        rc = call(["molconvert -mo %s/.%s %s %s"
+                   % (path, extension, img_type, structure_file)],
+                  shell=True)
+        if rc:
+            raise RuntimeError("molconvert returned %s" % rc)
+        os.remove(structure_file)
+
+        for i, _id in enumerate(ids):
+            old = os.path.join(path, "%s.%s" % ((i + 1), extension))
+            new = path
+            for j in range(0, dir_depth):
+                new = os.path.join(new, _id[j])
+            if not os.path.exists(new):
+                os.makedirs(new)
+            new = os.path.join(new, _id+'.'+extension)
+            if os.path.isfile(old):
+                move(old, new)
 
     def build_indexes(self):
         """Builds indexes for efficient querying of MINE databases"""

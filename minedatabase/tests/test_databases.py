@@ -2,8 +2,30 @@ import pymongo
 from .. import databases
 from .. import utils
 from rdkit.Chem import AllChem
+import os
+from shutil import rmtree
 
 test_db = databases.MINE('mongotest')
+
+
+def test_generate_image_files():
+    img_dir = './imgs'
+    test_db.generate_image_files(img_dir)
+    try:
+        assert os.path.exists(
+            os.path.join(img_dir,
+                         './C455bc3dc93cd3bb3bef92a34767693a4716aa3fb.svg'))
+        print(len(os.listdir(img_dir)))
+        assert len(os.listdir(img_dir)) == 26
+    finally:
+        rmtree(img_dir)
+    test_db.generate_image_files(img_dir, {'Generation': 1}, 3, 'png')
+    try:
+        assert os.path.exists(
+            os.path.join(img_dir, 'C', 'c', 'f',
+                         'Ccffda1b2e82fcdb0e1e710cad4d5f70df7a5d74f.png'))
+    finally:
+        rmtree(img_dir)
 
 
 def test_insert_compound():
