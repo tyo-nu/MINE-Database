@@ -103,7 +103,8 @@ class MINE:
                                "Add Compound Source field"})
 
     def generate_image_files(self, path, query=None, dir_depth=0,
-                             img_type='svg:-a,nosource,w500,h500'):
+                             img_type='svg:-a,nosource,w500,h500',
+                             convert_r=False):
         """
         Generates image files for compounds in database using ChemAxon's
         MolConvert.
@@ -132,7 +133,10 @@ class MINE:
             os.mkdir(path)
         with open(structure_file, 'w') as outfile:
             for comp in self.compounds.find(query, {'SMILES': 1}):
-                outfile.write("%s\n" % comp['SMILES'])
+                if convert_r:
+                    outfile.write("%s\n" % comp['SMILES'].replace('R', "*"))
+                else:
+                    outfile.write("%s\n" % comp['SMILES'])
                 ids.append(comp['_id'])
 
         rc = call(["molconvert -mo %s/.%s %s %s"
