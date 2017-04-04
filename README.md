@@ -1,11 +1,11 @@
-#MINE Databases
+# MINE Databases
 
 This repository contains code for the generation (though Pickaxe), 
 storage and querying of MINE databases. For generalinformation on MINE 
 Databases, please consult [JJeffryes et al. 2015](http://jcheminf.springeropen.com/articles/10.1186/s13321-015-0087-1)
 APIs can found in [the API Repository](https://github.com/JamesJeffryes/MINE-API)
 
-##Repository Structure
+## Repository Structure
 This repository primarily consists of the minedatabases python module 
 and it's 5 submodules:
 - compound_io: Contains functions to load and export chemical structures 
@@ -18,7 +18,7 @@ and the annotation of the resulting compounds an reactions. Has command-line int
 MINE database.
 - utils: Various utility functions such as hashing & type conversions
 
-###Compound_io command-line usage
+### Compound_io command-line usage
 compound_io may be called independently to import or export chemical 
 strictures in MINE database format. These may be helpful for sharing 
 predictions or maintaining current external databases for cross-referencing.
@@ -31,7 +31,7 @@ Valid formats are:
 - sdf: Structured Data File (concatenated mol files)
 - tsv: FOR EXPORT ONLY, a tab separated file compatible with ModelSEED
 
-###Pickaxe command-line usage
+### Pickaxe command-line usage
 Pickaxe.py can be called independently to generate predictions with or 
 without database storage. To list all options call `python pickaxe.py -h`. 
 To predict all chemical damage reactions for one generation on compounds in the iAF1260 
