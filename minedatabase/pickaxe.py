@@ -255,6 +255,9 @@ class Pickaxe:
                                    'Generation': self.generation,
                                    'Reactant_in': [], 'Product_of': [],
                                    "Sources": []}
+            # Don't track sources of coreactants
+            if _id[0] == 'X':
+                del self.compounds[_id]['Sources']
             # If we are building a mine and generating images, do so here
             if self.image_dir and self.mine:
                 try:
@@ -683,6 +686,9 @@ class Pickaxe:
                 self.compounds[x.c_id]['Reactant_in'].append(rxn['_id'])
             for i, x in enumerate(rxn['Products']):
                 self.compounds[x.c_id]['Product_of'].append(rxn['_id'])
+                # Don't track sources of coreactants
+                if x.c_id[0] == 'X':
+                    continue
                 self.compounds[x.c_id]['Sources'].append(
                     {"Compounds": [x.c_id for x in rxn['Reactants']],
                      "Operators": list(rxn["Operators"])})

@@ -146,6 +146,9 @@ def test_save_as_MINE():
         assert os.path.exists(data_dir+'/X9c69cbeb40f083118c1913599c12c7f4e5e68d03.svg')
         start_comp = mine_db.compounds.find_one({'Type': 'Starting Compound'})
         assert len(start_comp['Reactant_in'])
+        # Don't track sources of coreactants
+        coreactant = mine_db.compounds.find_one({'Type': 'Coreactant'})
+        assert 'Sources' not in coreactant
         product = mine_db.compounds.find_one({'Generation': 2})
         assert len(product['Product_of'])
         assert len(product['Sources'])
