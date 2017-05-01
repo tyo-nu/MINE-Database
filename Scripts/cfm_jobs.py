@@ -8,7 +8,7 @@ from subprocess import call
 import re
 from minedatabase.databases import MINE
 
-def start_cfm_jobs(pos=True):
+def start_cfm_jobs(type=True, max_mass=1500):
     if not os.path.exists(file_dir):
         os.mkdir(file_dir)
     os.chdir(file_dir)
@@ -17,10 +17,18 @@ def start_cfm_jobs(pos=True):
     i = 1
     j = 1
     inchi_set = set()
-    if pos:
-        search = {"_id": {"$regex": "^C"}, "Mass": {"$lt": 1500}, "Charge": 0, "Pos_CFM_spectra": {"$exists": 0}}
+    if type == 'pos':
+        search = {"_id": {"$regex": "^C"}, "Mass": {"$lt": max_mass},
+                  "Charge": 0, "Pos_CFM_spectra": {"$exists": 0}}
+    elif type == 'neg':
+        search = {"_id": {"$regex": "^C"}, "Mass": {"$lt": max_mass},
+                  "Charge": 0, "Neg_CFM_spectra": {"$exists": 0}}
+    elif type == 'ei':
+        search = {"_id": {"$regex": "^C"}, "Mass": {"$lt": max_mass},
+                  "Charge": 0,  "EI_CFM_spectra": {"$exists": 0}}
     else:
-        search = {"_id": {"$regex": "^C"}, "Mass": {"$lt": 1500}, "Charge": 0, "Neg_CFM_spectra": {"$exists": 0}}
+        raise ValueError('invalid spectrum type')
+
     for compound in db.compounds.find(search, {"SMILES": 1, "Inchikey": 1}):
         con_block = compound['Inchikey'].split('-')[0]
         if con_block not in inchi_set:
@@ -61,7 +69,7 @@ def start_cfm_jobs(pos=True):
                 os.remove(job_file)
 
 
-def load_cfm_results(result_dir, db_list, pos=True, cleanup=False):
+def load_cfm_results(result_dir, db_list, type=True, cleanup=False):
     for spec_file in os.listdir(result_dir):
         if ('param' in spec_file) or (spec_file[-4:] != ".log"):
             continue
@@ -74,12 +82,24 @@ def load_cfm_results(result_dir, db_list, pos=True, cleanup=False):
                 data.append(split_data)
             try:
                 for db in db_list:
-                    if pos:
-                        db.compounds.update_many({"Inchikey": {"$regex": "^"+spec_file[:-4]}}, {"$set":
-                                                 {"Pos_CFM_spectra": {"10 V": data[0], "20 V": data[1], "40 V": data[2]}}})
+                    if type == 'pos':
+                        db.compounds.update_many(
+                            {"Inchikey": {"$regex": "^" + spec_file[:-4]}},
+                            {"$set": {"Pos_CFM_spectra": {"10 V": data[0],
+                                                          "20 V": data[1],
+                                                          "40 V": data[2]}}})
+                    elif type == 'neg':
+                        db.compounds.update_many(
+                            {"Inchikey": {"$regex": "^" + spec_file[:-4]}},
+                            {"$set": {"Neg_CFM_spectra": {"10 V": data[0],
+                                                          "20 V": data[1],
+                                                          "40 V": data[2]}}})
+                    elif type == 'ei':
+                        db.compounds.update_many(
+                            {"Inchikey": {"$regex": "^" + spec_file[:-4]}},
+                            {"$set": {"EI_CFM_spectra": {"70 V": data[0]}}})
                     else:
-                        db.compounds.update_many({"Inchikey": {"$regex": "^"+spec_file[:-4]}}, {"$set":
-                                                 {"Neg_CFM_spectra": {"10 V": data[0], "20 V": data[1], "40 V": data[2]}}})
+                        raise ValueError('invalid spectrum type')
             except IndexError:
                 print(spec_file)
         if cleanup:
@@ -97,9 +117,8 @@ if __name__ == "__main__":
             job_template = sys.argv[6]
         else:
             job_template = False
-        start_cfm_jobs(pos=sys.argv[5] == "True")
+        start_cfm_jobs(type=sys.argv[5])
 
     if sys.argv[1] == 'load':
         dbs = [MINE(x) for x in sys.argv[4:]]
-        pos = sys.argv[3] == "True"
-        load_cfm_results(sys.argv[2], dbs, pos=pos, cleanup=True)
+        load_cfm_results(sys.argv[2], dbs, type=sys.argv[3], cleanup=True)
