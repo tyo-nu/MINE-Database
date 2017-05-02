@@ -9,10 +9,10 @@ from minedatabase.databases import MINE
 data_dir = os.path.dirname(__file__)+'/data'
 
 
-def purge(dir, pattern):
-    for f in os.listdir(dir):
+def purge(directory, pattern):
+    for f in os.listdir(directory):
         if re.search(pattern, f):
-            os.remove(os.path.join(dir, f))
+            os.remove(os.path.join(directory, f))
 
 pk = pickaxe.Pickaxe()
 rule = None

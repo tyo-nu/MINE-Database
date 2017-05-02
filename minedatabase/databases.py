@@ -1,3 +1,5 @@
+"""Databases.py: This file contains MINE database classes including database
+loading functions."""
 import ast
 import datetime
 import platform
@@ -9,9 +11,6 @@ import pymongo
 from minedatabase import utils
 from minedatabase.NP_Score import npscorer as np
 from rdkit.Chem import AllChem
-
-"""Databases.py: This file contains MINE database classes including database
-loading functions."""
 
 
 def establish_db_client():

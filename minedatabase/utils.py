@@ -1,10 +1,9 @@
+"""Utils.py: contains basic functions reused in various contexts in other
+modules"""
 from rdkit.Chem import AllChem
 import hashlib
 import collections
 from os import path
-
-"""Utils.py: contains basic functions reused in various contexts in other
-modules"""
 
 stoich_tuple = collections.namedtuple("stoich_tuple", 'stoich,c_id')
 
@@ -29,7 +28,7 @@ def convert_sets_to_lists(obj):
     if isinstance(obj, set):
         # This brings short names to the top of the list
         try:
-            obj = sorted(list(obj), key=lambda x: len(x))
+            obj = sorted(list(obj), key=len)
         except TypeError:
             obj = list(obj)
     elif isinstance(obj, dict):
@@ -257,22 +256,8 @@ def neutralise_charges(mol, reactions=None):
         if _reactions is None:
             _reactions = _InitialiseNeutralisationReactions()
         reactions = _reactions
-    for i,(reactant, product) in enumerate(reactions):
+    for (reactant, product) in reactions:
         while mol.HasSubstructMatch(reactant):
             rms = AllChem.ReplaceSubstructs(mol, reactant, product)
             mol = rms[0]
     return mol
-
-
-def do_profile(func):
-    from line_profiler import LineProfiler
-
-    def profiled_func(*args, **kwargs):
-        try:
-            profiler = LineProfiler()
-            profiler.add_function(func)
-            profiler.enable_by_count()
-            return func(*args, **kwargs)
-        finally:
-            profiler.print_stats()
-    return profiled_func
