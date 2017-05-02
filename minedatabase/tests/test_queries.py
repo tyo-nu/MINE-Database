@@ -1,7 +1,7 @@
 from os.path import dirname
 from nose.tools import assert_raises
 
-from .. import databases, queries
+from minedatabase import databases, queries
 
 data_dir = dirname(__file__)+'/data'
 

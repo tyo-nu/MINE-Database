@@ -18,7 +18,6 @@ def setup_package():
         print('No Mongo DB server detected')
 
 
-
 def teardown_package():
     print(__name__, '__init__.py : teardown_package() =======================')
     client = establish_db_client()

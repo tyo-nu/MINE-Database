@@ -1,6 +1,6 @@
 import pymongo
-from .. import databases
-from .. import utils
+from minedatabase import databases
+from minedatabase import utils
 from rdkit.Chem import AllChem
 import os
 from shutil import rmtree

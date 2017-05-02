@@ -3,8 +3,8 @@ import os
 import re
 
 from rdkit.Chem import AllChem
-from .. import pickaxe
-from ..databases import MINE
+from minedatabase import pickaxe
+from minedatabase.databases import MINE
 
 data_dir = os.path.dirname(__file__)+'/data'
 
