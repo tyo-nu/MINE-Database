@@ -10,11 +10,9 @@ install:
   - hash -r
   - conda config --set always_yes yes --set changeps1 no
   - conda update -q conda
-  # Useful for debugging any issues with conda
-  - conda info -a
 
   # Replace dep1 dep2 ... with your dependencies
-  - conda create -q -n test-environment python=$TRAVIS_PYTHON_VERSION -c rdkit rdkit pymongo
+  - conda create -q -y  -c rdkit -n test-environment python=$TRAVIS_PYTHON_VERSION rdkit pymongo
   - source activate test-environment
   - python setup.py install
 script: nosetests
