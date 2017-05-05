@@ -9,7 +9,7 @@ test_db = databases.MINE('mongotest')
 
 
 def test_generate_image_files():
-    img_dir = './imgs'
+    img_dir = os.getcwd() + '/imgs'
     test_db.generate_image_files(img_dir)
     try:
         assert os.path.exists(
@@ -38,7 +38,6 @@ def test_insert_compound():
         assert isinstance(entry['Mass'], float)
         assert len(entry['RDKit'])
         assert len(entry['RDKit']) == entry['len_RDKit']
-        assert len(entry['Names'])
         assert entry["NP_likeness"]
         assert entry['logP']
     finally:

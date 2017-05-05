@@ -125,7 +125,7 @@ class MINE:
         """
         ids = []
         extension = img_type.split(":")[0]
-        structure_file = 'tmp.smiles'
+        structure_file = path[:-4] + 'tmp.smiles'
         if not query:
             query = {}
 
@@ -138,10 +138,13 @@ class MINE:
                 else:
                     outfile.write("%s\n" % comp['SMILES'])
                 ids.append(comp['_id'])
-
-        rc = call(["molconvert -mo %s/.%s %s %s"
-                   % (path, extension, img_type, structure_file)],
-                  shell=True)
+        if platform.system() == 'Windows':
+            rc = call(['cmd', "/C molconvert -mo %s/.%s %s %s"
+                      % (path, extension, img_type, structure_file)],
+                      shell=True)
+        else:
+            rc = call(["molconvert -mo %s/.%s %s %s" % (
+                       path, extension, img_type, structure_file)], shell=True)
         if rc:
             raise RuntimeError("molconvert returned %s" % rc)
         os.remove(structure_file)
