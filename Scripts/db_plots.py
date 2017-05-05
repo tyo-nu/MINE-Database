@@ -8,7 +8,7 @@ from collections import defaultdict, Counter
 import sys
 
 
-def make_violin_plots(db_list, prop_list=['Mass', 'logP', 'NP_likeness']):
+def make_violin_plots(db_list, prop_list=('Mass', 'logP', 'NP_likeness')):
     df = pandas.DataFrame()
     for db_name in db_list:
         db = MINE(db_name)
@@ -30,7 +30,7 @@ def make_violin_plots(db_list, prop_list=['Mass', 'logP', 'NP_likeness']):
     plt.savefig("MINE property comparison.png")
 
 
-def make_box_plots(db_list, prop_list=['Mass', 'logP', 'NP_likeness']):
+def make_box_plots(db_list, prop_list=('Mass', 'logP', 'NP_likeness')):
         df = pandas.DataFrame()
         for db_name in db_list:
             db = MINE(db_name)

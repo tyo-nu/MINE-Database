@@ -1,12 +1,12 @@
 import os
 import subprocess
 import sys
-import hashlib
 
 import pandas as pd
 from minedatabase import utils
 from minedatabase.databases import MINE
 from rdkit.Chem import AllChem
+
 
 def load_cdmine_rxns(mine_db, excel_file, pic_dir=""):
     abrv = {"hn": "[*]"}

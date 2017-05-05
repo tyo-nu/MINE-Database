@@ -1,3 +1,5 @@
+"""Pickaxe.py: This module generates new compounds from user-specified starting
+   compounds using a set of SMARTS-based reaction rules."""
 import collections
 import csv
 import datetime
@@ -216,9 +218,9 @@ class Pickaxe:
                     # Add compound to internal dictionary as a starting
                     # compound and store SMILES string to be returned
                     smi = AllChem.MolToSmiles(mol, True)
-                    id = line[id_field]
+                    _id = line[id_field]
                     if "C" in smi or "c" in smi:
-                        self._add_compound(id, smi, mol=mol, type='Starting '
+                        self._add_compound(_id, smi, mol=mol, type='Starting '
                                                                   'Compound')
                         compound_smiles.append(smi)
         # If a MINE database is being used instead, search for compounds
@@ -227,12 +229,12 @@ class Pickaxe:
         elif self.mine:
             db = MINE(self.mine)
             for compound in db.compounds.find():
-                id = compound['_id']
+                _id = compound['_id']
                 smi = compound['SMILES']
                 # Assume unannotated compounds are starting compounds
                 if 'type' not in compound:
                     compound['Type'] = 'Starting Compound'
-                self._add_compound(id, smi, type=compound['Type'])
+                self._add_compound(_id, smi, type=compound['Type'])
                 compound_smiles.append(smi)
         else:
             raise ValueError('No input file or database specified for '
@@ -430,7 +432,7 @@ class Pickaxe:
                 raise ValueError
             # In case we want to have separate entries for stereoisomers
             if split_stereoisomers:
-                processed_mols = self._racemization(mol_obj)
+                processed_mols = _racemization(mol_obj)
             else:
                 processed_mols = [mol_obj]
             # Get list of SMILES string(s) from Mol object(s)
@@ -441,52 +443,6 @@ class Pickaxe:
                                                               processed_mols)])
         return self._raw_compounds[raw] if isinstance(
             self._raw_compounds[raw], tuple) else (self._raw_compounds[raw],)
-
-    def _racemization(self, compound, max_centers=3, carbon_only=True):
-        """
-        Enumerates all possible stereoisomers for unassigned chiral centers.
-        :param compound: A compound
-        :type compound: rdMol object
-        :param max_centers: The maximum number of unspecified stereocenters to
-        enumerate. Sterioisomers grow 2^n_centers so this cutoff prevents lag
-        :type max_centers: int
-        :param carbon_only: Only enumerate unspecified carbon centers. (other
-        centers are often not tautomeric artifacts)
-        :type carbon_only: bool
-        :return: list of stereoisomers
-        :rtype: list of rdMol objects
-        """
-        new_comps = []
-        # FindMolChiralCenters (rdkit) finds all chiral centers. We get all
-        # unassigned centers (represented by "?" in the second element
-        # of the function's return parameters).
-        unassigned_centers = [c[0] for c in AllChem.FindMolChiralCenters(
-            compound, includeUnassigned=True) if c[1] == "?"]
-        # Get only unassigned centers that are carbon (atomic number of 6) if
-        # indicated
-        if carbon_only:
-            unassigned_centers = list(
-                filter(lambda x: compound.GetAtomWithIdx(x).GetAtomicNum() == 6,
-                       unassigned_centers))
-        # Return original compound if no unassigned centers exist (or if above
-        # max specified (to prevent lag))
-        if not unassigned_centers or len(unassigned_centers) > max_centers:
-            return [compound]
-        for seq in itertools.product([1, 0], repeat=len(unassigned_centers)):
-            for atomId, cw in zip(unassigned_centers, seq):
-                # cw - Clockwise; ccw - Counterclockwise
-                # Get both cw and ccw chiral centers for each center. Used
-                # itertools.product to get all combinations.
-                if cw:
-                    compound.GetAtomWithIdx(atomId).SetChiralTag(
-                        AllChem.rdchem.ChiralType.CHI_TETRAHEDRAL_CW)
-                else:
-                    compound.GetAtomWithIdx(atomId).SetChiralTag(
-                        AllChem.rdchem.ChiralType.CHI_TETRAHEDRAL_CCW)
-            # Duplicate C++ object so that we don't get multiple pointers to
-            # same object
-            new_comps.append(deepcopy(compound))
-        return new_comps
 
     def _calculate_rxn_hash_and_text(self, reactants, products):
         """Calculates a unique reaction hash using inchikeys. First block is
@@ -682,9 +638,9 @@ class Pickaxe:
         #   3. Add source information to compounds
         #   4. Iterate the reactions predicted for each relevant reaction rule
         for rxn in self.reactions.values():
-            for i, x in enumerate(rxn['Reactants']):
+            for x in rxn['Reactants']:
                 self.compounds[x.c_id]['Reactant_in'].append(rxn['_id'])
-            for i, x in enumerate(rxn['Products']):
+            for x in rxn['Products']:
                 self.compounds[x.c_id]['Product_of'].append(rxn['_id'])
                 # Don't track sources of coreactants
                 if x.c_id[0] == 'X':
@@ -713,6 +669,53 @@ class Pickaxe:
             # really faster.
             db.operators.save(x[1])
         db.build_indexes()
+
+
+def _racemization(compound, max_centers=3, carbon_only=True):
+    """
+    Enumerates all possible stereoisomers for unassigned chiral centers.
+    :param compound: A compound
+    :type compound: rdMol object
+    :param max_centers: The maximum number of unspecified stereocenters to
+    enumerate. Sterioisomers grow 2^n_centers so this cutoff prevents lag
+    :type max_centers: int
+    :param carbon_only: Only enumerate unspecified carbon centers. (other
+    centers are often not tautomeric artifacts)
+    :type carbon_only: bool
+    :return: list of stereoisomers
+    :rtype: list of rdMol objects
+    """
+    new_comps = []
+    # FindMolChiralCenters (rdkit) finds all chiral centers. We get all
+    # unassigned centers (represented by "?" in the second element
+    # of the function's return parameters).
+    unassigned_centers = [c[0] for c in AllChem.FindMolChiralCenters(
+        compound, includeUnassigned=True) if c[1] == "?"]
+    # Get only unassigned centers that are carbon (atomic number of 6) if
+    # indicated
+    if carbon_only:
+        unassigned_centers = list(
+            filter(lambda x: compound.GetAtomWithIdx(x).GetAtomicNum() == 6,
+                   unassigned_centers))
+    # Return original compound if no unassigned centers exist (or if above
+    # max specified (to prevent lag))
+    if not unassigned_centers or len(unassigned_centers) > max_centers:
+        return [compound]
+    for seq in itertools.product([1, 0], repeat=len(unassigned_centers)):
+        for atomId, cw in zip(unassigned_centers, seq):
+            # cw - Clockwise; ccw - Counterclockwise
+            # Get both cw and ccw chiral centers for each center. Used
+            # itertools.product to get all combinations.
+            if cw:
+                compound.GetAtomWithIdx(atomId).SetChiralTag(
+                    AllChem.rdchem.ChiralType.CHI_TETRAHEDRAL_CW)
+            else:
+                compound.GetAtomWithIdx(atomId).SetChiralTag(
+                    AllChem.rdchem.ChiralType.CHI_TETRAHEDRAL_CCW)
+        # Duplicate C++ object so that we don't get multiple pointers to
+        # same object
+        new_comps.append(deepcopy(compound))
+    return new_comps
 
 
 if __name__ == "__main__":
