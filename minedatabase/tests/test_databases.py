@@ -1,4 +1,5 @@
 import pymongo
+import unittest
 from minedatabase import databases
 from minedatabase import utils
 from rdkit.Chem import AllChem
@@ -8,6 +9,8 @@ from shutil import rmtree
 test_db = databases.MINE('mongotest')
 
 
+@unittest.skipIf("TRAVIS" in os.environ and os.environ["TRAVIS"] == "true",
+                 "Skipping this test on Travis CI.")
 def test_generate_image_files():
     img_dir = os.getcwd() + '/imgs'
     test_db.generate_image_files(img_dir)
