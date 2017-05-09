@@ -212,7 +212,7 @@ class MINE:
                         utils.dict_merge(compound, utils.save_dotted_field(
                             field[1], utils.get_dotted_field(ext_comp,
                                                              field[0])))
-            return compound
+            return utils.convert_sets_to_lists(compound)
 
         # If compound is None, link all compounds in database
         else:
