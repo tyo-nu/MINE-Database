@@ -5,6 +5,7 @@ import re
 from rdkit.Chem import AllChem
 from minedatabase import pickaxe
 from minedatabase.databases import MINE
+import subprocess
 
 data_dir = os.path.dirname(__file__)+'/data'
 
@@ -16,6 +17,7 @@ def purge(directory, pattern):
 
 pk = pickaxe.Pickaxe()
 rule = None
+cdrule = None
 meh = 'CCC(=O)C(=O)O'
 l_ala = 'C[C@H](N)C(=O)O'
 d_ala = 'C[C@@H](N)C(=O)O'
@@ -34,7 +36,8 @@ def test_cofactor_loading():
 
 def test_reaction_rule_loading():
     global rule
-    pk2 = pickaxe.Pickaxe(coreactant_list=data_dir + '/test_coreactants.tsv', rule_list=data_dir + '/test_reaction_rules.tsv')
+    pk2 = pickaxe.Pickaxe(coreactant_list=data_dir + '/test_coreactants.tsv',
+                          rule_list=data_dir + '/test_reaction_rules.tsv')
     rule = pk2.rxn_rules['2.7.1.a']
     assert isinstance(rule[0], AllChem.ChemicalReaction)
     assert isinstance(rule[1], dict)
@@ -57,11 +60,23 @@ def test_transform_compounds():
     pk.assign_ids()
 
 
+def test_transform_compounds_implicit():
+    pk2 = pickaxe.Pickaxe(explicit_h=False, kekulize=False,
+                          coreactant_list=data_dir + '/test_coreactants.tsv',
+                          rule_list=data_dir + '/test_cd_rxn_rule.tsv')
+    pk2._add_compound("Start", smi=meh)
+    pk2.transform_compound(meh)
+    assert len(pk2.compounds) == 38
+    assert len(pk2.reactions) == 1
+
+
 def test_hashing():
-    pk2 = pickaxe.Pickaxe(explicit_h=False, kekulize=False)
+    pk2 = pickaxe.Pickaxe(coreactant_list=data_dir + '/test_coreactants.tsv',
+                          rule_list=data_dir + '/test_reaction_rules.tsv')
     pk2._load_coreactant('S-Adenosylmethionine	C[S+](CC[C@H](N)C(=O)O)C[C@H]1O[C@@H](n2cnc3c(N)ncnc32)[C@H](O)[C@@H]1O')
     pk2.transform_compound(l_ala)
     len_rxns = len(pk2.reactions)
+    assert len_rxns
     pk2.transform_compound(d_ala)
     assert len(pk2.reactions) == 2 * len_rxns
 
@@ -125,6 +140,12 @@ def test_multiprocessing(params=None):
     comp_gens = set([x['Generation'] for x in pk3.compounds.values()])
     assert comp_gens == {0, 1, 2}
     return pk3
+
+
+def test_cli():
+    rc = subprocess.call('python pickaxe.py -o tests -r tests/data/test_cd_rxn_rule.tsv', shell=True)
+    assert not rc
+    purge('tests/', ".*\.tsv$")
 
 
 def test_load_compounds_from_MINE():
