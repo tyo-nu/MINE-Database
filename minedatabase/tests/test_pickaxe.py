@@ -6,6 +6,7 @@ from rdkit.Chem import AllChem
 from minedatabase import pickaxe
 from minedatabase.databases import MINE
 import subprocess
+import unittest
 
 data_dir = os.path.dirname(__file__)+'/data'
 
@@ -142,6 +143,8 @@ def test_multiprocessing(params=None):
     return pk3
 
 
+@unittest.skipIf("TRAVIS" in os.environ and os.environ["TRAVIS"] == "true",
+                 "Skipping this test on Travis CI.")
 def test_cli():
     rc = subprocess.call('python pickaxe.py -o tests -r tests/data/test_cd_rxn_rule.tsv', shell=True)
     assert not rc
