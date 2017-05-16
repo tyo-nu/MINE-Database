@@ -1,0 +1,476 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>minedatabase.databases &#8212; MINE Databases 1.0 documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for minedatabase.databases</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Databases.py: This file contains MINE database classes including database</span>
+<span class="sd">loading functions.&quot;&quot;&quot;</span>
+<span class="kn">import</span> <span class="nn">ast</span>
+<span class="kn">import</span> <span class="nn">datetime</span>
+<span class="kn">import</span> <span class="nn">platform</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">from</span> <span class="nn">subprocess</span> <span class="k">import</span> <span class="n">call</span>
+<span class="kn">from</span> <span class="nn">shutil</span> <span class="k">import</span> <span class="n">move</span>
+
+<span class="kn">import</span> <span class="nn">pymongo</span>
+<span class="kn">from</span> <span class="nn">minedatabase</span> <span class="k">import</span> <span class="n">utils</span>
+<span class="kn">from</span> <span class="nn">minedatabase.NP_Score</span> <span class="k">import</span> <span class="n">npscorer</span> <span class="k">as</span> <span class="n">np</span>
+<span class="kn">from</span> <span class="nn">rdkit.Chem</span> <span class="k">import</span> <span class="n">AllChem</span>
+
+
+<div class="viewcode-block" id="establish_db_client"><a class="viewcode-back" href="../../minedatabase.html#minedatabase.databases.establish_db_client">[docs]</a><span class="k">def</span> <span class="nf">establish_db_client</span><span class="p">():</span>
+    <span class="sd">&quot;&quot;&quot;This establishes a mongo database client in various environments&quot;&quot;&quot;</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="c1"># Special case for working on a sapphire node</span>
+        <span class="k">if</span> <span class="s1">&#39;node&#39;</span> <span class="ow">in</span> <span class="n">platform</span><span class="o">.</span><span class="n">node</span><span class="p">():</span>
+            <span class="n">client</span> <span class="o">=</span> <span class="n">pymongo</span><span class="o">.</span><span class="n">MongoClient</span><span class="p">(</span><span class="n">host</span><span class="o">=</span><span class="s1">&#39;master&#39;</span><span class="p">,</span>
+                                         <span class="n">serverSelectionTimeoutMS</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+        <span class="c1"># Special case for working on a SEED cluster</span>
+        <span class="k">elif</span> <span class="s1">&#39;bio&#39;</span> <span class="ow">in</span> <span class="n">platform</span><span class="o">.</span><span class="n">node</span><span class="p">()</span> <span class="ow">or</span> <span class="s1">&#39;twig&#39;</span> <span class="o">==</span> <span class="n">platform</span><span class="o">.</span><span class="n">node</span><span class="p">()</span> \
+                <span class="ow">or</span> <span class="s1">&#39;branch&#39;</span> <span class="o">==</span> <span class="n">platform</span><span class="o">.</span><span class="n">node</span><span class="p">():</span>
+            <span class="n">client</span> <span class="o">=</span> <span class="n">pymongo</span><span class="o">.</span><span class="n">MongoClient</span><span class="p">(</span><span class="n">host</span><span class="o">=</span><span class="s1">&#39;branch&#39;</span><span class="p">,</span>
+                                         <span class="n">serverSelectionTimeoutMS</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+            <span class="n">admin</span> <span class="o">=</span> <span class="n">client</span><span class="p">[</span><span class="s1">&#39;admin&#39;</span><span class="p">]</span>
+            <span class="n">admin</span><span class="o">.</span><span class="n">authenticate</span><span class="p">(</span><span class="s1">&#39;worker&#39;</span><span class="p">,</span> <span class="s1">&#39;bnice14bot&#39;</span><span class="p">)</span>
+        <span class="c1"># Local database</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">client</span> <span class="o">=</span> <span class="n">pymongo</span><span class="o">.</span><span class="n">MongoClient</span><span class="p">(</span><span class="n">serverSelectionTimeoutMS</span><span class="o">=</span><span class="mi">5</span><span class="p">)</span>
+    <span class="k">except</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">IOError</span><span class="p">(</span><span class="s2">&quot;Failed to load database client. Please verify that &quot;</span>
+                      <span class="s2">&quot;mongod is running&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">client</span></div>
+
+
+<div class="viewcode-block" id="MINE"><a class="viewcode-back" href="../../minedatabase.html#minedatabase.databases.MINE">[docs]</a><span class="k">class</span> <span class="nc">MINE</span><span class="p">:</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    This class basically exposes the underlying mongo database to manipulation</span>
+<span class="sd">    but also defines expected database structure.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span> <span class="nf">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">):</span>
+        <span class="n">client</span> <span class="o">=</span> <span class="n">establish_db_client</span><span class="p">()</span>
+        <span class="n">db</span> <span class="o">=</span> <span class="n">client</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_db</span> <span class="o">=</span> <span class="n">db</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="n">name</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">meta_data</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">meta_data</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">compounds</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">compounds</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">reactions</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">reactions</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">operators</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">operators</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">models</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">models</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">np_model</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">id_db</span> <span class="o">=</span> <span class="n">client</span><span class="p">[</span><span class="s1">&#39;UniversalMINE&#39;</span><span class="p">]</span>
+
+<div class="viewcode-block" id="MINE.add_rxn_pointers"><a class="viewcode-back" href="../../minedatabase.html#minedatabase.databases.MINE.add_rxn_pointers">[docs]</a>    <span class="k">def</span> <span class="nf">add_rxn_pointers</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Add links to the reactions that each compound participates in</span>
+<span class="sd">        allowing for users to follow paths in the network&quot;&quot;&quot;</span>
+        <span class="n">reactions_count</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">reactions</span><span class="o">.</span><span class="n">count</span><span class="p">()</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Linking compounds to </span><span class="si">%s</span><span class="s2"> reactions&quot;</span> <span class="o">%</span> <span class="n">reactions_count</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">reaction</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">reactions</span><span class="o">.</span><span class="n">find</span><span class="p">()</span><span class="o">.</span><span class="n">batch_size</span><span class="p">(</span><span class="mi">500</span><span class="p">):</span>
+            <span class="c1"># Update pointers for compounds that are reactants</span>
+            <span class="k">for</span> <span class="n">compound</span> <span class="ow">in</span> <span class="n">reaction</span><span class="p">[</span><span class="s1">&#39;Reactants&#39;</span><span class="p">]:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">compounds</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s2">&quot;_id&quot;</span><span class="p">:</span> <span class="n">compound</span><span class="p">[</span><span class="s2">&quot;c_id&quot;</span><span class="p">]},</span> <span class="p">{</span><span class="s1">&#39;$push&#39;</span><span class="p">:</span>
+                                      <span class="p">{</span><span class="s2">&quot;Reactant_in&quot;</span><span class="p">:</span> <span class="n">reaction</span><span class="p">[</span><span class="s1">&#39;_id&#39;</span><span class="p">]}})</span>
+            <span class="c1"># Update pointers for compounds that are products</span>
+            <span class="k">for</span> <span class="n">compound</span> <span class="ow">in</span> <span class="n">reaction</span><span class="p">[</span><span class="s1">&#39;Products&#39;</span><span class="p">]:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">compounds</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s2">&quot;_id&quot;</span><span class="p">:</span> <span class="n">compound</span><span class="p">[</span><span class="s2">&quot;c_id&quot;</span><span class="p">]},</span> <span class="p">{</span><span class="s1">&#39;$push&#39;</span><span class="p">:</span>
+                                      <span class="p">{</span><span class="s2">&quot;Product_of&quot;</span><span class="p">:</span> <span class="n">reaction</span><span class="p">[</span><span class="s1">&#39;_id&#39;</span><span class="p">]}})</span>
+        <span class="c1"># Write to log file</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">meta_data</span><span class="o">.</span><span class="n">insert</span><span class="p">({</span><span class="s2">&quot;Timestamp&quot;</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">(),</span> <span class="s2">&quot;Action&quot;</span><span class="p">:</span>
+                               <span class="s2">&quot;Add Reaction Pointers&quot;</span><span class="p">})</span></div>
+
+<div class="viewcode-block" id="MINE.add_compound_sources"><a class="viewcode-back" href="../../minedatabase.html#minedatabase.databases.MINE.add_compound_sources">[docs]</a>    <span class="k">def</span> <span class="nf">add_compound_sources</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rxn_key_type</span><span class="o">=</span><span class="s2">&quot;_id&quot;</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Adds a field detailing the compounds and reactions from which a</span>
+<span class="sd">        compound is produced. This enables filtering search results to only</span>
+<span class="sd">        include compounds which are relevant to a specified metabolic context.</span>
+<span class="sd">        This is different from add_rxn_pointers in that this provides the</span>
+<span class="sd">        precursor compounds rather than the reactions that the compound</span>
+<span class="sd">        participates in.&quot;&quot;&quot;</span>
+        <span class="k">for</span> <span class="n">compound</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">compounds</span><span class="o">.</span><span class="n">find</span><span class="p">({</span><span class="s2">&quot;Sources&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;$exists&quot;</span><span class="p">:</span> <span class="mi">0</span><span class="p">}}):</span>
+            <span class="n">compound</span><span class="p">[</span><span class="s1">&#39;Sources&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+
+            <span class="k">for</span> <span class="n">reaction</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">reactions</span><span class="o">.</span><span class="n">find</span><span class="p">(</span>
+                    <span class="p">{</span><span class="s2">&quot;Products.c_id&quot;</span><span class="p">:</span> <span class="n">compound</span><span class="p">[</span><span class="n">rxn_key_type</span><span class="p">]}):</span>
+                <span class="n">compound</span><span class="p">[</span><span class="s1">&#39;Sources&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">({</span><span class="s2">&quot;Compounds&quot;</span><span class="p">:</span> <span class="p">[</span><span class="n">x</span><span class="p">[</span><span class="s1">&#39;c_id&#39;</span><span class="p">]</span>
+                                           <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">reaction</span><span class="p">[</span><span class="s1">&#39;Reactants&#39;</span><span class="p">]],</span>
+                                           <span class="s2">&quot;Operators&quot;</span><span class="p">:</span> <span class="n">reaction</span><span class="p">[</span><span class="s2">&quot;Operators&quot;</span><span class="p">]})</span>
+            <span class="c1"># If there are sources, then save them and make sure there aren&#39;t</span>
+            <span class="c1">#  too many for a single compound.</span>
+            <span class="k">if</span> <span class="n">compound</span><span class="p">[</span><span class="s1">&#39;Sources&#39;</span><span class="p">]:</span>
+                <span class="k">try</span><span class="p">:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">compounds</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">compound</span><span class="p">)</span>
+                <span class="k">except</span> <span class="n">pymongo</span><span class="o">.</span><span class="n">errors</span><span class="o">.</span><span class="n">DocumentTooLarge</span><span class="p">:</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Too Many Sources for </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">compound</span><span class="p">[</span><span class="s1">&#39;SMILES&#39;</span><span class="p">])</span>
+        <span class="c1"># Allow for quick searching within database</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">compounds</span><span class="o">.</span><span class="n">ensure_index</span><span class="p">([(</span><span class="s2">&quot;Sources.Compound&quot;</span><span class="p">,</span> <span class="n">pymongo</span><span class="o">.</span><span class="n">ASCENDING</span><span class="p">),</span>
+                                     <span class="p">(</span><span class="s2">&quot;Sources.Operators&quot;</span><span class="p">,</span> <span class="n">pymongo</span><span class="o">.</span><span class="n">ASCENDING</span><span class="p">)])</span>
+        <span class="c1"># Write to log file</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">meta_data</span><span class="o">.</span><span class="n">insert</span><span class="p">({</span><span class="s2">&quot;Timestamp&quot;</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">(),</span> <span class="s2">&quot;Action&quot;</span><span class="p">:</span>
+                               <span class="s2">&quot;Add Compound Source field&quot;</span><span class="p">})</span></div>
+
+<div class="viewcode-block" id="MINE.generate_image_files"><a class="viewcode-back" href="../../minedatabase.html#minedatabase.databases.MINE.generate_image_files">[docs]</a>    <span class="k">def</span> <span class="nf">generate_image_files</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">query</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">dir_depth</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                             <span class="n">img_type</span><span class="o">=</span><span class="s1">&#39;svg:-a,nosource,w500,h500&#39;</span><span class="p">,</span>
+                             <span class="n">convert_r</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Generates image files for compounds in database using ChemAxon&#39;s</span>
+<span class="sd">        MolConvert.</span>
+
+<span class="sd">        :param path: Target directory for image files</span>
+<span class="sd">        :type path: str</span>
+<span class="sd">        :param query: A query to limit the number of files generated</span>
+<span class="sd">        :type query: dict</span>
+<span class="sd">        :param dir_depth: The number of directory levels to split the</span>
+<span class="sd">            compounds into for files system efficiency. Ranges from 0 (all in</span>
+<span class="sd">            top level directory to the length of the file name (40 for MINE</span>
+<span class="sd">            hashes)</span>
+<span class="sd">        :type dir_depth: int</span>
+<span class="sd">        :param img_type: The type of image file to be generated. See molconvert</span>
+<span class="sd">            documentation for valid options</span>
+<span class="sd">        :type img_type: str</span>
+
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">ids</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">extension</span> <span class="o">=</span> <span class="n">img_type</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;:&quot;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">structure_file</span> <span class="o">=</span> <span class="n">path</span><span class="p">[:</span><span class="o">-</span><span class="mi">4</span><span class="p">]</span> <span class="o">+</span> <span class="s1">&#39;tmp.smiles&#39;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">query</span><span class="p">:</span>
+            <span class="n">query</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">path</span><span class="p">):</span>
+            <span class="n">os</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+        <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">structure_file</span><span class="p">,</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">outfile</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">comp</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">compounds</span><span class="o">.</span><span class="n">find</span><span class="p">(</span><span class="n">query</span><span class="p">,</span> <span class="p">{</span><span class="s1">&#39;SMILES&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">}):</span>
+                <span class="k">if</span> <span class="n">convert_r</span><span class="p">:</span>
+                    <span class="n">outfile</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="se">\n</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">comp</span><span class="p">[</span><span class="s1">&#39;SMILES&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;R&#39;</span><span class="p">,</span> <span class="s2">&quot;*&quot;</span><span class="p">))</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">outfile</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="se">\n</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">comp</span><span class="p">[</span><span class="s1">&#39;SMILES&#39;</span><span class="p">])</span>
+                <span class="n">ids</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">comp</span><span class="p">[</span><span class="s1">&#39;_id&#39;</span><span class="p">])</span>
+        <span class="k">if</span> <span class="n">platform</span><span class="o">.</span><span class="n">system</span><span class="p">()</span> <span class="o">==</span> <span class="s1">&#39;Windows&#39;</span><span class="p">:</span>
+            <span class="n">rc</span> <span class="o">=</span> <span class="n">call</span><span class="p">([</span><span class="s1">&#39;cmd&#39;</span><span class="p">,</span> <span class="s2">&quot;/C molconvert -mo </span><span class="si">%s</span><span class="s2">/.</span><span class="si">%s</span><span class="s2"> </span><span class="si">%s</span><span class="s2"> </span><span class="si">%s</span><span class="s2">&quot;</span>
+                      <span class="o">%</span> <span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="n">extension</span><span class="p">,</span> <span class="n">img_type</span><span class="p">,</span> <span class="n">structure_file</span><span class="p">)],</span>
+                      <span class="n">shell</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">rc</span> <span class="o">=</span> <span class="n">call</span><span class="p">([</span><span class="s2">&quot;molconvert -mo </span><span class="si">%s</span><span class="s2">/.</span><span class="si">%s</span><span class="s2"> </span><span class="si">%s</span><span class="s2"> </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">(</span>
+                       <span class="n">path</span><span class="p">,</span> <span class="n">extension</span><span class="p">,</span> <span class="n">img_type</span><span class="p">,</span> <span class="n">structure_file</span><span class="p">)],</span> <span class="n">shell</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">rc</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;molconvert returned </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">rc</span><span class="p">)</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">remove</span><span class="p">(</span><span class="n">structure_file</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">_id</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">ids</span><span class="p">):</span>
+            <span class="n">old</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="s2">&quot;</span><span class="si">%s</span><span class="s2">.</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="p">((</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">),</span> <span class="n">extension</span><span class="p">))</span>
+            <span class="n">new</span> <span class="o">=</span> <span class="n">path</span>
+            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">dir_depth</span><span class="p">):</span>
+                <span class="n">new</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">new</span><span class="p">,</span> <span class="n">_id</span><span class="p">[</span><span class="n">j</span><span class="p">])</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">new</span><span class="p">):</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">makedirs</span><span class="p">(</span><span class="n">new</span><span class="p">)</span>
+            <span class="n">new</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">new</span><span class="p">,</span> <span class="n">_id</span><span class="o">+</span><span class="s1">&#39;.&#39;</span><span class="o">+</span><span class="n">extension</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">isfile</span><span class="p">(</span><span class="n">old</span><span class="p">):</span>
+                <span class="n">move</span><span class="p">(</span><span class="n">old</span><span class="p">,</span> <span class="n">new</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="MINE.build_indexes"><a class="viewcode-back" href="../../minedatabase.html#minedatabase.databases.MINE.build_indexes">[docs]</a>    <span class="k">def</span> <span class="nf">build_indexes</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Builds indexes for efficient querying of MINE databases&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">compounds</span><span class="o">.</span><span class="n">ensure_index</span><span class="p">([(</span><span class="s1">&#39;Mass&#39;</span><span class="p">,</span> <span class="n">pymongo</span><span class="o">.</span><span class="n">ASCENDING</span><span class="p">),</span>
+                                     <span class="p">(</span><span class="s1">&#39;Charge&#39;</span><span class="p">,</span> <span class="n">pymongo</span><span class="o">.</span><span class="n">ASCENDING</span><span class="p">),</span>
+                                     <span class="p">(</span><span class="s1">&#39;DB_links.Model_SEED&#39;</span><span class="p">,</span>
+                                      <span class="n">pymongo</span><span class="o">.</span><span class="n">ASCENDING</span><span class="p">)])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">compounds</span><span class="o">.</span><span class="n">ensure_index</span><span class="p">([(</span><span class="s1">&#39;Names&#39;</span><span class="p">,</span> <span class="s1">&#39;text&#39;</span><span class="p">),</span> <span class="p">(</span><span class="s1">&#39;Pathways&#39;</span><span class="p">,</span> <span class="s1">&#39;text&#39;</span><span class="p">)])</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">compounds</span><span class="o">.</span><span class="n">ensure_index</span><span class="p">(</span><span class="s2">&quot;DB_links.Model_SEED&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">compounds</span><span class="o">.</span><span class="n">ensure_index</span><span class="p">(</span><span class="s2">&quot;DB_links.KEGG&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">compounds</span><span class="o">.</span><span class="n">ensure_index</span><span class="p">(</span><span class="s2">&quot;MACCS&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">compounds</span><span class="o">.</span><span class="n">ensure_index</span><span class="p">(</span><span class="s2">&quot;len_MACCS&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">compounds</span><span class="o">.</span><span class="n">ensure_index</span><span class="p">(</span><span class="s2">&quot;RDKit&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">compounds</span><span class="o">.</span><span class="n">ensure_index</span><span class="p">(</span><span class="s2">&quot;len_RDKit&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">compounds</span><span class="o">.</span><span class="n">ensure_index</span><span class="p">(</span><span class="s2">&quot;Inchikey&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">compounds</span><span class="o">.</span><span class="n">ensure_index</span><span class="p">(</span><span class="s2">&quot;MINE_id&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">compounds</span><span class="o">.</span><span class="n">ensure_index</span><span class="p">(</span><span class="s2">&quot;Names&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">reactions</span><span class="o">.</span><span class="n">ensure_index</span><span class="p">(</span><span class="s2">&quot;Reactants.c_id&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">reactions</span><span class="o">.</span><span class="n">ensure_index</span><span class="p">(</span><span class="s2">&quot;Products.c_id&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">meta_data</span><span class="o">.</span><span class="n">insert</span><span class="p">({</span><span class="s2">&quot;Timestamp&quot;</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">(),</span> <span class="s2">&quot;Action&quot;</span><span class="p">:</span>
+                               <span class="s2">&quot;Database indexes built&quot;</span><span class="p">})</span></div>
+
+<div class="viewcode-block" id="MINE.link_to_external_database"><a class="viewcode-back" href="../../minedatabase.html#minedatabase.databases.MINE.link_to_external_database">[docs]</a>    <span class="k">def</span> <span class="nf">link_to_external_database</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">external_database</span><span class="p">,</span> <span class="n">compound</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                                  <span class="n">match_field</span><span class="o">=</span><span class="s2">&quot;Inchikey&quot;</span><span class="p">,</span> <span class="n">fields_to_copy</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;This function looks for matching compounds in other databases (i.e.</span>
+<span class="sd">        PubChem) and adds links where found.</span>
+
+<span class="sd">        :param external_database: The name of the database to search for</span>
+<span class="sd">            matching compounds</span>
+<span class="sd">        :type external_database: str</span>
+<span class="sd">        :param compound: The compound to search for external links. If none,</span>
+<span class="sd">            link all compounds in the database.</span>
+<span class="sd">        :type compound: dict</span>
+<span class="sd">        :param match_field: The field to search on for matching compounds</span>
+<span class="sd">        :type match_field: str</span>
+<span class="sd">        :param fields_to_copy: Data to copy into the mine database. The first</span>
+<span class="sd">            field is the field name in the external database. The second field</span>
+<span class="sd">            is the field name in the MINE database where the data will be</span>
+<span class="sd">            copied.</span>
+<span class="sd">        :type fields_to_copy: list(tuple)</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">compound</span><span class="p">:</span>
+            <span class="n">ext</span> <span class="o">=</span> <span class="n">MINE</span><span class="p">(</span><span class="n">external_database</span><span class="p">)</span>
+            <span class="n">projection</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">([(</span><span class="s2">&quot;_id&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">,)]</span> <span class="o">+</span> <span class="p">[(</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">1</span><span class="p">,)</span> <span class="k">for</span> <span class="n">x</span>
+                                               <span class="ow">in</span> <span class="n">fields_to_copy</span><span class="p">])</span>
+            <span class="c1"># Find compounds that have same name in another database</span>
+            <span class="k">for</span> <span class="n">ext_comp</span> <span class="ow">in</span> <span class="n">ext</span><span class="o">.</span><span class="n">compounds</span><span class="o">.</span><span class="n">find</span><span class="p">(</span>
+                    <span class="p">{</span><span class="n">match_field</span><span class="p">:</span> <span class="n">compound</span><span class="p">[</span><span class="n">match_field</span><span class="p">]},</span> <span class="n">projection</span><span class="p">):</span>
+                <span class="k">for</span> <span class="n">field</span> <span class="ow">in</span> <span class="n">fields_to_copy</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">field</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="ow">in</span> <span class="n">ext_comp</span><span class="p">:</span>
+                        <span class="c1"># dict_merge merges two dictionaries using sets to</span>
+                        <span class="c1"># avoid duplicate values</span>
+                        <span class="n">utils</span><span class="o">.</span><span class="n">dict_merge</span><span class="p">(</span><span class="n">compound</span><span class="p">,</span> <span class="n">utils</span><span class="o">.</span><span class="n">save_dotted_field</span><span class="p">(</span>
+                            <span class="n">field</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">utils</span><span class="o">.</span><span class="n">get_dotted_field</span><span class="p">(</span><span class="n">ext_comp</span><span class="p">,</span>
+                                                             <span class="n">field</span><span class="p">[</span><span class="mi">0</span><span class="p">])))</span>
+            <span class="k">return</span> <span class="n">utils</span><span class="o">.</span><span class="n">convert_sets_to_lists</span><span class="p">(</span><span class="n">compound</span><span class="p">)</span>
+
+        <span class="c1"># If compound is None, link all compounds in database</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">comp</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">compounds</span><span class="o">.</span><span class="n">find</span><span class="p">():</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">compounds</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">link_to_external_database</span><span class="p">(</span>
+                    <span class="n">external_database</span><span class="p">,</span> <span class="n">compound</span><span class="o">=</span><span class="n">comp</span><span class="p">,</span> <span class="n">match_field</span><span class="o">=</span><span class="n">match_field</span><span class="p">,</span>
+                    <span class="n">fields_to_copy</span><span class="o">=</span><span class="n">fields_to_copy</span><span class="p">))</span></div>
+
+<div class="viewcode-block" id="MINE.insert_compound"><a class="viewcode-back" href="../../minedatabase.html#minedatabase.databases.MINE.insert_compound">[docs]</a>    <span class="k">def</span> <span class="nf">insert_compound</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mol_object</span><span class="p">,</span> <span class="n">compound_dict</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">bulk</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                        <span class="n">kegg_db</span><span class="o">=</span><span class="s2">&quot;KEGG&quot;</span><span class="p">,</span> <span class="n">pubchem_db</span><span class="o">=</span><span class="s1">&#39;PubChem-8-28-2015&#39;</span><span class="p">,</span>
+                        <span class="n">modelseed_db</span><span class="o">=</span><span class="s1">&#39;ModelSEED&#39;</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;This class saves a RDKit Molecule as a compound entry in the MINE.</span>
+<span class="sd">        Calculates necessary fields for API and includes additional</span>
+<span class="sd">        information passed in the compound dict. Overwrites preexisting</span>
+<span class="sd">        compounds in MINE on _id collision.</span>
+<span class="sd">        </span>
+<span class="sd">        :param mol_object: The compound to be stored</span>
+<span class="sd">        :type mol_object: RDKit Mol object</span>
+<span class="sd">        :param compound_dict: Additional information about the compound to be</span>
+<span class="sd">            stored. Overwritten by calculated values.</span>
+<span class="sd">        :type compound_dict: dict</span>
+<span class="sd">        :param bulk: A pymongo bulk operation object. If None, reaction is</span>
+<span class="sd">         immediately inserted in the database</span>
+<span class="sd">        :param kegg_db: The ID of the KEGG Mongo database</span>
+<span class="sd">        :type kegg_db: str</span>
+<span class="sd">        :param pubchem_db: The ID of the PubChem Mongo database</span>
+<span class="sd">        :type pubchem_db: str</span>
+<span class="sd">        :param modelseed_db: The ID of the ModelSEED Mongo database</span>
+<span class="sd">        :type modelseed_db: str</span>
+<span class="sd">        :return: The hashed _id of the compound</span>
+<span class="sd">        :rtype: str</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="n">compound_dict</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">compound_dict</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="c1"># Store all different representations of the molecule (SMILES, Formula,</span>
+        <span class="c1">#  InChI key, etc.) as well as its properties in a dictionary</span>
+        <span class="n">compound_dict</span><span class="p">[</span><span class="s1">&#39;SMILES&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">AllChem</span><span class="o">.</span><span class="n">MolToSmiles</span><span class="p">(</span><span class="n">mol_object</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+        <span class="n">compound_dict</span><span class="p">[</span><span class="s1">&#39;Inchi&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">AllChem</span><span class="o">.</span><span class="n">MolToInchi</span><span class="p">(</span><span class="n">mol_object</span><span class="p">)</span>
+        <span class="n">compound_dict</span><span class="p">[</span><span class="s1">&#39;Inchikey&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">AllChem</span><span class="o">.</span><span class="n">InchiToInchiKey</span><span class="p">(</span>
+            <span class="n">compound_dict</span><span class="p">[</span><span class="s1">&#39;Inchi&#39;</span><span class="p">])</span>
+        <span class="n">compound_dict</span><span class="p">[</span><span class="s1">&#39;Mass&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">AllChem</span><span class="o">.</span><span class="n">CalcExactMolWt</span><span class="p">(</span><span class="n">mol_object</span><span class="p">)</span>
+        <span class="n">compound_dict</span><span class="p">[</span><span class="s1">&#39;Formula&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">AllChem</span><span class="o">.</span><span class="n">CalcMolFormula</span><span class="p">(</span><span class="n">mol_object</span><span class="p">)</span>
+        <span class="n">compound_dict</span><span class="p">[</span><span class="s1">&#39;Charge&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">AllChem</span><span class="o">.</span><span class="n">GetFormalCharge</span><span class="p">(</span><span class="n">mol_object</span><span class="p">)</span>
+        <span class="c1"># Get indices where bits are 1</span>
+        <span class="n">compound_dict</span><span class="p">[</span><span class="s1">&#39;MACCS&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">AllChem</span><span class="o">.</span><span class="n">GetMACCSKeysFingerprint</span><span class="p">(</span>
+            <span class="n">mol_object</span><span class="p">)</span><span class="o">.</span><span class="n">GetOnBits</span><span class="p">())</span>
+        <span class="n">compound_dict</span><span class="p">[</span><span class="s1">&#39;len_MACCS&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">compound_dict</span><span class="p">[</span><span class="s1">&#39;MACCS&#39;</span><span class="p">])</span>
+        <span class="c1"># Get indices where bits are 1</span>
+        <span class="n">compound_dict</span><span class="p">[</span><span class="s1">&#39;RDKit&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">AllChem</span><span class="o">.</span><span class="n">RDKFingerprint</span><span class="p">(</span>
+            <span class="n">mol_object</span><span class="p">)</span><span class="o">.</span><span class="n">GetOnBits</span><span class="p">())</span>
+        <span class="n">compound_dict</span><span class="p">[</span><span class="s1">&#39;len_RDKit&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">compound_dict</span><span class="p">[</span><span class="s1">&#39;RDKit&#39;</span><span class="p">])</span>
+        <span class="n">compound_dict</span><span class="p">[</span><span class="s1">&#39;logP&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">AllChem</span><span class="o">.</span><span class="n">CalcCrippenDescriptors</span><span class="p">(</span><span class="n">mol_object</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">compound_dict</span><span class="p">[</span><span class="s1">&#39;_id&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">utils</span><span class="o">.</span><span class="n">compound_hash</span><span class="p">(</span>
+            <span class="n">compound_dict</span><span class="p">[</span><span class="s1">&#39;SMILES&#39;</span><span class="p">],</span> <span class="p">(</span><span class="s1">&#39;Type&#39;</span> <span class="ow">in</span> <span class="n">compound_dict</span> <span class="ow">and</span>
+                                      <span class="n">compound_dict</span><span class="p">[</span><span class="s1">&#39;Type&#39;</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;Coreactant&#39;</span><span class="p">))</span>
+
+        <span class="c1"># If the compound is a reactant, then make sure the reactant name is</span>
+        <span class="c1"># in a correct format.</span>
+        <span class="k">if</span> <span class="s2">&quot;Reactant_in&quot;</span> <span class="ow">in</span> <span class="n">compound_dict</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span>
+                <span class="n">compound_dict</span><span class="p">[</span><span class="s1">&#39;Reactant_in&#39;</span><span class="p">],</span> <span class="nb">str</span><span class="p">)</span> \
+                <span class="ow">and</span> <span class="n">compound_dict</span><span class="p">[</span><span class="s1">&#39;Reactant_in&#39;</span><span class="p">]:</span>
+            <span class="n">compound_dict</span><span class="p">[</span><span class="s1">&#39;Reactant_in&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">ast</span><span class="o">.</span><span class="n">literal_eval</span><span class="p">(</span>
+                <span class="n">compound_dict</span><span class="p">[</span><span class="s1">&#39;Reactant_in&#39;</span><span class="p">])</span>
+        <span class="c1"># If the compound is a product, then make sure the reactant name is</span>
+        <span class="c1"># in a correct format.</span>
+        <span class="k">if</span> <span class="s2">&quot;Product_of&quot;</span> <span class="ow">in</span> <span class="n">compound_dict</span> \
+                <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">compound_dict</span><span class="p">[</span><span class="s1">&#39;Product_of&#39;</span><span class="p">],</span> <span class="nb">str</span><span class="p">)</span> \
+                <span class="ow">and</span> <span class="n">compound_dict</span><span class="p">[</span><span class="s1">&#39;Product_of&#39;</span><span class="p">]:</span>
+            <span class="n">compound_dict</span><span class="p">[</span><span class="s1">&#39;Product_of&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">ast</span><span class="o">.</span><span class="n">literal_eval</span><span class="p">(</span>
+                <span class="n">compound_dict</span><span class="p">[</span><span class="s1">&#39;Product_of&#39;</span><span class="p">])</span>
+
+        <span class="c1"># Store links to external databases where compound is present</span>
+        <span class="k">if</span> <span class="n">compound_dict</span><span class="p">[</span><span class="s1">&#39;Inchikey&#39;</span><span class="p">]:</span>
+            <span class="k">if</span> <span class="n">kegg_db</span><span class="p">:</span>
+                <span class="n">compound_dict</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">link_to_external_database</span><span class="p">(</span>
+                    <span class="n">kegg_db</span><span class="p">,</span> <span class="n">compound</span><span class="o">=</span><span class="n">compound_dict</span><span class="p">,</span>
+                    <span class="n">fields_to_copy</span><span class="o">=</span><span class="p">[(</span><span class="s1">&#39;Pathways&#39;</span><span class="p">,</span> <span class="s1">&#39;Pathways&#39;</span><span class="p">),</span>
+                                    <span class="p">(</span><span class="s1">&#39;Names&#39;</span><span class="p">,</span> <span class="s1">&#39;Names&#39;</span><span class="p">),</span>
+                                    <span class="p">(</span><span class="s1">&#39;DB_links&#39;</span><span class="p">,</span> <span class="s1">&#39;DB_links&#39;</span><span class="p">),</span>
+                                    <span class="p">(</span><span class="s1">&#39;Enzymes&#39;</span><span class="p">,</span> <span class="s1">&#39;Enzymes&#39;</span><span class="p">)])</span>
+
+            <span class="k">if</span> <span class="n">pubchem_db</span><span class="p">:</span>
+                <span class="n">compound_dict</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">link_to_external_database</span><span class="p">(</span>
+                    <span class="n">pubchem_db</span><span class="p">,</span> <span class="n">compound</span><span class="o">=</span><span class="n">compound_dict</span><span class="p">,</span>
+                    <span class="n">fields_to_copy</span><span class="o">=</span><span class="p">[(</span><span class="s1">&#39;COMPOUND_CID&#39;</span><span class="p">,</span> <span class="s1">&#39;DB_links.PubChem&#39;</span><span class="p">)])</span>
+
+            <span class="k">if</span> <span class="n">modelseed_db</span><span class="p">:</span>
+                <span class="n">compound_dict</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">link_to_external_database</span><span class="p">(</span>
+                    <span class="n">modelseed_db</span><span class="p">,</span> <span class="n">compound</span><span class="o">=</span><span class="n">compound_dict</span><span class="p">,</span>
+                    <span class="n">fields_to_copy</span><span class="o">=</span><span class="p">[(</span><span class="s1">&#39;DB_links&#39;</span><span class="p">,</span> <span class="s1">&#39;DB_links&#39;</span><span class="p">)])</span>
+
+        <span class="c1"># Calculate natural product likeness score and store in dict</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">np_model</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">np_model</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">readNPModel</span><span class="p">()</span>
+        <span class="n">compound_dict</span><span class="p">[</span><span class="s2">&quot;NP_likeness&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">scoreMol</span><span class="p">(</span><span class="n">mol_object</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">np_model</span><span class="p">)</span>
+
+        <span class="n">compound_dict</span> <span class="o">=</span> <span class="n">utils</span><span class="o">.</span><span class="n">convert_sets_to_lists</span><span class="p">(</span><span class="n">compound_dict</span><span class="p">)</span>
+        <span class="c1"># Assign an id to the compound</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">id_db</span><span class="p">:</span>
+            <span class="n">mine_comp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">id_db</span><span class="o">.</span><span class="n">compounds</span><span class="o">.</span><span class="n">find_one</span><span class="p">(</span>
+                <span class="p">{</span><span class="s2">&quot;Inchikey&quot;</span><span class="p">:</span> <span class="n">compound_dict</span><span class="p">[</span><span class="s1">&#39;Inchikey&#39;</span><span class="p">]},</span>
+                <span class="p">{</span><span class="s1">&#39;MINE_id&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;Pos_CFM_spectra&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">&quot;Neg_CFM_spectra&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">})</span>
+            <span class="c1"># If compound already exists in MINE, store its MINE id in the dict</span>
+            <span class="k">if</span> <span class="n">mine_comp</span><span class="p">:</span>
+                <span class="n">compound_dict</span><span class="p">[</span><span class="s1">&#39;MINE_id&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">mine_comp</span><span class="p">[</span><span class="s1">&#39;MINE_id&#39;</span><span class="p">]</span>
+                <span class="k">if</span> <span class="s1">&#39;Pos_CFM_spectra&#39;</span> <span class="ow">in</span> <span class="n">mine_comp</span><span class="p">:</span>
+                    <span class="n">compound_dict</span><span class="p">[</span><span class="s1">&#39;Pos_CFM_spectra&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">mine_comp</span><span class="p">[</span><span class="s1">&#39;Pos_CFM_spectra&#39;</span><span class="p">]</span>
+                <span class="k">if</span> <span class="s1">&#39;Neg_CFM_spectra&#39;</span> <span class="ow">in</span> <span class="n">mine_comp</span><span class="p">:</span>
+                    <span class="n">compound_dict</span><span class="p">[</span><span class="s1">&#39;Neg_CFM_spectra&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">mine_comp</span><span class="p">[</span><span class="s1">&#39;Neg_CFM_spectra&#39;</span><span class="p">]</span>
+            <span class="c1"># If compound does not exist, create new id based on number of</span>
+            <span class="c1"># current ids in the MINE</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">compound_dict</span><span class="p">[</span><span class="s1">&#39;MINE_id&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">id_db</span><span class="o">.</span><span class="n">compounds</span><span class="o">.</span><span class="n">count</span><span class="p">()</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">id_db</span><span class="o">.</span><span class="n">compounds</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">compound_dict</span><span class="p">)</span>
+
+        <span class="c1"># If bulk insertion, upsert (insert and update) the database</span>
+        <span class="k">if</span> <span class="n">bulk</span><span class="p">:</span>
+            <span class="n">bulk</span><span class="o">.</span><span class="n">find</span><span class="p">({</span><span class="s1">&#39;_id&#39;</span><span class="p">:</span> <span class="n">compound_dict</span><span class="p">[</span><span class="s1">&#39;_id&#39;</span><span class="p">]})</span><span class="o">.</span><span class="n">upsert</span><span class="p">()</span><span class="o">.</span>\
+                <span class="n">replace_one</span><span class="p">(</span><span class="n">compound_dict</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">compounds</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">compound_dict</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">compound_dict</span><span class="p">[</span><span class="s1">&#39;_id&#39;</span><span class="p">]</span></div>
+
+<div class="viewcode-block" id="MINE.insert_reaction"><a class="viewcode-back" href="../../minedatabase.html#minedatabase.databases.MINE.insert_reaction">[docs]</a>    <span class="k">def</span> <span class="nf">insert_reaction</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">reaction_dict</span><span class="p">,</span> <span class="n">bulk</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Inserts a reaction into the MINE database and returns _id of the</span>
+<span class="sd">         reaction in the mine database.</span>
+<span class="sd">        </span>
+<span class="sd">        :param reaction_dict: A dictionary containing &quot;Reactants&quot; and</span>
+<span class="sd">         &quot;Products&quot; lists of stoich_tuples</span>
+<span class="sd">        :type reaction_dict: dict</span>
+<span class="sd">        :param bulk: A pymongo bulk operation object. If None, reaction is</span>
+<span class="sd">         immediately inserted in the database</span>
+<span class="sd">        :return: The hashed _id of the reaction</span>
+<span class="sd">        :rtype: str</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">reaction_dict</span><span class="p">[</span><span class="s1">&#39;_id&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">utils</span><span class="o">.</span><span class="n">rxn2hash</span><span class="p">(</span><span class="n">reaction_dict</span><span class="p">[</span><span class="s1">&#39;Reactants&#39;</span><span class="p">],</span>
+                                              <span class="n">reaction_dict</span><span class="p">[</span><span class="s1">&#39;Products&#39;</span><span class="p">])</span>
+
+        <span class="c1"># By converting to a dict, mongo stores the data as objects not</span>
+        <span class="c1"># arrays allowing for queries by compound hash</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">reaction_dict</span><span class="p">[</span><span class="s1">&#39;Reactants&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">],</span> <span class="n">utils</span><span class="o">.</span><span class="n">stoich_tuple</span><span class="p">):</span>
+            <span class="n">reaction_dict</span><span class="p">[</span><span class="s1">&#39;Reactants&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="o">.</span><span class="n">_asdict</span><span class="p">()</span> <span class="k">for</span> <span class="n">x</span>
+                                          <span class="ow">in</span> <span class="n">reaction_dict</span><span class="p">[</span><span class="s1">&#39;Reactants&#39;</span><span class="p">]]</span>
+            <span class="n">reaction_dict</span><span class="p">[</span><span class="s1">&#39;Products&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="o">.</span><span class="n">_asdict</span><span class="p">()</span> <span class="k">for</span> <span class="n">x</span>
+                                         <span class="ow">in</span> <span class="n">reaction_dict</span><span class="p">[</span><span class="s1">&#39;Products&#39;</span><span class="p">]]</span>
+
+        <span class="n">reaction_dict</span> <span class="o">=</span> <span class="n">utils</span><span class="o">.</span><span class="n">convert_sets_to_lists</span><span class="p">(</span><span class="n">reaction_dict</span><span class="p">)</span>
+        <span class="c1"># If bulk insertion, upsert (insert and update) the database</span>
+        <span class="k">if</span> <span class="n">bulk</span><span class="p">:</span>
+            <span class="n">bulk</span><span class="o">.</span><span class="n">find</span><span class="p">({</span><span class="s1">&#39;_id&#39;</span><span class="p">:</span> <span class="n">reaction_dict</span><span class="p">[</span><span class="s1">&#39;_id&#39;</span><span class="p">]})</span><span class="o">.</span><span class="n">upsert</span><span class="p">()</span><span class="o">.</span>\
+                <span class="n">replace_one</span><span class="p">(</span><span class="n">reaction_dict</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">reactions</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">reaction_dict</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">reaction_dict</span><span class="p">[</span><span class="s1">&#39;_id&#39;</span><span class="p">]</span></div>
+
+<div class="viewcode-block" id="MINE.map_reactions"><a class="viewcode-back" href="../../minedatabase.html#minedatabase.databases.MINE.map_reactions">[docs]</a>    <span class="k">def</span> <span class="nf">map_reactions</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ext_db</span><span class="p">,</span> <span class="n">match_field</span><span class="o">=</span><span class="s1">&#39;_id&#39;</span><span class="p">):</span>
+        <span class="c1"># Update operators by adding the reactions they participate in</span>
+        <span class="n">lit_db</span> <span class="o">=</span> <span class="n">MINE</span><span class="p">(</span><span class="n">ext_db</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">lit_rxn</span> <span class="ow">in</span> <span class="n">lit_db</span><span class="o">.</span><span class="n">reactions</span><span class="o">.</span><span class="n">find</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">match_field</span> <span class="o">==</span> <span class="s2">&quot;InChI_hash&quot;</span><span class="p">:</span>
+                <span class="n">mine_rxn</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">reactions</span><span class="o">.</span><span class="n">find_one</span><span class="p">(</span>
+                    <span class="p">{</span><span class="n">match_field</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;$regex&quot;</span><span class="p">:</span> <span class="n">lit_rxn</span><span class="p">[</span><span class="n">match_field</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;-&#39;</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+                                   <span class="p">}},</span> <span class="p">{</span><span class="s1">&#39;Operators&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">})</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">mine_rxn</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">reactions</span><span class="o">.</span><span class="n">find_one</span><span class="p">(</span>
+                    <span class="p">{</span><span class="n">match_field</span><span class="p">:</span> <span class="n">lit_rxn</span><span class="p">[</span><span class="n">match_field</span><span class="p">]},</span> <span class="p">{</span><span class="s1">&#39;Operators&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">})</span>
+            <span class="k">if</span> <span class="n">mine_rxn</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">op</span> <span class="ow">in</span> <span class="n">mine_rxn</span><span class="p">[</span><span class="s1">&#39;Operators&#39;</span><span class="p">]:</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">operators</span><span class="o">.</span><span class="n">update</span><span class="p">(</span>
+                        <span class="p">{</span><span class="s1">&#39;_id&#39;</span><span class="p">:</span> <span class="n">op</span><span class="p">},</span>
+                        <span class="p">{</span><span class="s2">&quot;$addToSet&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;Mapped_Rxns&quot;</span><span class="p">:</span> <span class="n">lit_rxn</span><span class="p">[</span><span class="s2">&quot;_id&quot;</span><span class="p">],</span>
+                         <span class="s2">&quot;References&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;$each&quot;</span><span class="p">:</span> <span class="n">lit_rxn</span><span class="p">[</span><span class="s1">&#39;References&#39;</span><span class="p">]}}})</span>
+                <span class="n">lit_db</span><span class="o">.</span><span class="n">reactions</span><span class="o">.</span><span class="n">update</span><span class="p">(</span>
+                    <span class="p">{</span><span class="s2">&quot;_id&quot;</span><span class="p">:</span> <span class="n">lit_rxn</span><span class="p">[</span><span class="s2">&quot;_id&quot;</span><span class="p">]},</span>
+                    <span class="p">{</span><span class="s2">&quot;$set&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;Mapped_Rules&quot;</span><span class="p">:</span> <span class="n">mine_rxn</span><span class="p">[</span><span class="s1">&#39;Operators&#39;</span><span class="p">]}})</span></div></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, James Jeffryes.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.5.4</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.7</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

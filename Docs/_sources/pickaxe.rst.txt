@@ -1,0 +1,7 @@
+minedatabase\.pickaxe module
+----------------------------
+
+.. automodule:: minedatabase.pickaxe
+    :members:
+    :undoc-members:
+    :show-inheritance:

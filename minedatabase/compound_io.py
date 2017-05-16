@@ -12,12 +12,12 @@ from rdkit.Chem import AllChem
 
 
 def export_sdf(mine_db, dir_path, max_compounds=None):
-    """
-    Exports compounds from the database as an MDL SDF file
+    """Exports compounds from the database as an MDL SDF file
+    
     :param mine_db: a MINE object
     :param dir_path: directory for files
     :param max_compounds: maximum number of compounds per file (defaults to
-    100000)
+         unlimited)
     :return:
     """
 
@@ -57,12 +57,12 @@ def export_sdf(mine_db, dir_path, max_compounds=None):
 
 
 def export_smiles(mine_db, dir_path, max_compounds=None):
-    """
-    Exports compounds from the database as a SMILES file
+    """Exports compounds from the database as a SMILES file
+    
     :param mine_db: a MINE object
     :param dir_path: directory for files
     :param max_compounds: maximum number of compounds per file (defaults to
-    unlimited)
+        unlimited)
     :return:
     """
     header = ['SMILES', "_id", "Generation", 'Reactant_in', 'Product_of']
@@ -95,15 +95,15 @@ def export_smiles(mine_db, dir_path, max_compounds=None):
 
 
 def export_mol(mine_db, target, name_field='_id'):
-    """
-    Exports compounds from the database as MDL molfiles
+    """Exports compounds from the database as MDL molfiles
+    
     :param mine_db: The database to export
     :type mine_db: a MINE object
     :param target: a directory in which to place the files
-    :type target: string
+    :type target: str
     :param name_field: the field to provide names for the mol files. Must be
-    unique & universal
-    :type name_field: string
+        unique & universal
+    :type name_field: str
     :return:
     :rtype:
     """
@@ -137,9 +137,9 @@ def export_mol(mine_db, target, name_field='_id'):
 def export_tsv(mine_db, target, compound_fields=('_id', 'Names', 'Model_SEED',
                                                  'Formula', 'Charge', 'Inchi'),
                reaction_fields=('_id', 'SMILES_rxn', 'C_id_rxn')):
-    """
-    Exports MINE compound and reaction data as tab-separated values files
+    """Exports MINE compound and reaction data as tab-separated values files
     amenable to use in ModelSEED.
+    
     :param mine_db: The database to export
     :type mine_db: a MINE object
     :param target: a directory in which to place the files
@@ -148,8 +148,6 @@ def export_tsv(mine_db, target, compound_fields=('_id', 'Names', 'Model_SEED',
     :type compound_fields: set
     :param reaction_fields: The fields to export in the reaction table
     :type reaction_fields: set
-    :return:
-    :rtype:
     """
     db_links = ('KEGG', 'Model_SEED', 'PubChem')
     print("Exporting %s compounds from %s to tsv" % (mine_db.compounds.count(),
@@ -197,15 +195,13 @@ def export_tsv(mine_db, target, compound_fields=('_id', 'Names', 'Model_SEED',
 
 
 def export_kbase(mine_db, target):
-    """
-    Exports MINE compound and reaction data as tab-separated values files
+    """Exports MINE compound and reaction data as tab-separated values files
     amenable to use in ModelSEED.
+    
     :param mine_db: The database to export
     :type mine_db: a MINE object
     :param target: a directory in which to place the files
-    :type target: string
-    :return:
-    :rtype:
+    :type target: str
     """
     compound_fields = collections.OrderedDict([('id', "_id"), ('name', ""),
                                                ('formula','Formula'),
@@ -271,8 +267,8 @@ def export_kbase(mine_db, target):
 
 
 def import_sdf(mine_db, target,):
-    """
-    Imports a SDF file as a MINE database
+    """Imports a SDF file as a MINE database
+    
     :param mine_db: a MINE object, the database to insert the compound into
     :param target: a path, the SDF file to be loaded
     :return:
@@ -311,14 +307,13 @@ def import_smiles(mine_db, target,):
 
 
 def import_mol_dir(mine_db, target, name_field="Name", overwrite=False):
-    """
-    Imports a directory of molfiles as a MINE database
+    """Imports a directory of molfiles as a MINE database
+    
     :param mine_db: a MINE object, the database to insert the compound into
     :param target: a path, the molfile directory to be loaded
     :param name_field: a string, the field for the compound name
     :param overwrite: a bool, if true, new compounds replace the old compounds
-    in the database
-    :return:
+        in the database
     """
     # For each .mol file in the directory of the target folder (path):
     for file in os.listdir(target):

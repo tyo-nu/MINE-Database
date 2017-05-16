@@ -8,14 +8,17 @@ default_projection = {'SMILES': 1, 'Formula': 1, 'MINE_id': 1, 'Names': 1,
 
 
 def quick_search(db, query, search_projection=default_projection.copy()):
-    """
-    This function takes user provided compound identifiers and attempts to find
-    a related database ID
+    """This function takes user provided compound identifiers and attempts to
+     find a related database ID
 
-    :param db: A Mongo Database, DB to search
-    :param query: String, a MINE id, KEGG code, ModelSEED id, Inchikey or Name
-    :param search_projection: Dictionary, The fields which should be returned
-    :return:
+    :param db: DB to search
+    :type db: A Mongo Database
+    :param query: A MINE id, KEGG code, ModelSEED id, Inchikey or Name
+    :type query: str
+    :param search_projection: The fields which should be returned
+    :type search_projection: str
+    :return: Query results
+    :rtype: list
     """
 
     # Determine what kind of query was input (e.g. KEGG code, MINE id, etc.)
@@ -60,14 +63,17 @@ def quick_search(db, query, search_projection=default_projection.copy()):
 
 def advanced_search(db, mongo_query,
                     search_projection=default_projection.copy()):
-    """
-    Returns compounds in the indicated database which match the provided mongo
+    """Returns compounds in the indicated database which match the provided mongo
     query
 
-    :param db: A Mongo Database, DB to search
-    :param mongo_query: String, A valid mongo query
-    :param search_projection: Dictionary, The fields which should be returned
-    :return:
+    :param db: DB to search
+    :type db: A Mongo Database
+    :param query: A valid mongo query
+    :type query: str
+    :param search_projection: The fields which should be returned
+    :type search_projection: str
+    :return: Query results
+    :rtype: list
     """
     # We don't want users poking around here
     if db.name == 'admin' or not mongo_query:
@@ -79,17 +85,23 @@ def advanced_search(db, mongo_query,
 
 def similarity_search(db, comp_structure, min_tc, fp_type, limit,
                       search_projection=default_projection.copy()):
-    """
-    Returns compounds in the indicated database which have structural similarity
-     to the provided compound
+    """Returns compounds in the indicated database which have structural
+     similarity to the provided compound
 
-    :param db: A Mongo Database, DB to search
-    :param comp_structure: String, A molecule in Molfile or SMILES format
-    :param min_tc: Float, Minimum Tanimoto score
-    :param fp_type: String, Fingerprint type. Currently accepts MACCS or RDKit
-    :param limit: Integer, the maximum number of compounds to return
-    :param search_projection: Dictionary, The fields which should be returned
-    :return:
+    :param db: DB to search
+    :type db: A Mongo Database
+    :param comp_structure: A molecule in Molfile or SMILES format
+    :type comp_structure: str
+    :param min_tc: Minimum Tanimoto score
+    :type min_tc: float
+    :param fp_type: Fingerprint type. Currently accepts MACCS or RDKit
+    :type fp_type: str
+    :param limit: The maximum number of compounds to return
+    :type limit: int
+    :param search_projection: The fields which should be returned
+    :type search_projection: str
+    :return: Query results
+    :rtype: list
     """
     similarity_search_results = []
     fp_type = str(fp_type)
@@ -139,16 +151,19 @@ def similarity_search(db, comp_structure, min_tc, fp_type, limit,
 
 def structure_search(db, comp_structure, stereo=True,
                      search_projection=default_projection.copy()):
-    """
-    Returns compounds in the indicated database which are exact matches to the
+    """Returns compounds in the indicated database which are exact matches to the
     provided structure
 
-    :param db: A Mongo Database, DB to search
-    :param comp_structure: String, A molecule in Molfile or or SMILES format
-    :param search_projection: Dictionary, The fields which should be returned
-    :param stereo: Bool, if true, uses stereochemistry in finding exact match
-    :return:
-    """
+    :param db: DB to search
+    :type db: A Mongo Database
+    :param comp_structure: A molecule in Molfile or SMILES format
+    :type comp_structure: str
+    :param stereo: If true, uses stereochemistry in finding exact match
+    :type stereo: bool
+    :param search_projection: The fields which should be returned
+    :type search_projection: str
+    :return: Query results
+    :rtype: list    """
 
     # Create Mol object from Molfile (has newlines)
     if "\n" in comp_structure:
@@ -174,15 +189,19 @@ def structure_search(db, comp_structure, stereo=True,
 
 def substructure_search(db, sub_structure, limit,
                         search_projection=default_projection.copy()):
-    """
-    Returns compounds in the indicated database which contain the provided
+    """Returns compounds in the indicated database which contain the provided
     structure
 
-    :param db: A Mongo Database, DB to search
-    :param sub_structure: String, A molecule in Molfile or or SMILES format
-    :param limit: Integer, the maximum number of compounds to return
-    :param search_projection: Dictionary, The fields which should be returned
-    :return:
+    :param db: DB to search
+    :type db: A Mongo Database
+    :param comp_structure: A molecule in Molfile or SMILES format
+    :type comp_structure: str
+    :param limit: The maximum number of compounds to return
+    :type limit: int
+    :param search_projection: The fields which should be returned
+    :type search_projection: str
+    :return: Query results
+    :rtype: list
     """
 
     substructure_search_results = []

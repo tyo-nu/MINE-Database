@@ -1,0 +1,370 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>minedatabase.utils &#8212; MINE Databases 1.0 documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for minedatabase.utils</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Utils.py: contains basic functions reused in various contexts in other</span>
+<span class="sd">modules&quot;&quot;&quot;</span>
+<span class="kn">from</span> <span class="nn">rdkit.Chem</span> <span class="k">import</span> <span class="n">AllChem</span>
+<span class="kn">import</span> <span class="nn">hashlib</span>
+<span class="kn">import</span> <span class="nn">collections</span>
+<span class="kn">from</span> <span class="nn">os</span> <span class="k">import</span> <span class="n">path</span>
+
+<span class="n">stoich_tuple</span> <span class="o">=</span> <span class="n">collections</span><span class="o">.</span><span class="n">namedtuple</span><span class="p">(</span><span class="s2">&quot;stoich_tuple&quot;</span><span class="p">,</span> <span class="s1">&#39;stoich,c_id&#39;</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="compound_hash"><a class="viewcode-back" href="../../minedatabase.html#minedatabase.utils.compound_hash">[docs]</a><span class="k">def</span> <span class="nf">compound_hash</span><span class="p">(</span><span class="n">compound</span><span class="p">,</span> <span class="n">cofactor</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Creates hash string for given compound</span>
+<span class="sd">    </span>
+<span class="sd">    :param compound: The compound to be hashed</span>
+<span class="sd">    :type compound: str or Mol Object</span>
+<span class="sd">    :param cofactor: is the compound a cofactor</span>
+<span class="sd">    :type cofactor: bool</span>
+<span class="sd">    :return: A hashed compound _id</span>
+<span class="sd">    :rtype: str</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Check to see if compound is a Mol object. If true, convert that Mol object</span>
+    <span class="c1"># to a SMILES string</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">compound</span><span class="p">,</span> <span class="n">AllChem</span><span class="o">.</span><span class="n">Mol</span><span class="p">):</span>
+        <span class="n">compound</span> <span class="o">=</span> <span class="n">AllChem</span><span class="o">.</span><span class="n">MolToSmiles</span><span class="p">(</span><span class="n">compound</span><span class="p">,</span> <span class="kc">True</span><span class="p">)</span>
+    <span class="c1"># Create hash string using hashlib module</span>
+    <span class="n">chash</span> <span class="o">=</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">sha1</span><span class="p">(</span><span class="n">compound</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s1">&#39;utf-8&#39;</span><span class="p">))</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">()</span>
+    <span class="c1"># Mark cofactors with an X at the beginning, all else with a C</span>
+    <span class="k">if</span> <span class="n">cofactor</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s2">&quot;X&quot;</span><span class="o">+</span><span class="n">chash</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s2">&quot;C&quot;</span><span class="o">+</span><span class="n">chash</span></div>
+
+
+<div class="viewcode-block" id="convert_sets_to_lists"><a class="viewcode-back" href="../../minedatabase.html#minedatabase.utils.convert_sets_to_lists">[docs]</a><span class="k">def</span> <span class="nf">convert_sets_to_lists</span><span class="p">(</span><span class="n">obj</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Recursively converts dictionaries that contain sets to lists&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="nb">set</span><span class="p">):</span>
+        <span class="c1"># This brings short names to the top of the list</span>
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">obj</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">obj</span><span class="p">),</span> <span class="n">key</span><span class="o">=</span><span class="nb">len</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">TypeError</span><span class="p">:</span>
+            <span class="n">obj</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">obj</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">obj</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">obj</span><span class="p">:</span>
+            <span class="n">obj</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">convert_sets_to_lists</span><span class="p">(</span><span class="n">obj</span><span class="p">[</span><span class="n">key</span><span class="p">])</span>
+    <span class="k">return</span> <span class="n">obj</span></div>
+
+
+<div class="viewcode-block" id="get_dotted_field"><a class="viewcode-back" href="../../minedatabase.html#minedatabase.utils.get_dotted_field">[docs]</a><span class="k">def</span> <span class="nf">get_dotted_field</span><span class="p">(</span><span class="n">input_dict</span><span class="p">,</span> <span class="n">accessor_string</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Gets data from a dictionary using a dotted accessor-string</span>
+<span class="sd">    </span>
+<span class="sd">    :param input_dict: A nested dictionary</span>
+<span class="sd">    :type input_dict: dict</span>
+<span class="sd">    :param accessor_string: A dotted path description i.e. &quot;DBLinks.KEGG&quot;</span>
+<span class="sd">    :type accessor_string: str</span>
+<span class="sd">    :return: The value in the nested dict</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">current_data</span> <span class="o">=</span> <span class="n">input_dict</span>
+    <span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="n">accessor_string</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">):</span>
+        <span class="n">current_data</span> <span class="o">=</span> <span class="n">current_data</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">chunk</span><span class="p">,</span> <span class="p">{})</span>
+    <span class="k">return</span> <span class="n">current_data</span></div>
+
+
+<div class="viewcode-block" id="save_dotted_field"><a class="viewcode-back" href="../../minedatabase.html#minedatabase.utils.save_dotted_field">[docs]</a><span class="k">def</span> <span class="nf">save_dotted_field</span><span class="p">(</span><span class="n">accessor_string</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Saves data to a dictionary using a dotted accessor-string</span>
+<span class="sd">    </span>
+<span class="sd">    :param accessor_string: A dotted path description i.e. &quot;DBLinks.KEGG&quot;</span>
+<span class="sd">    :type accessor_string: str</span>
+<span class="sd">    :param data: The value to be stored</span>
+<span class="sd">    :return: A nested dictionary</span>
+<span class="sd">    :rtype: dict</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">for</span> <span class="n">chunk</span> <span class="ow">in</span> <span class="n">accessor_string</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">)[::</span><span class="o">-</span><span class="mi">1</span><span class="p">]:</span>
+        <span class="n">data</span> <span class="o">=</span> <span class="p">{</span><span class="n">chunk</span><span class="p">:</span> <span class="n">data</span><span class="p">}</span>
+    <span class="k">return</span> <span class="n">data</span></div>
+
+
+<div class="viewcode-block" id="memoize"><a class="viewcode-back" href="../../minedatabase.html#minedatabase.utils.memoize">[docs]</a><span class="k">def</span> <span class="nf">memoize</span><span class="p">(</span><span class="n">f</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Memoization decorator for a function taking one or more arguments. &quot;&quot;&quot;</span>
+    <span class="k">class</span> <span class="nc">memodict</span><span class="p">(</span><span class="nb">dict</span><span class="p">):</span>
+        <span class="k">def</span> <span class="nf">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">key</span><span class="p">):</span>
+            <span class="k">return</span> <span class="nb">dict</span><span class="o">.</span><span class="n">__getitem__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">)</span>
+
+        <span class="k">def</span> <span class="nf">__missing__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">key</span><span class="p">):</span>
+            <span class="n">ret</span> <span class="o">=</span> <span class="bp">self</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">f</span><span class="p">(</span><span class="o">*</span><span class="n">key</span><span class="p">)</span>
+            <span class="k">return</span> <span class="n">ret</span>
+    <span class="k">return</span> <span class="n">memodict</span><span class="p">()</span><span class="o">.</span><span class="n">__getitem__</span></div>
+
+
+<div class="viewcode-block" id="prevent_overwrite"><a class="viewcode-back" href="../../minedatabase.html#minedatabase.utils.prevent_overwrite">[docs]</a><span class="k">def</span> <span class="nf">prevent_overwrite</span><span class="p">(</span><span class="n">write_path</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Prevents overwrite of existing output files by appending &quot;_new&quot; when</span>
+<span class="sd">    needed</span>
+<span class="sd">    </span>
+<span class="sd">    :param write_path: potential write path</span>
+<span class="sd">    :type write_path: string</span>
+<span class="sd">    :return: new write path</span>
+<span class="sd">    :rtype: str</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">while</span> <span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">write_path</span><span class="p">):</span>
+        <span class="n">sp</span> <span class="o">=</span> <span class="n">write_path</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;.&#39;</span><span class="p">)</span>
+        <span class="c1"># Make sure that files without an extension are still valid (otherwise,</span>
+        <span class="c1"># split would create a list of one string which would give an index</span>
+        <span class="c1"># error when sp[-2] is called)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">sp</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">sp</span><span class="p">[</span><span class="o">-</span><span class="mi">2</span><span class="p">]</span> <span class="o">+=</span> <span class="s1">&#39;_new&#39;</span>
+            <span class="n">write_path</span> <span class="o">=</span> <span class="s1">&#39;.&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">sp</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">write_path</span> <span class="o">+=</span> <span class="s1">&#39;_new&#39;</span>
+    <span class="k">return</span> <span class="n">write_path</span></div>
+
+
+<div class="viewcode-block" id="approximate_matches"><a class="viewcode-back" href="../../minedatabase.html#minedatabase.utils.approximate_matches">[docs]</a><span class="k">def</span> <span class="nf">approximate_matches</span><span class="p">(</span><span class="n">list1</span><span class="p">,</span> <span class="n">list2</span><span class="p">,</span> <span class="n">epsilon</span><span class="o">=</span><span class="mf">0.01</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Takes two list of tuples and searches for matches of tuples first value</span>
+<span class="sd">    within the supplied epsilon. Emits tuples with the tuples second values</span>
+<span class="sd">    where found. if a value in one dist does not match the other list, it is</span>
+<span class="sd">    emitted alone.</span>
+<span class="sd">    </span>
+<span class="sd">    :param list1: first list of tuples</span>
+<span class="sd">    :type list1: list</span>
+<span class="sd">    :param list2: second list of tuples</span>
+<span class="sd">    :type list2: list</span>
+<span class="sd">    :param epsilon: maximum difference in</span>
+<span class="sd">    :type epsilon: float</span>
+<span class="sd">    :return: second values of tuples</span>
+<span class="sd">    :rtype: generator</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">list1</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
+    <span class="n">list2</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
+    <span class="n">list1_index</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">list2_index</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="k">while</span> <span class="n">list1_index</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">list1</span><span class="p">)</span> <span class="ow">or</span> <span class="n">list2_index</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">list2</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">list1_index</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">list1</span><span class="p">):</span>
+            <span class="k">yield</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">list2</span><span class="p">[</span><span class="n">list2_index</span><span class="p">][</span><span class="mi">1</span><span class="p">])</span>
+            <span class="n">list2_index</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="n">list2_index</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">list2</span><span class="p">):</span>
+            <span class="k">yield</span> <span class="p">(</span><span class="n">list1</span><span class="p">[</span><span class="n">list1_index</span><span class="p">][</span><span class="mi">1</span><span class="p">],</span> <span class="mi">0</span><span class="p">)</span>
+            <span class="n">list1_index</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="k">continue</span>
+
+        <span class="n">list1_element</span> <span class="o">=</span> <span class="n">list1</span><span class="p">[</span><span class="n">list1_index</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">list2_element</span> <span class="o">=</span> <span class="n">list2</span><span class="p">[</span><span class="n">list2_index</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="n">difference</span> <span class="o">=</span> <span class="nb">abs</span><span class="p">(</span><span class="n">list1_element</span> <span class="o">-</span> <span class="n">list2_element</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">difference</span> <span class="o">&lt;</span> <span class="n">epsilon</span><span class="p">:</span>
+            <span class="k">yield</span> <span class="p">(</span><span class="n">list1</span><span class="p">[</span><span class="n">list1_index</span><span class="p">][</span><span class="mi">1</span><span class="p">],</span> <span class="n">list2</span><span class="p">[</span><span class="n">list2_index</span><span class="p">][</span><span class="mi">1</span><span class="p">])</span>
+            <span class="n">list1_index</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="n">list2_index</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">elif</span> <span class="n">list1_element</span> <span class="o">&lt;</span> <span class="n">list2_element</span><span class="p">:</span>
+            <span class="k">yield</span> <span class="p">(</span><span class="n">list1</span><span class="p">[</span><span class="n">list1_index</span><span class="p">][</span><span class="mi">1</span><span class="p">],</span> <span class="mi">0</span><span class="p">)</span>
+            <span class="n">list1_index</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">elif</span> <span class="n">list2_element</span> <span class="o">&lt;</span> <span class="n">list1_element</span><span class="p">:</span>
+            <span class="k">yield</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="n">list2</span><span class="p">[</span><span class="n">list2_index</span><span class="p">][</span><span class="mi">1</span><span class="p">])</span>
+            <span class="n">list2_index</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">AssertionError</span><span class="p">(</span><span class="s1">&#39;Unexpected else taken&#39;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="dict_merge"><a class="viewcode-back" href="../../minedatabase.html#minedatabase.utils.dict_merge">[docs]</a><span class="k">def</span> <span class="nf">dict_merge</span><span class="p">(</span><span class="n">finaldict</span><span class="p">,</span> <span class="n">sourcedict</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Merges two dictionaries using sets to avoid duplication of values&quot;&quot;&quot;</span>
+    <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">sourcedict</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">key</span> <span class="ow">in</span> <span class="n">finaldict</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">finaldict</span><span class="p">[</span><span class="n">key</span><span class="p">],</span> <span class="nb">list</span><span class="p">):</span>
+            <span class="n">finaldict</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">finaldict</span><span class="p">[</span><span class="n">key</span><span class="p">])</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">finaldict</span><span class="p">:</span>
+                <span class="n">finaldict</span><span class="p">[</span><span class="n">key</span><span class="p">]</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">finaldict</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">finaldict</span><span class="p">:</span>
+                <span class="n">finaldict</span><span class="p">[</span><span class="n">key</span><span class="p">]</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">finaldict</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+                <span class="n">finaldict</span><span class="p">[</span><span class="n">key</span><span class="p">]</span><span class="o">.</span><span class="n">update</span><span class="p">(</span><span class="n">val</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="nb">float</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">key</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">finaldict</span><span class="p">:</span>
+                <span class="n">finaldict</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">val</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">finaldict</span><span class="p">:</span>
+                <span class="n">finaldict</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+            <span class="n">dict_merge</span><span class="p">(</span><span class="n">finaldict</span><span class="p">[</span><span class="n">key</span><span class="p">],</span> <span class="n">val</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="rxn2hash"><a class="viewcode-back" href="../../minedatabase.html#minedatabase.utils.rxn2hash">[docs]</a><span class="k">def</span> <span class="nf">rxn2hash</span><span class="p">(</span><span class="n">reactants</span><span class="p">,</span> <span class="n">products</span><span class="p">,</span> <span class="n">return_text</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Hashes reactant and product lists&quot;&quot;&quot;</span>
+    <span class="c1"># Get text reaction to be hashed</span>
+    <span class="k">def</span> <span class="nf">to_str</span><span class="p">(</span><span class="n">half_rxn</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">[</span><span class="s1">&#39;(</span><span class="si">%s</span><span class="s1">) </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="k">if</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span>
+                                             <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="nb">str</span><span class="p">))</span>
+                <span class="k">else</span> <span class="s1">&#39;(1) </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="n">x</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">half_rxn</span><span class="p">)]</span>
+
+    <span class="n">text_rxn</span> <span class="o">=</span> <span class="s1">&#39; + &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">to_str</span><span class="p">(</span><span class="n">reactants</span><span class="p">))</span> <span class="o">+</span> <span class="s1">&#39; =&gt; &#39;</span> <span class="o">+</span> \
+               <span class="s1">&#39; + &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">to_str</span><span class="p">(</span><span class="n">products</span><span class="p">))</span>
+    <span class="c1"># Hash text reaction</span>
+    <span class="n">rhash</span> <span class="o">=</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">sha256</span><span class="p">(</span><span class="n">text_rxn</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">return_text</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">rhash</span><span class="p">,</span> <span class="n">text_rxn</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">rhash</span></div>
+
+
+<span class="k">def</span> <span class="nf">_calculate_rxn_hash</span><span class="p">(</span><span class="n">db</span><span class="p">,</span> <span class="n">reactants</span><span class="p">,</span> <span class="n">products</span><span class="p">):</span>
+        <span class="sd">&quot;&quot;&quot;Calculates a unique reaction hash using inchikeys. First block is</span>
+<span class="sd">        connectivity only, second block is stereo only&quot;&quot;&quot;</span>
+
+        <span class="k">def</span> <span class="nf">__get_blocks</span><span class="p">(</span><span class="n">tups</span><span class="p">):</span>
+            <span class="n">first_block</span><span class="p">,</span> <span class="n">second_block</span> <span class="o">=</span> <span class="p">[],</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">tups</span><span class="p">:</span>
+                <span class="n">comp</span> <span class="o">=</span> <span class="n">db</span><span class="o">.</span><span class="n">compounds</span><span class="o">.</span><span class="n">find_one</span><span class="p">({</span><span class="s2">&quot;_id&quot;</span><span class="p">:</span> <span class="n">x</span><span class="o">.</span><span class="n">c_id</span><span class="p">})</span>
+                <span class="k">if</span> <span class="n">comp</span> <span class="ow">and</span> <span class="n">comp</span><span class="p">[</span><span class="s2">&quot;Inchikey&quot;</span><span class="p">]:</span>
+                    <span class="n">split_inchikey</span> <span class="o">=</span> <span class="n">comp</span><span class="p">[</span><span class="s2">&quot;Inchikey&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s1">&#39;-&#39;</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">split_inchikey</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+                        <span class="n">first_block</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">,</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span>
+                                           <span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">stoich</span><span class="p">,</span> <span class="n">split_inchikey</span><span class="p">[</span><span class="mi">0</span><span class="p">]))</span>
+                        <span class="n">second_block</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;</span><span class="si">%s</span><span class="s2">,</span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span>
+                                            <span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">stoich</span><span class="p">,</span> <span class="n">split_inchikey</span><span class="p">[</span><span class="mi">1</span><span class="p">]))</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;No Inchikey for </span><span class="si">%s</span><span class="s2">&quot;</span> <span class="o">%</span> <span class="n">x</span><span class="o">.</span><span class="n">c_id</span><span class="p">)</span>
+            <span class="k">return</span> <span class="s2">&quot;+&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">first_block</span><span class="p">),</span> <span class="s2">&quot;+&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">second_block</span><span class="p">)</span>
+
+        <span class="n">reactants</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
+        <span class="n">products</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
+        <span class="n">r_1</span><span class="p">,</span> <span class="n">r_2</span> <span class="o">=</span> <span class="n">__get_blocks</span><span class="p">(</span><span class="n">reactants</span><span class="p">)</span>
+        <span class="n">p_1</span><span class="p">,</span> <span class="n">p_2</span> <span class="o">=</span> <span class="n">__get_blocks</span><span class="p">(</span><span class="n">products</span><span class="p">)</span>
+        <span class="n">first_block</span> <span class="o">=</span> <span class="n">r_1</span> <span class="o">+</span> <span class="s1">&#39;&lt;==&gt;&#39;</span> <span class="o">+</span> <span class="n">p_1</span>
+        <span class="n">second_block</span> <span class="o">=</span> <span class="n">r_2</span> <span class="o">+</span> <span class="s1">&#39;&lt;==&gt;&#39;</span> <span class="o">+</span> <span class="n">p_2</span>
+        <span class="k">return</span> <span class="n">hashlib</span><span class="o">.</span><span class="n">sha256</span><span class="p">(</span><span class="n">first_block</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">()</span> <span class="o">+</span> <span class="s2">&quot;-&quot;</span> <span class="o">+</span> \
+            <span class="n">hashlib</span><span class="o">.</span><span class="n">md5</span><span class="p">(</span><span class="n">second_block</span><span class="o">.</span><span class="n">encode</span><span class="p">())</span><span class="o">.</span><span class="n">hexdigest</span><span class="p">()</span>
+
+
+<div class="viewcode-block" id="parse_text_rxn"><a class="viewcode-back" href="../../minedatabase.html#minedatabase.utils.parse_text_rxn">[docs]</a><span class="k">def</span> <span class="nf">parse_text_rxn</span><span class="p">(</span><span class="n">rxn</span><span class="p">,</span> <span class="n">rp_del</span><span class="p">,</span> <span class="n">cp_del</span><span class="p">,</span> <span class="n">translation_dict</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Makes a list of product and reactant stoich_tuples&quot;&quot;&quot;</span>
+
+    <span class="k">def</span> <span class="nf">parse_half</span><span class="p">(</span><span class="n">half_rxn</span><span class="p">,</span> <span class="n">td</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">translation_dict</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[</span><span class="n">stoich_tuple</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">td</span><span class="p">[</span><span class="n">x</span><span class="o">.</span><span class="n">strip</span><span class="p">()])</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">split</span><span class="p">())</span> <span class="o">==</span> <span class="mi">1</span>
+                    <span class="k">else</span> <span class="n">stoich_tuple</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">split</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">(</span><span class="s1">&#39;()&#39;</span><span class="p">)),</span>
+                                      <span class="n">td</span><span class="p">[</span><span class="n">x</span><span class="o">.</span><span class="n">split</span><span class="p">()[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">()])</span>
+                    <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">half_rxn</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">cp_del</span><span class="p">)]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">[</span><span class="n">stoich_tuple</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">x</span><span class="o">.</span><span class="n">strip</span><span class="p">())</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">split</span><span class="p">())</span> <span class="o">==</span> <span class="mi">1</span>
+                    <span class="k">else</span> <span class="n">stoich_tuple</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">split</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">(</span><span class="s1">&#39;()&#39;</span><span class="p">)),</span>
+                                      <span class="n">x</span><span class="o">.</span><span class="n">split</span><span class="p">()[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">strip</span><span class="p">())</span>
+                    <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">half_rxn</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">cp_del</span><span class="p">)]</span>
+
+    <span class="k">return</span> <span class="p">[</span><span class="n">parse_half</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">translation_dict</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">rxn</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">rp_del</span><span class="p">)]</span></div>
+
+
+<span class="n">_reactions</span> <span class="o">=</span> <span class="kc">None</span>
+<div class="viewcode-block" id="neutralise_charges"><a class="viewcode-back" href="../../minedatabase.html#minedatabase.utils.neutralise_charges">[docs]</a><span class="k">def</span> <span class="nf">neutralise_charges</span><span class="p">(</span><span class="n">mol</span><span class="p">,</span> <span class="n">reactions</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="k">def</span> <span class="nf">_InitialiseNeutralisationReactions</span><span class="p">():</span>
+        <span class="n">patts</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="c1"># Imidazoles</span>
+            <span class="p">(</span><span class="s1">&#39;[n+;H]&#39;</span><span class="p">,</span> <span class="s1">&#39;n&#39;</span><span class="p">),</span>
+            <span class="c1"># Amines</span>
+            <span class="p">(</span><span class="s1">&#39;[N+;!H0]&#39;</span><span class="p">,</span> <span class="s1">&#39;N&#39;</span><span class="p">),</span>
+            <span class="c1"># Carboxylic acids and alcohols</span>
+            <span class="p">(</span><span class="s1">&#39;[$([O-]);!$([O-][#7])]&#39;</span><span class="p">,</span> <span class="s1">&#39;O&#39;</span><span class="p">),</span>
+            <span class="c1"># Thiols</span>
+            <span class="p">(</span><span class="s1">&#39;[S-;X1]&#39;</span><span class="p">,</span> <span class="s1">&#39;S&#39;</span><span class="p">),</span>
+            <span class="c1"># Sulfonamides</span>
+            <span class="p">(</span><span class="s1">&#39;[$([N-;X2]S(=O)=O)]&#39;</span><span class="p">,</span> <span class="s1">&#39;N&#39;</span><span class="p">),</span>
+            <span class="c1"># Enamines</span>
+            <span class="p">(</span><span class="s1">&#39;[$([N-;X2][C,N]=C)]&#39;</span><span class="p">,</span> <span class="s1">&#39;N&#39;</span><span class="p">),</span>
+            <span class="c1"># Tetrazoles</span>
+            <span class="p">(</span><span class="s1">&#39;[n-]&#39;</span><span class="p">,</span> <span class="s1">&#39;[nH]&#39;</span><span class="p">),</span>
+            <span class="c1"># Sulfoxides</span>
+            <span class="p">(</span><span class="s1">&#39;[$([S-]=O)]&#39;</span><span class="p">,</span> <span class="s1">&#39;S&#39;</span><span class="p">),</span>
+            <span class="c1"># Amides</span>
+            <span class="p">(</span><span class="s1">&#39;[$([N-]C=O)]&#39;</span><span class="p">,</span> <span class="s1">&#39;N&#39;</span><span class="p">),</span>
+
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="p">[(</span><span class="n">AllChem</span><span class="o">.</span><span class="n">MolFromSmarts</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="n">AllChem</span><span class="o">.</span><span class="n">MolFromSmiles</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="kc">False</span><span class="p">))</span>
+                <span class="k">for</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span> <span class="ow">in</span> <span class="n">patts</span><span class="p">]</span>
+
+    <span class="k">global</span> <span class="n">_reactions</span>
+    <span class="k">if</span> <span class="n">reactions</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">_reactions</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">_reactions</span> <span class="o">=</span> <span class="n">_InitialiseNeutralisationReactions</span><span class="p">()</span>
+        <span class="n">reactions</span> <span class="o">=</span> <span class="n">_reactions</span>
+    <span class="k">for</span> <span class="p">(</span><span class="n">reactant</span><span class="p">,</span> <span class="n">product</span><span class="p">)</span> <span class="ow">in</span> <span class="n">reactions</span><span class="p">:</span>
+        <span class="k">while</span> <span class="n">mol</span><span class="o">.</span><span class="n">HasSubstructMatch</span><span class="p">(</span><span class="n">reactant</span><span class="p">):</span>
+            <span class="n">rms</span> <span class="o">=</span> <span class="n">AllChem</span><span class="o">.</span><span class="n">ReplaceSubstructs</span><span class="p">(</span><span class="n">mol</span><span class="p">,</span> <span class="n">reactant</span><span class="p">,</span> <span class="n">product</span><span class="p">)</span>
+            <span class="n">mol</span> <span class="o">=</span> <span class="n">rms</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">mol</span></div>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, James Jeffryes.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.5.4</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.7</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

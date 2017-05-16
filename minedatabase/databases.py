@@ -104,23 +104,22 @@ class MINE:
     def generate_image_files(self, path, query=None, dir_depth=0,
                              img_type='svg:-a,nosource,w500,h500',
                              convert_r=False):
-        """
-        Generates image files for compounds in database using ChemAxon's
+        """Generates image files for compounds in database using ChemAxon's
         MolConvert.
 
         :param path: Target directory for image files
-        :type path: string
+        :type path: str
         :param query: A query to limit the number of files generated
         :type query: dict
         :param dir_depth: The number of directory levels to split the
-        compounds into for files system efficiency. Ranges from 0 (all in
-        top level directory to the length of the file name (40 for MINE hashes)
+            compounds into for files system efficiency. Ranges from 0 (all in
+            top level directory to the length of the file name (40 for MINE
+            hashes)
         :type dir_depth: int
         :param img_type: The type of image file to be generated. See molconvert
-        documentation for valid options
-        :type img_type: string
-        :return:
-        :rtype:
+            documentation for valid options
+        :type img_type: str
+
         """
         ids = []
         extension = img_type.split(":")[0]
@@ -182,21 +181,22 @@ class MINE:
 
     def link_to_external_database(self, external_database, compound=None,
                                   match_field="Inchikey", fields_to_copy=None):
-        """
-        This function looks for matching compounds in other databases (i.e.
+        """This function looks for matching compounds in other databases (i.e.
         PubChem) and adds links where found.
 
-        :param external_database: String, the name of the database to search
-        for matching compounds
-        :param compound: Dict, the compound to search for external links. If
-        none, link all compounds in the database.
-        :param match_field: String, The field to search on for matching
-        compounds
-        :param fields_to_copy: List of tuples, data to copy into the mine
-        database. The first field is the field name in the external database.
-        The second field is the field name in the MINE database where the data
-        will be copied.
-        :return:
+        :param external_database: The name of the database to search for
+            matching compounds
+        :type external_database: str
+        :param compound: The compound to search for external links. If none,
+            link all compounds in the database.
+        :type compound: dict
+        :param match_field: The field to search on for matching compounds
+        :type match_field: str
+        :param fields_to_copy: Data to copy into the mine database. The first
+            field is the field name in the external database. The second field
+            is the field name in the MINE database where the data will be
+            copied.
+        :type fields_to_copy: list(tuple)
         """
         if compound:
             ext = MINE(external_database)
@@ -224,26 +224,26 @@ class MINE:
     def insert_compound(self, mol_object, compound_dict=None, bulk=None,
                         kegg_db="KEGG", pubchem_db='PubChem-8-28-2015',
                         modelseed_db='ModelSEED'):
-        """
-        This class saves a RDKit Molecule as a compound entry in the MINE.
+        """This class saves a RDKit Molecule as a compound entry in the MINE.
         Calculates necessary fields for API and includes additional
         information passed in the compound dict. Overwrites preexisting
         compounds in MINE on _id collision.
+        
         :param mol_object: The compound to be stored
         :type mol_object: RDKit Mol object
         :param compound_dict: Additional information about the compound to be
-        stored. Overwritten by calculated values.
+            stored. Overwritten by calculated values.
         :type compound_dict: dict
-        :param bulk:
-        :type bulk:
-        :param kegg_db:
-        :type kegg_db:
-        :param pubchem_db:
-        :type pubchem_db:
-        :param modelseed_db:
-        :type modelseed_db:
-        :return:
-        :rtype:
+        :param bulk: A pymongo bulk operation object. If None, reaction is
+         immediately inserted in the database
+        :param kegg_db: The ID of the KEGG Mongo database
+        :type kegg_db: str
+        :param pubchem_db: The ID of the PubChem Mongo database
+        :type pubchem_db: str
+        :param modelseed_db: The ID of the ModelSEED Mongo database
+        :type modelseed_db: str
+        :return: The hashed _id of the compound
+        :rtype: str
         """
 
         if compound_dict is None:
@@ -339,6 +339,17 @@ class MINE:
         return compound_dict['_id']
 
     def insert_reaction(self, reaction_dict, bulk=None):
+        """Inserts a reaction into the MINE database and returns _id of the
+         reaction in the mine database.
+        
+        :param reaction_dict: A dictionary containing "Reactants" and
+         "Products" lists of stoich_tuples
+        :type reaction_dict: dict
+        :param bulk: A pymongo bulk operation object. If None, reaction is
+         immediately inserted in the database
+        :return: The hashed _id of the reaction
+        :rtype: str
+        """
         reaction_dict['_id'] = utils.rxn2hash(reaction_dict['Reactants'],
                                               reaction_dict['Products'])
 
