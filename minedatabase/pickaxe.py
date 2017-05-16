@@ -23,8 +23,7 @@ class Pickaxe:
     def __init__(self, rule_list=None, coreactant_list=None, explicit_h=True,
                  kekulize=True, neutralise=True, errors=True,
                  racemize=False, database=None, image_dir=None):
-        """
-        This class generates new compounds from user-specified starting
+        """This class generates new compounds from user-specified starting
         compounds using a set of SMARTS-based reaction rules. It may be
         initialized with a text file containing the reaction rules and
         coreactants or this may be done on an ad hock basis.
@@ -38,12 +37,12 @@ class Pickaxe:
         :param kekulize: Kekulize structures before applying reaction rules
         :type kekulize: bool
         :param neutralise: Remove charges on structure before applying reaction
-        rules
+            rules
         :type neutralise: bool
         :param errors: Print underlying RDKit warnings and halt on error
         :type errors: bool
         :param racemize: Enumerate all possible chiral forms of a molecule if
-        unspecified stereocenters exist
+            unspecified stereocenters exist
         :type racemize: bool
         :param database: Name of desired Mongo Database
         :type database: str
@@ -92,12 +91,10 @@ class Pickaxe:
     def _load_coreactant(self, coreactant_text):
         """
         Loads a coreactant into the coreactant dictionary from a tab-delimited
-        string
+            string
         :param coreactant_text: tab-delimited string with the compound name and
-        SMILES
+            SMILES
         :type coreactant_text: basestring
-        :return:
-        :rtype:
         """
         # If coreactant is commented out (with '#') then don't import
         if coreactant_text[0] == "#":
@@ -127,12 +124,10 @@ class Pickaxe:
         self.coreactants[split_text[0]] = (mol, _id,)
 
     def load_rxn_rules(self, rule_path):
-        """
-        Loads all reaction rules from file_path into rxn_rule dict.
+        """Loads all reaction rules from file_path into rxn_rule dict.
+        
         :param rule_path: path to file
         :type rule_path: str
-        :return:
-        :rtype:
         """
         with open(rule_path) as infile:
             # Get all reaction rules from tsv file and store in dictionary (rdr)
@@ -170,17 +165,17 @@ class Pickaxe:
 
     def load_compound_set(self, compound_file=None, structure_field='structure',
                           id_field='id', fragmented_mols=False):
-        """
-        If a compound file is provided, this function loads the compounds
+        """If a compound file is provided, this function loads the compounds
         into it's internal dictionary. If not, it attempts to find the
         compounds in it's associated MINE database.
+        
         :param compound_file: Path to a file containing compounds as tsv
         :type compound_file: basestring
         :param structure_field: the name of the column containing the
-        structure incarnation as Inchi or SMILES (Default:'structure')
+            structure incarnation as Inchi or SMILES (Default:'structure')
         :type structure_field: str
         :param id_field: the name of the column containing the desired
-        compound ID (Default: 'id)
+            compound ID (Default: 'id)
         :type id_field: str
         :param fragmented_mols: Permit the loading of disconnected molecules
         :type fragmented_mols: bool
@@ -275,17 +270,17 @@ class Pickaxe:
         return _id
 
     def transform_compound(self, compound_SMILES, rules=None):
-        """
-        Perform transformations to a compound returning the products and the
+        """Perform transformations to a compound returning the products and the
         predicted reactions
+        
         :param compound_SMILES: The compound on which to operate represented
-        as SMILES
+            as SMILES
         :type compound_SMILES: string
         :param rules: The names of the reaction rules to apply. If none,
-        all rules in the pickaxe's dict will be used.
+            all rules in the pickaxe's dict will be used.
         :type rules: list
         :return: Transformed compounds as tuple of id and SMILES string and
-        reactions as a tuple of reactants & products
+            reactions as a tuple of reactants & products
         :rtype: tuple of lists
         """
         # These sets collect predictions if this function is being used in
@@ -525,17 +520,14 @@ class Pickaxe:
             self.reactions[rxn['_id']] = rxn
 
     def transform_all(self, num_workers=1, max_generations=1):
-        """
-        This function applies all of the reaction rules to all the compounds
+        """This function applies all of the reaction rules to all the compounds
         until the generation cap is reached.
 
         :param num_workers: The number of CPUs to for the expansion process.
         :type num_workers: int
         :param max_generations: The maximum number of times an reaction rule
-        may be applied
+            may be applied
         :type max_generations: int
-        :return:
-        :rtype:
         """
         while self.generation < max_generations:
             self.generation += 1
@@ -582,14 +574,12 @@ class Pickaxe:
                    len(self.reactions) - n_rxns, time.time()-ti))
 
     def write_compound_output_file(self, path, delimiter='\t'):
-        """
-        Writes all compound data to the specified path.
+        """Writes all compound data to the specified path.
+        
         :param path: path to output
         :type path: basestring
         :param delimiter: the character with which to separate data entries
         :type delimiter: basestring
-        :return:
-        :rtype:
         """
         path = utils.prevent_overwrite(path)
         with open(path, 'w') as outfile:
@@ -599,14 +589,12 @@ class Pickaxe:
                                               c['SMILES']])+'\n')
 
     def write_reaction_output_file(self, path, delimiter='\t'):
-        """
-        Writes all reaction data to the specified path.
+        """Writes all reaction data to the specified path.
+        
         :param path: path to output
         :type path: basestring
         :param delimiter: the character with which to separate data entries
         :type delimiter: basestring
-        :return:
-        :rtype:
         """
         path = utils.prevent_overwrite(path)
         with open(path, 'w') as outfile:
@@ -619,12 +607,10 @@ class Pickaxe:
                               + '\n')
 
     def save_to_MINE(self, db_id):
-        """
-        Save compounds to a MINE database.
+        """Save compounds to a MINE database.
+        
         :param db_id: The name of the target database
         :type db_id: basestring
-        :return:
-        :rtype:
         """
         db = MINE(db_id)
         self.compounds = dict(self.compounds)
@@ -672,15 +658,15 @@ class Pickaxe:
 
 
 def _racemization(compound, max_centers=3, carbon_only=True):
-    """
-    Enumerates all possible stereoisomers for unassigned chiral centers.
+    """Enumerates all possible stereoisomers for unassigned chiral centers.
+    
     :param compound: A compound
     :type compound: rdMol object
     :param max_centers: The maximum number of unspecified stereocenters to
-    enumerate. Sterioisomers grow 2^n_centers so this cutoff prevents lag
+        enumerate. Sterioisomers grow 2^n_centers so this cutoff prevents lag
     :type max_centers: int
     :param carbon_only: Only enumerate unspecified carbon centers. (other
-    centers are often not tautomeric artifacts)
+        centers are often not tautomeric artifacts)
     :type carbon_only: bool
     :return: list of stereoisomers
     :rtype: list of rdMol objects

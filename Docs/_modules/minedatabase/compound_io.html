@@ -1,0 +1,474 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>minedatabase.compound_io &#8212; MINE Databases 1.0 documentation</title>
+    
+    <link rel="stylesheet" href="../../_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true,
+        SOURCELINK_SUFFIX: '.txt'
+      };
+    </script>
+    <script type="text/javascript" src="../../_static/jquery.js"></script>
+    <script type="text/javascript" src="../../_static/underscore.js"></script>
+    <script type="text/javascript" src="../../_static/doctools.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head>
+  <body role="document">  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body" role="main">
+            
+  <h1>Source code for minedatabase.compound_io</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Compound_io.py: Functions to load MINE databases from and dump compounds</span>
+<span class="sd">into common cheminformatics formats&quot;&quot;&quot;</span>
+<span class="kn">import</span> <span class="nn">csv</span>
+<span class="kn">import</span> <span class="nn">datetime</span>
+<span class="kn">import</span> <span class="nn">os</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+<span class="kn">import</span> <span class="nn">collections</span>
+
+<span class="kn">from</span> <span class="nn">minedatabase</span> <span class="k">import</span> <span class="n">utils</span>
+<span class="kn">from</span> <span class="nn">minedatabase.databases</span> <span class="k">import</span> <span class="n">MINE</span>
+<span class="kn">from</span> <span class="nn">rdkit.Chem</span> <span class="k">import</span> <span class="n">AllChem</span>
+
+
+<div class="viewcode-block" id="export_sdf"><a class="viewcode-back" href="../../minedatabase.html#minedatabase.compound_io.export_sdf">[docs]</a><span class="k">def</span> <span class="nf">export_sdf</span><span class="p">(</span><span class="n">mine_db</span><span class="p">,</span> <span class="n">dir_path</span><span class="p">,</span> <span class="n">max_compounds</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Exports compounds from the database as an MDL SDF file</span>
+<span class="sd">    </span>
+<span class="sd">    :param mine_db: a MINE object</span>
+<span class="sd">    :param dir_path: directory for files</span>
+<span class="sd">    :param max_compounds: maximum number of compounds per file (defaults to</span>
+<span class="sd">         unlimited)</span>
+<span class="sd">    :return:</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Make sure that all compounds point to all their reactants</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">mine_db</span><span class="o">.</span><span class="n">compounds</span><span class="o">.</span><span class="n">find_one</span><span class="p">({</span><span class="s2">&quot;Product_of&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;$exists&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">}}):</span>
+        <span class="n">mine_db</span><span class="o">.</span><span class="n">add_rxn_pointers</span><span class="p">()</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Exporting </span><span class="si">%s</span><span class="s2"> compounds from </span><span class="si">%s</span><span class="s2"> as an SDF file&quot;</span> <span class="o">%</span>
+          <span class="p">(</span><span class="n">mine_db</span><span class="o">.</span><span class="n">compounds</span><span class="o">.</span><span class="n">count</span><span class="p">(),</span> <span class="n">mine_db</span><span class="o">.</span><span class="n">name</span><span class="p">))</span>
+    <span class="n">target</span> <span class="o">=</span> <span class="n">utils</span><span class="o">.</span><span class="n">prevent_overwrite</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">dir_path</span><span class="p">,</span> <span class="n">mine_db</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+                                     <span class="o">+</span> <span class="s2">&quot;_1.sdf&quot;</span><span class="p">)</span>
+    <span class="c1"># SDWriter (rdkit) writes Mol objects to SD files</span>
+    <span class="n">w</span> <span class="o">=</span> <span class="n">AllChem</span><span class="o">.</span><span class="n">SDWriter</span><span class="p">(</span><span class="n">target</span><span class="p">)</span>
+    <span class="n">w</span><span class="o">.</span><span class="n">SetKekulize</span><span class="p">(</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">n_files</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="k">for</span> <span class="n">compound</span> <span class="ow">in</span> <span class="n">mine_db</span><span class="o">.</span><span class="n">compounds</span><span class="o">.</span><span class="n">find</span><span class="p">():</span>
+        <span class="c1"># Convert SMILES string to Mol object, replacing &#39;CoA&#39; and &#39;R&#39; by &#39;*&#39;</span>
+        <span class="n">mol</span> <span class="o">=</span> <span class="n">AllChem</span><span class="o">.</span><span class="n">MolFromSmiles</span><span class="p">(</span><span class="n">compound</span><span class="p">[</span><span class="s1">&#39;SMILES&#39;</span><span class="p">],</span> <span class="kc">True</span><span class="p">,</span>
+                                    <span class="p">{</span><span class="s1">&#39;CoA&#39;</span><span class="p">:</span> <span class="s1">&#39;*&#39;</span><span class="p">,</span> <span class="s1">&#39;R&#39;</span><span class="p">:</span> <span class="s2">&quot;*&quot;</span><span class="p">})</span>
+        <span class="c1"># if Mol object successfully generated, annotate properties</span>
+        <span class="k">if</span> <span class="n">mol</span><span class="p">:</span>
+            <span class="n">mol</span><span class="o">.</span><span class="n">SetProp</span><span class="p">(</span><span class="s1">&#39;_id&#39;</span><span class="p">,</span> <span class="n">compound</span><span class="p">[</span><span class="s1">&#39;_id&#39;</span><span class="p">])</span>
+            <span class="n">mol</span><span class="o">.</span><span class="n">SetProp</span><span class="p">(</span><span class="s1">&#39;Generation&#39;</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">compound</span><span class="p">[</span><span class="s1">&#39;Generation&#39;</span><span class="p">]))</span>
+            <span class="k">if</span> <span class="s1">&#39;Reactant_in&#39;</span> <span class="ow">in</span> <span class="n">compound</span><span class="p">:</span>
+                <span class="n">mol</span><span class="o">.</span><span class="n">SetProp</span><span class="p">(</span><span class="s1">&#39;Reactant_in&#39;</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">compound</span><span class="p">[</span><span class="s1">&#39;Reactant_in&#39;</span><span class="p">]))</span>
+            <span class="k">if</span> <span class="s1">&#39;Product_of&#39;</span> <span class="ow">in</span> <span class="n">compound</span><span class="p">:</span>
+                <span class="n">mol</span><span class="o">.</span><span class="n">SetProp</span><span class="p">(</span><span class="s1">&#39;Product_of&#39;</span><span class="p">,</span> <span class="nb">str</span><span class="p">(</span><span class="n">compound</span><span class="p">[</span><span class="s1">&#39;Product_of&#39;</span><span class="p">]))</span>
+            <span class="n">w</span><span class="o">.</span><span class="n">write</span><span class="p">(</span><span class="n">mol</span><span class="p">)</span>
+            <span class="c1"># Start writing a new sdf file if the maximum (set by user) has</span>
+            <span class="c1"># been reached for the current file</span>
+            <span class="k">if</span> <span class="n">max_compounds</span> <span class="ow">and</span> <span class="p">(</span><span class="n">w</span><span class="o">.</span><span class="n">NumMols</span><span class="p">()</span> <span class="o">&gt;=</span> <span class="n">max_compounds</span><span class="p">):</span>
+                <span class="n">n_files</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="n">target</span> <span class="o">=</span> <span class="n">utils</span><span class="o">.</span><span class="n">prevent_overwrite</span><span class="p">(</span>
+                    <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">dir_path</span><span class="p">,</span> <span class="n">mine_db</span><span class="o">.</span><span class="n">name</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;_</span><span class="si">%s</span><span class="s2">.sdf&quot;</span> <span class="o">%</span> <span class="n">n_files</span><span class="p">)</span>
+                <span class="n">w</span> <span class="o">=</span> <span class="n">AllChem</span><span class="o">.</span><span class="n">SmilesWriter</span><span class="p">(</span><span class="n">target</span><span class="p">)</span>
+    <span class="n">w</span><span class="o">.</span><span class="n">close</span><span class="p">()</span></div>
+
+
+<div class="viewcode-block" id="export_smiles"><a class="viewcode-back" href="../../minedatabase.html#minedatabase.compound_io.export_smiles">[docs]</a><span class="k">def</span> <span class="nf">export_smiles</span><span class="p">(</span><span class="n">mine_db</span><span class="p">,</span> <span class="n">dir_path</span><span class="p">,</span> <span class="n">max_compounds</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Exports compounds from the database as a SMILES file</span>
+<span class="sd">    </span>
+<span class="sd">    :param mine_db: a MINE object</span>
+<span class="sd">    :param dir_path: directory for files</span>
+<span class="sd">    :param max_compounds: maximum number of compounds per file (defaults to</span>
+<span class="sd">        unlimited)</span>
+<span class="sd">    :return:</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">header</span> <span class="o">=</span> <span class="p">[</span><span class="s1">&#39;SMILES&#39;</span><span class="p">,</span> <span class="s2">&quot;_id&quot;</span><span class="p">,</span> <span class="s2">&quot;Generation&quot;</span><span class="p">,</span> <span class="s1">&#39;Reactant_in&#39;</span><span class="p">,</span> <span class="s1">&#39;Product_of&#39;</span><span class="p">]</span>
+    <span class="c1"># Make sure that all compounds point to all their reactants</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">mine_db</span><span class="o">.</span><span class="n">compounds</span><span class="o">.</span><span class="n">find_one</span><span class="p">({</span><span class="s2">&quot;Product_of&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;$exists&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">}}):</span>
+        <span class="n">mine_db</span><span class="o">.</span><span class="n">add_rxn_pointers</span><span class="p">()</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Exporting </span><span class="si">%s</span><span class="s2"> compounds from </span><span class="si">%s</span><span class="s2"> as SMILES file&quot;</span> <span class="o">%</span>
+          <span class="p">(</span><span class="n">mine_db</span><span class="o">.</span><span class="n">compounds</span><span class="o">.</span><span class="n">count</span><span class="p">(),</span> <span class="n">mine_db</span><span class="o">.</span><span class="n">name</span><span class="p">))</span>
+    <span class="n">target</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="n">utils</span><span class="o">.</span><span class="n">prevent_overwrite</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">dir_path</span><span class="p">,</span> <span class="n">mine_db</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+                                          <span class="o">+</span> <span class="s2">&quot;_1.smiles&quot;</span><span class="p">),</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span>
+
+    <span class="c1"># DictWriter allows for each key:value pair of a dictionary to be written</span>
+    <span class="c1"># on its own row (by writerow)</span>
+    <span class="n">w</span> <span class="o">=</span> <span class="n">csv</span><span class="o">.</span><span class="n">DictWriter</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="n">fieldnames</span><span class="o">=</span><span class="n">header</span><span class="p">,</span> <span class="n">dialect</span><span class="o">=</span><span class="s1">&#39;excel-tab&#39;</span><span class="p">)</span>
+    <span class="n">n_files</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">i</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">compound</span> <span class="ow">in</span> <span class="n">mine_db</span><span class="o">.</span><span class="n">compounds</span><span class="o">.</span><span class="n">find</span><span class="p">({},</span> <span class="nb">dict</span><span class="p">([(</span><span class="n">x</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">header</span><span class="p">])):</span>
+        <span class="n">w</span><span class="o">.</span><span class="n">writerow</span><span class="p">(</span><span class="n">compound</span><span class="p">)</span>
+        <span class="n">i</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="c1"># If max compounds per file has been set by user and our number of</span>
+        <span class="c1"># compounds that we have written so far is divisible by the max number,</span>
+        <span class="c1"># then we start a new file</span>
+        <span class="k">if</span> <span class="n">max_compounds</span> <span class="ow">and</span> <span class="ow">not</span> <span class="p">(</span><span class="n">i</span> <span class="o">%</span> <span class="n">max_compounds</span><span class="p">):</span>
+            <span class="n">n_files</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="n">target</span> <span class="o">=</span> <span class="nb">open</span><span class="p">(</span><span class="n">utils</span><span class="o">.</span><span class="n">prevent_overwrite</span><span class="p">(</span>
+                <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">dir_path</span><span class="p">,</span> <span class="n">mine_db</span><span class="o">.</span><span class="n">name</span><span class="p">)</span> <span class="o">+</span> <span class="s2">&quot;_</span><span class="si">%s</span><span class="s2">.smiles&quot;</span> <span class="o">%</span> <span class="n">n_files</span><span class="p">),</span>
+                <span class="s1">&#39;w&#39;</span><span class="p">)</span>
+            <span class="n">w</span> <span class="o">=</span> <span class="n">csv</span><span class="o">.</span><span class="n">DictWriter</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="n">fieldnames</span><span class="o">=</span><span class="n">header</span><span class="p">,</span> <span class="n">dialect</span><span class="o">=</span><span class="s1">&#39;excel-tab&#39;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="export_mol"><a class="viewcode-back" href="../../minedatabase.html#minedatabase.compound_io.export_mol">[docs]</a><span class="k">def</span> <span class="nf">export_mol</span><span class="p">(</span><span class="n">mine_db</span><span class="p">,</span> <span class="n">target</span><span class="p">,</span> <span class="n">name_field</span><span class="o">=</span><span class="s1">&#39;_id&#39;</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Exports compounds from the database as MDL molfiles</span>
+<span class="sd">    </span>
+<span class="sd">    :param mine_db: The database to export</span>
+<span class="sd">    :type mine_db: a MINE object</span>
+<span class="sd">    :param target: a directory in which to place the files</span>
+<span class="sd">    :type target: str</span>
+<span class="sd">    :param name_field: the field to provide names for the mol files. Must be</span>
+<span class="sd">        unique &amp; universal</span>
+<span class="sd">    :type name_field: str</span>
+<span class="sd">    :return:</span>
+<span class="sd">    :rtype:</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># Create the file if it doesn&#39;t yet exist</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">(</span><span class="n">target</span><span class="p">):</span>
+        <span class="n">os</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">target</span><span class="p">)</span>
+
+    <span class="c1"># Let user know if an id does not exist for every compound in database</span>
+    <span class="k">if</span> <span class="n">mine_db</span><span class="o">.</span><span class="n">compounds</span><span class="o">.</span><span class="n">find</span><span class="p">()</span><span class="o">.</span><span class="n">count</span><span class="p">()</span> <span class="o">!=</span> <span class="n">mine_db</span><span class="o">.</span><span class="n">compounds</span><span class="o">.</span><span class="n">find</span><span class="p">(</span>
+            <span class="p">{</span><span class="n">name_field</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;$exists&#39;</span><span class="p">:</span> <span class="mi">1</span><span class="p">}})</span><span class="o">.</span><span class="n">count</span><span class="p">():</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;</span><span class="si">%s</span><span class="s1"> does not exist for every compound in the database&#39;</span>
+                         <span class="o">%</span> <span class="n">name_field</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">compound</span> <span class="ow">in</span> <span class="n">mine_db</span><span class="o">.</span><span class="n">compounds</span><span class="o">.</span><span class="n">find</span><span class="p">({</span><span class="s1">&#39;_id&#39;</span><span class="p">:</span> <span class="p">{</span><span class="s1">&#39;$regex&#39;</span><span class="p">:</span> <span class="s1">&#39;^C&#39;</span><span class="p">}}):</span>
+        <span class="c1"># Create Mol object from SMILES code for each compound using</span>
+        <span class="c1"># MolFromSmiles (rdkit). Take stereochemistry into account (True),</span>
+        <span class="c1"># and replace CoA and R with *.</span>
+        <span class="n">mol</span> <span class="o">=</span> <span class="n">AllChem</span><span class="o">.</span><span class="n">MolFromSmiles</span><span class="p">(</span><span class="n">compound</span><span class="p">[</span><span class="s1">&#39;SMILES&#39;</span><span class="p">],</span> <span class="kc">True</span><span class="p">,</span>
+                                    <span class="p">{</span><span class="s1">&#39;CoA&#39;</span><span class="p">:</span> <span class="s1">&#39;*&#39;</span><span class="p">,</span> <span class="s1">&#39;R&#39;</span><span class="p">:</span> <span class="s2">&quot;*&quot;</span><span class="p">})</span>
+        <span class="k">if</span> <span class="s2">&quot;.&quot;</span> <span class="ow">in</span> <span class="n">name_field</span><span class="p">:</span>
+            <span class="n">compound</span><span class="p">[</span><span class="n">name_field</span><span class="p">]</span> <span class="o">=</span> <span class="n">utils</span><span class="o">.</span><span class="n">get_dotted_field</span><span class="p">(</span><span class="n">compound</span><span class="p">,</span> <span class="n">name_field</span><span class="p">)</span>
+        <span class="c1"># Make things more compact and look nicer</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">compound</span><span class="p">[</span><span class="n">name_field</span><span class="p">],</span> <span class="nb">list</span><span class="p">):</span>
+            <span class="n">compound</span><span class="p">[</span><span class="n">name_field</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;,&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">compound</span><span class="p">[</span><span class="n">name_field</span><span class="p">])</span>
+        <span class="c1"># Use MolToMolFile (rdkit) to create a mol file from the Mol object</span>
+        <span class="c1"># with the file path specified.</span>
+        <span class="n">AllChem</span><span class="o">.</span><span class="n">MolToMolFile</span><span class="p">(</span><span class="n">mol</span><span class="p">,</span> <span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">target</span><span class="p">,</span>
+                                               <span class="n">compound</span><span class="p">[</span><span class="n">name_field</span><span class="p">]</span><span class="o">+</span><span class="s1">&#39;.mol&#39;</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="export_tsv"><a class="viewcode-back" href="../../minedatabase.html#minedatabase.compound_io.export_tsv">[docs]</a><span class="k">def</span> <span class="nf">export_tsv</span><span class="p">(</span><span class="n">mine_db</span><span class="p">,</span> <span class="n">target</span><span class="p">,</span> <span class="n">compound_fields</span><span class="o">=</span><span class="p">(</span><span class="s1">&#39;_id&#39;</span><span class="p">,</span> <span class="s1">&#39;Names&#39;</span><span class="p">,</span> <span class="s1">&#39;Model_SEED&#39;</span><span class="p">,</span>
+                                                 <span class="s1">&#39;Formula&#39;</span><span class="p">,</span> <span class="s1">&#39;Charge&#39;</span><span class="p">,</span> <span class="s1">&#39;Inchi&#39;</span><span class="p">),</span>
+               <span class="n">reaction_fields</span><span class="o">=</span><span class="p">(</span><span class="s1">&#39;_id&#39;</span><span class="p">,</span> <span class="s1">&#39;SMILES_rxn&#39;</span><span class="p">,</span> <span class="s1">&#39;C_id_rxn&#39;</span><span class="p">)):</span>
+    <span class="sd">&quot;&quot;&quot;Exports MINE compound and reaction data as tab-separated values files</span>
+<span class="sd">    amenable to use in ModelSEED.</span>
+<span class="sd">    </span>
+<span class="sd">    :param mine_db: The database to export</span>
+<span class="sd">    :type mine_db: a MINE object</span>
+<span class="sd">    :param target: a directory in which to place the files</span>
+<span class="sd">    :type target: string</span>
+<span class="sd">    :param compound_fields: The fields to export in the compound table</span>
+<span class="sd">    :type compound_fields: set</span>
+<span class="sd">    :param reaction_fields: The fields to export in the reaction table</span>
+<span class="sd">    :type reaction_fields: set</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">db_links</span> <span class="o">=</span> <span class="p">(</span><span class="s1">&#39;KEGG&#39;</span><span class="p">,</span> <span class="s1">&#39;Model_SEED&#39;</span><span class="p">,</span> <span class="s1">&#39;PubChem&#39;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Exporting </span><span class="si">%s</span><span class="s2"> compounds from </span><span class="si">%s</span><span class="s2"> to tsv&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">mine_db</span><span class="o">.</span><span class="n">compounds</span><span class="o">.</span><span class="n">count</span><span class="p">(),</span>
+                                                     <span class="n">mine_db</span><span class="o">.</span><span class="n">name</span><span class="p">))</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">utils</span><span class="o">.</span><span class="n">prevent_overwrite</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="n">mine_db</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+                                      <span class="o">+</span> <span class="s2">&quot;_compounds.tsv&quot;</span><span class="p">),</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">out</span><span class="p">:</span>
+        <span class="n">w</span> <span class="o">=</span> <span class="n">csv</span><span class="o">.</span><span class="n">DictWriter</span><span class="p">(</span><span class="n">out</span><span class="p">,</span> <span class="n">fieldnames</span><span class="o">=</span><span class="n">compound_fields</span><span class="p">,</span> <span class="n">dialect</span><span class="o">=</span><span class="s1">&#39;excel-tab&#39;</span><span class="p">)</span>
+        <span class="n">w</span><span class="o">.</span><span class="n">writeheader</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">compound</span> <span class="ow">in</span> <span class="n">mine_db</span><span class="o">.</span><span class="n">compounds</span><span class="o">.</span><span class="n">find</span><span class="p">(</span>
+                <span class="p">{},</span> <span class="nb">dict</span><span class="p">([(</span><span class="s1">&#39;SMILES&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)]</span><span class="o">+</span><span class="p">[(</span><span class="s1">&#39;DB_links.&#39;</span><span class="o">+</span><span class="n">x</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="k">if</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">db_links</span>
+                                          <span class="k">else</span> <span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span>
+                                          <span class="ow">in</span> <span class="n">compound_fields</span><span class="p">])):</span>
+            <span class="c1"># This is a work around for supporting older MINEs which lack Inchi</span>
+            <span class="k">if</span> <span class="s1">&#39;Inchi&#39;</span> <span class="ow">in</span> <span class="n">compound_fields</span> <span class="ow">and</span> <span class="s1">&#39;Inchi&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">compound</span><span class="p">:</span>
+                <span class="n">compound</span><span class="p">[</span><span class="s1">&#39;Inchi&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">AllChem</span><span class="o">.</span><span class="n">MolToInchi</span><span class="p">(</span><span class="n">AllChem</span><span class="o">.</span><span class="n">MolFromSmiles</span><span class="p">(</span>
+                    <span class="n">compound</span><span class="p">[</span><span class="s1">&#39;SMILES&#39;</span><span class="p">]))</span>
+            <span class="k">if</span> <span class="s1">&#39;SMILES&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">compound_fields</span><span class="p">:</span>
+                <span class="k">del</span> <span class="n">compound</span><span class="p">[</span><span class="s1">&#39;SMILES&#39;</span><span class="p">]</span>
+            <span class="k">if</span> <span class="s1">&#39;DB_links&#39;</span> <span class="ow">in</span> <span class="n">compound</span><span class="p">:</span>
+                <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">compound</span><span class="p">[</span><span class="s1">&#39;DB_links&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                    <span class="n">compound</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+                <span class="k">del</span> <span class="n">compound</span><span class="p">[</span><span class="s1">&#39;DB_links&#39;</span><span class="p">]</span>
+            <span class="n">w</span><span class="o">.</span><span class="n">writerow</span><span class="p">(</span><span class="n">compound</span><span class="p">)</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Exporting </span><span class="si">%s</span><span class="s2"> reactions from </span><span class="si">%s</span><span class="s2"> to tsv&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">mine_db</span><span class="o">.</span><span class="n">reactions</span><span class="o">.</span><span class="n">count</span><span class="p">(),</span>
+                                                     <span class="n">mine_db</span><span class="o">.</span><span class="n">name</span><span class="p">))</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">utils</span><span class="o">.</span><span class="n">prevent_overwrite</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="n">mine_db</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+                                      <span class="o">+</span> <span class="s2">&quot;_reactions.tsv&quot;</span><span class="p">),</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">out</span><span class="p">:</span>
+        <span class="n">w</span> <span class="o">=</span> <span class="n">csv</span><span class="o">.</span><span class="n">DictWriter</span><span class="p">(</span><span class="n">out</span><span class="p">,</span> <span class="n">fieldnames</span><span class="o">=</span><span class="n">reaction_fields</span><span class="p">,</span> <span class="n">dialect</span><span class="o">=</span><span class="s1">&#39;excel-tab&#39;</span><span class="p">)</span>
+        <span class="n">w</span><span class="o">.</span><span class="n">writeheader</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">rxn</span> <span class="ow">in</span> <span class="n">mine_db</span><span class="o">.</span><span class="n">reactions</span><span class="o">.</span><span class="n">find</span><span class="p">(</span>
+                <span class="p">{},</span> <span class="nb">dict</span><span class="p">([(</span><span class="s1">&#39;Reactants&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="s1">&#39;Products&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)]</span> <span class="o">+</span>
+                         <span class="p">[(</span><span class="n">x</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">reaction_fields</span><span class="p">])):</span>
+            <span class="k">if</span> <span class="s1">&#39;C_id_rxn&#39;</span> <span class="ow">in</span> <span class="n">reaction_fields</span><span class="p">:</span>
+                <span class="k">def</span> <span class="nf">to_str</span><span class="p">(</span><span class="n">half_rxn</span><span class="p">):</span>
+                    <span class="k">return</span> <span class="p">[</span><span class="s1">&#39;(</span><span class="si">%s</span><span class="s1">) </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="s1">&#39;stoich&#39;</span><span class="p">],</span> <span class="n">x</span><span class="p">[</span><span class="s1">&#39;c_id&#39;</span><span class="p">])</span>
+                            <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">half_rxn</span><span class="p">]</span>
+                <span class="n">rxn</span><span class="p">[</span><span class="s1">&#39;C_id_rxn&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39; + &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">to_str</span><span class="p">(</span><span class="n">rxn</span><span class="p">[</span><span class="s1">&#39;Reactants&#39;</span><span class="p">]))</span> <span class="o">+</span> \
+                                  <span class="s1">&#39; =&gt; &#39;</span> <span class="o">+</span> <span class="s1">&#39; + &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">to_str</span><span class="p">(</span><span class="n">rxn</span><span class="p">[</span><span class="s1">&#39;Products&#39;</span><span class="p">]))</span>
+            <span class="k">if</span> <span class="s1">&#39;Reactants&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">reaction_fields</span><span class="p">:</span>
+                <span class="k">del</span> <span class="n">rxn</span><span class="p">[</span><span class="s1">&#39;Reactants&#39;</span><span class="p">]</span>
+            <span class="k">if</span> <span class="s1">&#39;Products&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">reaction_fields</span><span class="p">:</span>
+                <span class="k">del</span> <span class="n">rxn</span><span class="p">[</span><span class="s1">&#39;Products&#39;</span><span class="p">]</span>
+            <span class="n">w</span><span class="o">.</span><span class="n">writerow</span><span class="p">(</span><span class="n">rxn</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="export_kbase"><a class="viewcode-back" href="../../minedatabase.html#minedatabase.compound_io.export_kbase">[docs]</a><span class="k">def</span> <span class="nf">export_kbase</span><span class="p">(</span><span class="n">mine_db</span><span class="p">,</span> <span class="n">target</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Exports MINE compound and reaction data as tab-separated values files</span>
+<span class="sd">    amenable to use in ModelSEED.</span>
+<span class="sd">    </span>
+<span class="sd">    :param mine_db: The database to export</span>
+<span class="sd">    :type mine_db: a MINE object</span>
+<span class="sd">    :param target: a directory in which to place the files</span>
+<span class="sd">    :type target: str</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">compound_fields</span> <span class="o">=</span> <span class="n">collections</span><span class="o">.</span><span class="n">OrderedDict</span><span class="p">([(</span><span class="s1">&#39;id&#39;</span><span class="p">,</span> <span class="s2">&quot;_id&quot;</span><span class="p">),</span> <span class="p">(</span><span class="s1">&#39;name&#39;</span><span class="p">,</span> <span class="s2">&quot;&quot;</span><span class="p">),</span>
+                                               <span class="p">(</span><span class="s1">&#39;formula&#39;</span><span class="p">,</span><span class="s1">&#39;Formula&#39;</span><span class="p">),</span>
+                                               <span class="p">(</span><span class="s1">&#39;charge&#39;</span><span class="p">,</span> <span class="s1">&#39;Charge&#39;</span><span class="p">),</span>
+                                               <span class="p">(</span><span class="s1">&#39;aliases&#39;</span><span class="p">,</span> <span class="s2">&quot;Names&quot;</span><span class="p">)])</span>
+    <span class="n">reaction_fields</span> <span class="o">=</span> <span class="n">collections</span><span class="o">.</span><span class="n">OrderedDict</span><span class="p">(</span>
+        <span class="p">[(</span><span class="s1">&#39;id&#39;</span><span class="p">,</span> <span class="s2">&quot;_id&quot;</span><span class="p">),</span> <span class="p">(</span><span class="s1">&#39;direction&#39;</span><span class="p">,</span> <span class="s2">&quot;&gt;&quot;</span><span class="p">),</span> <span class="p">(</span><span class="s1">&#39;compartment&#39;</span><span class="p">,</span> <span class="s2">&quot;c0&quot;</span><span class="p">),</span> <span class="p">(</span><span class="s1">&#39;gpr&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">),</span>
+         <span class="p">(</span><span class="s1">&#39;name&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">),</span> <span class="p">(</span><span class="s1">&#39;enzyme&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">),</span> <span class="p">(</span><span class="s1">&#39;pathway&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">),</span> <span class="p">(</span><span class="s1">&#39;reference&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">),</span>
+         <span class="p">(</span><span class="s1">&#39;equation&#39;</span><span class="p">,</span> <span class="s1">&#39;&#39;</span><span class="p">)])</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Exporting </span><span class="si">%s</span><span class="s2"> compounds from </span><span class="si">%s</span><span class="s2"> to tsv&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">mine_db</span><span class="o">.</span><span class="n">compounds</span><span class="o">.</span><span class="n">count</span><span class="p">(),</span>
+                                                     <span class="n">mine_db</span><span class="o">.</span><span class="n">name</span><span class="p">))</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">utils</span><span class="o">.</span><span class="n">prevent_overwrite</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="n">mine_db</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+                                      <span class="o">+</span> <span class="s2">&quot;_compounds.tsv&quot;</span><span class="p">),</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">out</span><span class="p">:</span>
+        <span class="n">w</span> <span class="o">=</span> <span class="n">csv</span><span class="o">.</span><span class="n">DictWriter</span><span class="p">(</span><span class="n">out</span><span class="p">,</span> <span class="n">fieldnames</span><span class="o">=</span><span class="n">compound_fields</span><span class="p">,</span>
+                           <span class="n">dialect</span><span class="o">=</span><span class="s1">&#39;excel-tab&#39;</span><span class="p">)</span>
+        <span class="n">w</span><span class="o">.</span><span class="n">writeheader</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">compound</span> <span class="ow">in</span> <span class="n">mine_db</span><span class="o">.</span><span class="n">compounds</span><span class="o">.</span><span class="n">find</span><span class="p">(</span>
+                <span class="p">{},</span> <span class="nb">dict</span><span class="p">([(</span><span class="s2">&quot;Names&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="s1">&#39;DB_links.Model_SEED&#39;</span><span class="p">,</span><span class="mi">1</span><span class="p">)]</span>
+                         <span class="o">+</span> <span class="p">[(</span><span class="n">x</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">compound_fields</span><span class="o">.</span><span class="n">values</span><span class="p">()])):</span>
+            <span class="k">if</span> <span class="n">compound</span><span class="p">[</span><span class="s1">&#39;_id&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span> <span class="o">==</span> <span class="s1">&#39;X&#39;</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">compound_fields</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="k">if</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">compound</span><span class="p">:</span>
+                    <span class="n">compound</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">compound</span><span class="p">[</span><span class="n">v</span><span class="p">]</span>
+                    <span class="k">del</span> <span class="n">compound</span><span class="p">[</span><span class="n">v</span><span class="p">]</span>
+            <span class="k">if</span> <span class="s1">&#39;name&#39;</span> <span class="ow">in</span> <span class="n">compound_fields</span> <span class="ow">and</span> <span class="s1">&#39;Names&#39;</span> <span class="ow">in</span> <span class="n">compound</span><span class="p">:</span>
+                <span class="n">compound</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">compound</span><span class="p">[</span><span class="s1">&#39;Names&#39;</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+                <span class="k">del</span> <span class="n">compound</span><span class="p">[</span><span class="s1">&#39;Names&#39;</span><span class="p">]</span>
+            <span class="k">if</span> <span class="s1">&#39;aliases&#39;</span> <span class="ow">in</span> <span class="n">compound</span><span class="p">:</span>
+                <span class="n">compound</span><span class="p">[</span><span class="s1">&#39;aliases&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;|&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">compound</span><span class="p">[</span><span class="s1">&#39;aliases&#39;</span><span class="p">])</span>
+                <span class="k">if</span> <span class="s1">&#39;Model_SEED&#39;</span> <span class="ow">in</span> <span class="n">compound</span><span class="p">[</span><span class="s1">&#39;DB_links&#39;</span><span class="p">]:</span>
+                    <span class="n">compound</span><span class="p">[</span><span class="s1">&#39;aliases&#39;</span><span class="p">]</span> <span class="o">+=</span> <span class="s2">&quot;|&quot;</span> <span class="o">+</span> <span class="s2">&quot;|&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span>
+                        <span class="n">compound</span><span class="p">[</span><span class="s1">&#39;DB_links&#39;</span><span class="p">][</span><span class="s1">&#39;Model_SEED&#39;</span><span class="p">]))</span>
+            <span class="k">if</span> <span class="s1">&#39;DB_links&#39;</span> <span class="ow">in</span> <span class="n">compound</span><span class="p">:</span>
+                <span class="k">del</span> <span class="n">compound</span><span class="p">[</span><span class="s1">&#39;DB_links&#39;</span><span class="p">]</span>
+            <span class="n">w</span><span class="o">.</span><span class="n">writerow</span><span class="p">(</span><span class="n">compound</span><span class="p">)</span>
+
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Exporting </span><span class="si">%s</span><span class="s2"> reactions from </span><span class="si">%s</span><span class="s2"> to tsv&quot;</span> <span class="o">%</span> <span class="p">(</span><span class="n">mine_db</span><span class="o">.</span><span class="n">reactions</span><span class="o">.</span><span class="n">count</span><span class="p">(),</span>
+                                                     <span class="n">mine_db</span><span class="o">.</span><span class="n">name</span><span class="p">))</span>
+    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">utils</span><span class="o">.</span><span class="n">prevent_overwrite</span><span class="p">(</span><span class="n">os</span><span class="o">.</span><span class="n">path</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="n">mine_db</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+                                      <span class="o">+</span> <span class="s2">&quot;_reactions.tsv&quot;</span><span class="p">),</span> <span class="s1">&#39;w&#39;</span><span class="p">)</span> <span class="k">as</span> <span class="n">out</span><span class="p">:</span>
+        <span class="n">w</span> <span class="o">=</span> <span class="n">csv</span><span class="o">.</span><span class="n">DictWriter</span><span class="p">(</span><span class="n">out</span><span class="p">,</span> <span class="n">fieldnames</span><span class="o">=</span><span class="n">reaction_fields</span><span class="p">,</span> <span class="n">dialect</span><span class="o">=</span><span class="s1">&#39;excel-tab&#39;</span><span class="p">)</span>
+        <span class="n">w</span><span class="o">.</span><span class="n">writeheader</span><span class="p">()</span>
+        <span class="k">for</span> <span class="n">rxn</span> <span class="ow">in</span> <span class="n">mine_db</span><span class="o">.</span><span class="n">reactions</span><span class="o">.</span><span class="n">find</span><span class="p">(</span>
+                <span class="p">{},</span> <span class="nb">dict</span><span class="p">([(</span><span class="s1">&#39;Reactants&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">),</span> <span class="p">(</span><span class="s1">&#39;Products&#39;</span><span class="p">,</span> <span class="mi">1</span><span class="p">)]</span> <span class="o">+</span>
+                         <span class="p">[(</span><span class="n">x</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">reaction_fields</span><span class="o">.</span><span class="n">values</span><span class="p">()])):</span>
+            <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">reaction_fields</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+                <span class="k">if</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">rxn</span><span class="p">:</span>
+                    <span class="n">rxn</span><span class="p">[</span><span class="n">k</span><span class="p">]</span> <span class="o">=</span> <span class="n">rxn</span><span class="p">[</span><span class="n">v</span><span class="p">]</span>
+                    <span class="k">del</span> <span class="n">rxn</span><span class="p">[</span><span class="n">v</span><span class="p">]</span>
+            <span class="k">if</span> <span class="s1">&#39;equation&#39;</span> <span class="ow">in</span> <span class="n">reaction_fields</span><span class="p">:</span>
+                <span class="k">def</span> <span class="nf">to_str</span><span class="p">(</span><span class="n">half_rxn</span><span class="p">):</span>
+                    <span class="k">return</span> <span class="p">[</span><span class="s1">&#39;(</span><span class="si">%s</span><span class="s1">) </span><span class="si">%s</span><span class="s1">&#39;</span> <span class="o">%</span> <span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="s1">&#39;stoich&#39;</span><span class="p">],</span>
+                                         <span class="n">x</span><span class="p">[</span><span class="s1">&#39;c_id&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s1">&#39;X&#39;</span><span class="p">,</span> <span class="s1">&#39;C&#39;</span><span class="p">))</span>
+                            <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">half_rxn</span><span class="p">]</span>
+                <span class="n">rxn</span><span class="p">[</span><span class="s1">&#39;equation&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39; + &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">to_str</span><span class="p">(</span><span class="n">rxn</span><span class="p">[</span><span class="s1">&#39;Reactants&#39;</span><span class="p">]))</span> <span class="o">+</span> \
+                                  <span class="s1">&#39; =&gt; &#39;</span> <span class="o">+</span> <span class="s1">&#39; + &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">to_str</span><span class="p">(</span><span class="n">rxn</span><span class="p">[</span><span class="s1">&#39;Products&#39;</span><span class="p">]))</span>
+            <span class="k">if</span> <span class="s1">&#39;Reactants&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">reaction_fields</span><span class="p">:</span>
+                <span class="k">del</span> <span class="n">rxn</span><span class="p">[</span><span class="s1">&#39;Reactants&#39;</span><span class="p">]</span>
+            <span class="k">if</span> <span class="s1">&#39;Products&#39;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">reaction_fields</span><span class="p">:</span>
+                <span class="k">del</span> <span class="n">rxn</span><span class="p">[</span><span class="s1">&#39;Products&#39;</span><span class="p">]</span>
+            <span class="n">w</span><span class="o">.</span><span class="n">writerow</span><span class="p">(</span><span class="n">rxn</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="import_sdf"><a class="viewcode-back" href="../../minedatabase.html#minedatabase.compound_io.import_sdf">[docs]</a><span class="k">def</span> <span class="nf">import_sdf</span><span class="p">(</span><span class="n">mine_db</span><span class="p">,</span> <span class="n">target</span><span class="p">,):</span>
+    <span class="sd">&quot;&quot;&quot;Imports a SDF file as a MINE database</span>
+<span class="sd">    </span>
+<span class="sd">    :param mine_db: a MINE object, the database to insert the compound into</span>
+<span class="sd">    :param target: a path, the SDF file to be loaded</span>
+<span class="sd">    :return:</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># SDMolSupplier (rdkit) takes entries from sdf file and returns Mol objects</span>
+    <span class="n">sdf_gen</span> <span class="o">=</span> <span class="n">AllChem</span><span class="o">.</span><span class="n">SDMolSupplier</span><span class="p">(</span><span class="n">target</span><span class="p">)</span>
+    <span class="c1"># Go through each generated Mol object and add each to MINE database</span>
+    <span class="k">for</span> <span class="n">mol</span> <span class="ow">in</span> <span class="n">sdf_gen</span><span class="p">:</span>
+        <span class="n">mine_db</span><span class="o">.</span><span class="n">insert_compound</span><span class="p">(</span><span class="n">mol</span><span class="p">,</span> <span class="n">compound_dict</span><span class="o">=</span><span class="n">mol</span><span class="o">.</span><span class="n">GetPropsAsDict</span><span class="p">(),</span>
+                                <span class="n">pubchem_db</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">kegg_db</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                                <span class="n">modelseed_db</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+    <span class="c1"># Add to log file (metadata)</span>
+    <span class="n">mine_db</span><span class="o">.</span><span class="n">meta_data</span><span class="o">.</span><span class="n">insert</span><span class="p">({</span><span class="s2">&quot;Timestamp&quot;</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">(),</span> <span class="s2">&quot;Action&quot;</span><span class="p">:</span>
+                              <span class="s2">&quot;SDF Imported&quot;</span><span class="p">,</span> <span class="s2">&quot;Filepath&quot;</span><span class="p">:</span> <span class="n">target</span><span class="p">})</span></div>
+
+
+<div class="viewcode-block" id="import_smiles"><a class="viewcode-back" href="../../minedatabase.html#minedatabase.compound_io.import_smiles">[docs]</a><span class="k">def</span> <span class="nf">import_smiles</span><span class="p">(</span><span class="n">mine_db</span><span class="p">,</span> <span class="n">target</span><span class="p">,):</span>
+    <span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Imports a smiles file as a MINE database</span>
+<span class="sd">    :param mine_db: a MINE object, the database to insert the compound into</span>
+<span class="sd">    :param target: a path, the SDF file to be loaded</span>
+<span class="sd">    :return:</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># SmilesMolSupplier (rdkit) generates Mol objects from smiles file (.smi)</span>
+    <span class="n">mols</span> <span class="o">=</span> <span class="n">AllChem</span><span class="o">.</span><span class="n">SmilesMolSupplier</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="n">delimiter</span><span class="o">=</span><span class="s1">&#39;</span><span class="se">\t</span><span class="s1">&#39;</span><span class="p">,</span> <span class="n">nameColumn</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+    <span class="c1"># Go through each generated mol file and add molecule to MINE database</span>
+    <span class="c1"># Stores compound properties in dict (GetPropsAsDict() from rdkit Mol class)</span>
+    <span class="k">for</span> <span class="n">mol</span> <span class="ow">in</span> <span class="n">mols</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">mol</span><span class="p">:</span>
+            <span class="n">mine_db</span><span class="o">.</span><span class="n">insert_compound</span><span class="p">(</span><span class="n">mol</span><span class="p">,</span> <span class="n">compound_dict</span><span class="o">=</span><span class="n">mol</span><span class="o">.</span><span class="n">GetPropsAsDict</span><span class="p">(),</span>
+                                    <span class="n">pubchem_db</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">kegg_db</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                                    <span class="n">modelseed_db</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+    <span class="c1"># Add to log file (metadata)</span>
+    <span class="n">mine_db</span><span class="o">.</span><span class="n">meta_data</span><span class="o">.</span><span class="n">insert</span><span class="p">({</span><span class="s2">&quot;Timestamp&quot;</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">(),</span> <span class="s2">&quot;Action&quot;</span><span class="p">:</span>
+                              <span class="s2">&quot;SDF Imported&quot;</span><span class="p">,</span> <span class="s2">&quot;Filepath&quot;</span><span class="p">:</span> <span class="n">target</span><span class="p">})</span></div>
+
+
+<div class="viewcode-block" id="import_mol_dir"><a class="viewcode-back" href="../../minedatabase.html#minedatabase.compound_io.import_mol_dir">[docs]</a><span class="k">def</span> <span class="nf">import_mol_dir</span><span class="p">(</span><span class="n">mine_db</span><span class="p">,</span> <span class="n">target</span><span class="p">,</span> <span class="n">name_field</span><span class="o">=</span><span class="s2">&quot;Name&quot;</span><span class="p">,</span> <span class="n">overwrite</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot;Imports a directory of molfiles as a MINE database</span>
+<span class="sd">    </span>
+<span class="sd">    :param mine_db: a MINE object, the database to insert the compound into</span>
+<span class="sd">    :param target: a path, the molfile directory to be loaded</span>
+<span class="sd">    :param name_field: a string, the field for the compound name</span>
+<span class="sd">    :param overwrite: a bool, if true, new compounds replace the old compounds</span>
+<span class="sd">        in the database</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="c1"># For each .mol file in the directory of the target folder (path):</span>
+    <span class="k">for</span> <span class="n">file</span> <span class="ow">in</span> <span class="n">os</span><span class="o">.</span><span class="n">listdir</span><span class="p">(</span><span class="n">target</span><span class="p">):</span>
+        <span class="k">if</span> <span class="s2">&quot;.mol&quot;</span> <span class="ow">in</span> <span class="n">file</span><span class="p">:</span>
+            <span class="c1"># MolFromMolFile (rdkit) generates Mol objects from .mol files</span>
+            <span class="n">mol</span> <span class="o">=</span> <span class="n">AllChem</span><span class="o">.</span><span class="n">MolFromMolFile</span><span class="p">(</span><span class="n">target</span><span class="o">+</span><span class="s1">&#39;/&#39;</span><span class="o">+</span><span class="n">file</span><span class="p">)</span>
+            <span class="c1"># Mol object name becomes name of mol file without .mol extension</span>
+            <span class="n">name</span> <span class="o">=</span> <span class="n">file</span><span class="o">.</span><span class="n">rstrip</span><span class="p">(</span><span class="s1">&#39;.mol&#39;</span><span class="p">)</span>
+            <span class="c1"># Check that Mol object is successfully generated</span>
+            <span class="k">if</span> <span class="n">mol</span><span class="p">:</span>
+                <span class="c1"># Create hashkey for the compound</span>
+                <span class="n">comphash</span> <span class="o">=</span> <span class="n">utils</span><span class="o">.</span><span class="n">compound_hash</span><span class="p">(</span><span class="n">mol</span><span class="p">)</span>
+                <span class="c1"># If we don&#39;t want to overwrite, and the compound (comphash)</span>
+                <span class="c1"># already exists, then add an extra comphash for that molecule</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="n">overwrite</span> <span class="ow">and</span> <span class="n">mine_db</span><span class="o">.</span><span class="n">compounds</span><span class="o">.</span><span class="n">count</span><span class="p">({</span><span class="s2">&quot;_id&quot;</span><span class="p">:</span> <span class="n">comphash</span><span class="p">}):</span>
+                    <span class="n">mine_db</span><span class="o">.</span><span class="n">compounds</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="s2">&quot;_id&quot;</span><span class="p">:</span> <span class="n">comphash</span><span class="p">},</span>
+                                             <span class="p">{</span><span class="s2">&quot;$addToSet&quot;</span><span class="p">:</span> <span class="p">{</span><span class="n">name_field</span><span class="p">:</span> <span class="n">name</span><span class="p">}})</span>
+                <span class="c1"># If we don&#39;t care about overwriting, just insert the new</span>
+                <span class="c1"># compound into the database</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">mine_db</span><span class="o">.</span><span class="n">insert_compound</span><span class="p">(</span><span class="n">mol</span><span class="p">,</span>
+                                            <span class="n">compound_dict</span><span class="o">=</span><span class="p">{</span><span class="n">name_field</span><span class="p">:</span> <span class="p">[</span><span class="n">name</span><span class="p">],</span>
+                                                           <span class="s1">&#39;Generation&#39;</span><span class="p">:</span> <span class="mi">0</span><span class="p">},</span>
+                                            <span class="n">pubchem_db</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">kegg_db</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                                            <span class="n">modelseed_db</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
+    <span class="c1"># Add to log file (metadata)</span>
+    <span class="n">mine_db</span><span class="o">.</span><span class="n">meta_data</span><span class="o">.</span><span class="n">insert</span><span class="p">({</span><span class="s2">&quot;Timestamp&quot;</span><span class="p">:</span> <span class="n">datetime</span><span class="o">.</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">(),</span> <span class="s2">&quot;Action&quot;</span><span class="p">:</span>
+                              <span class="s2">&quot;MolFiles Imported&quot;</span><span class="p">,</span> <span class="s2">&quot;Filepath&quot;</span><span class="p">:</span> <span class="n">target</span><span class="p">})</span></div>
+
+<span class="k">if</span> <span class="n">__name__</span> <span class="o">==</span> <span class="s1">&#39;__main__&#39;</span><span class="p">:</span>
+    <span class="c1"># User inputs task as first argument (export-sdf, export-smi, export-mol,</span>
+    <span class="c1">#  import-sdf, import-smi, or import-mol)</span>
+    <span class="n">task</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="c1"># User inputs database name as second argument</span>
+    <span class="n">db_name</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+    <span class="c1"># User inputs file path as third argument</span>
+    <span class="n">path</span> <span class="o">=</span> <span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span>
+    <span class="n">database</span> <span class="o">=</span> <span class="n">MINE</span><span class="p">(</span><span class="n">db_name</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">task</span> <span class="o">==</span> <span class="s1">&#39;export-sdf&#39;</span><span class="p">:</span>
+        <span class="c1"># If a maximum molecules per file is specified (fourth argument</span>
+        <span class="c1"># entered by user), then pass that to the export function.</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">)</span> <span class="o">==</span> <span class="mi">5</span><span class="p">:</span>
+            <span class="n">export_sdf</span><span class="p">(</span><span class="n">database</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">4</span><span class="p">]))</span>
+        <span class="c1"># Otherwise, assume an unlimited number of molecules per file</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">export_sdf</span><span class="p">(</span><span class="n">database</span><span class="p">,</span> <span class="n">path</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">task</span> <span class="o">==</span> <span class="s1">&#39;export-smi&#39;</span><span class="p">:</span>
+        <span class="c1"># If a maximum molecules per file is specified (fourth argument</span>
+        <span class="c1"># entered by user), then pass that to the export function.</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">)</span> <span class="o">==</span> <span class="mi">5</span><span class="p">:</span>
+            <span class="n">export_smiles</span><span class="p">(</span><span class="n">database</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="nb">int</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">4</span><span class="p">]))</span>
+        <span class="c1"># Otherwise, assume an unlimited number of molecules per file</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">export_smiles</span><span class="p">(</span><span class="n">database</span><span class="p">,</span> <span class="n">path</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">task</span> <span class="o">==</span> <span class="s1">&#39;export-mol&#39;</span><span class="p">:</span>
+        <span class="c1"># If a maximum molecules per file is specified (fourth argument</span>
+        <span class="c1"># entered by user), then pass that to the export function.</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">)</span> <span class="o">==</span> <span class="mi">5</span><span class="p">:</span>
+            <span class="n">export_mol</span><span class="p">(</span><span class="n">database</span><span class="p">,</span> <span class="n">path</span><span class="p">,</span> <span class="n">sys</span><span class="o">.</span><span class="n">argv</span><span class="p">[</span><span class="mi">4</span><span class="p">])</span>
+        <span class="c1"># Otherwise, assume an unlimited number of molecules per file</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">export_mol</span><span class="p">(</span><span class="n">database</span><span class="p">,</span> <span class="n">path</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">task</span> <span class="o">==</span> <span class="s1">&#39;export-tsv&#39;</span><span class="p">:</span>
+        <span class="n">export_tsv</span><span class="p">(</span><span class="n">database</span><span class="p">,</span> <span class="n">path</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">task</span> <span class="o">==</span> <span class="s1">&#39;export-kbase&#39;</span><span class="p">:</span>
+        <span class="n">export_kbase</span><span class="p">(</span><span class="n">database</span><span class="p">,</span> <span class="n">path</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">task</span> <span class="o">==</span> <span class="s1">&#39;import-sdf&#39;</span><span class="p">:</span>
+        <span class="n">import_sdf</span><span class="p">(</span><span class="n">database</span><span class="p">,</span> <span class="n">path</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">task</span> <span class="o">==</span> <span class="s1">&#39;import-smi&#39;</span><span class="p">:</span>
+        <span class="n">import_smiles</span><span class="p">(</span><span class="n">database</span><span class="p">,</span> <span class="n">path</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="n">task</span> <span class="o">==</span> <span class="s1">&#39;import-mol&#39;</span><span class="p">:</span>
+        <span class="n">import_mol_dir</span><span class="p">(</span><span class="n">database</span><span class="p">,</span> <span class="n">path</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;ERROR: Unrecognised Task&quot;</span><span class="p">)</span>
+</pre></div>
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper"><div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3>Quick search</h3>
+    <form class="search" action="../../search.html" method="get">
+      <div><input type="text" name="q" /></div>
+      <div><input type="submit" value="Go" /></div>
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2017, James Jeffryes.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.5.4</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.7</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>

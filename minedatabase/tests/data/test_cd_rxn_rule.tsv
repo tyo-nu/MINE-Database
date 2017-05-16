@@ -1,0 +1,2 @@
+Name	Reactants	SMARTS	Products	Comments
+AlphaKetoDecarboxylation	Any	[#8H1:2]-[#6:1](=[O:3])-[#6:4](-[*:6])=[O:5]>>[O:3]=[C:1]=[O:2].[*:6]-[#6:4]=[O:5]	CO2;Any	Tsai CS (1967) Canadian Journal of Chemistry 45: 873-880; 13587530

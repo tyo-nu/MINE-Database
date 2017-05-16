@@ -9,7 +9,15 @@ stoich_tuple = collections.namedtuple("stoich_tuple", 'stoich,c_id')
 
 
 def compound_hash(compound, cofactor=False):
-    """Creates hash string for given compound"""
+    """Creates hash string for given compound
+    
+    :param compound: The compound to be hashed
+    :type compound: str or Mol Object
+    :param cofactor: is the compound a cofactor
+    :type cofactor: bool
+    :return: A hashed compound _id
+    :rtype: str
+    """
     # Check to see if compound is a Mol object. If true, convert that Mol object
     # to a SMILES string
     if isinstance(compound, AllChem.Mol):
@@ -38,7 +46,14 @@ def convert_sets_to_lists(obj):
 
 
 def get_dotted_field(input_dict, accessor_string):
-    """Gets data from a dictionary using a dotted accessor-string"""
+    """Gets data from a dictionary using a dotted accessor-string
+    
+    :param input_dict: A nested dictionary
+    :type input_dict: dict
+    :param accessor_string: A dotted path description i.e. "DBLinks.KEGG"
+    :type accessor_string: str
+    :return: The value in the nested dict
+    """
     current_data = input_dict
     for chunk in accessor_string.split('.'):
         current_data = current_data.get(chunk, {})
@@ -46,7 +61,14 @@ def get_dotted_field(input_dict, accessor_string):
 
 
 def save_dotted_field(accessor_string, data):
-    """Gets data from a dictionary using a dotted accessor-string"""
+    """Saves data to a dictionary using a dotted accessor-string
+    
+    :param accessor_string: A dotted path description i.e. "DBLinks.KEGG"
+    :type accessor_string: str
+    :param data: The value to be stored
+    :return: A nested dictionary
+    :rtype: dict
+    """
     for chunk in accessor_string.split('.')[::-1]:
         data = {chunk: data}
     return data
@@ -65,12 +87,13 @@ def memoize(f):
 
 
 def prevent_overwrite(write_path):
-    """
-    Prevents overwrite of existing output files by appending "_new" when needed
+    """Prevents overwrite of existing output files by appending "_new" when
+    needed
+    
     :param write_path: potential write path
     :type write_path: string
-    :return:
-    :rtype:
+    :return: new write path
+    :rtype: str
     """
     while path.exists(write_path):
         sp = write_path.split('.')
@@ -86,11 +109,11 @@ def prevent_overwrite(write_path):
 
 
 def approximate_matches(list1, list2, epsilon=0.01):
-    """
-    Takes two list of tuples and searches for matches of tuples first value
+    """Takes two list of tuples and searches for matches of tuples first value
     within the supplied epsilon. Emits tuples with the tuples second values
     where found. if a value in one dist does not match the other list, it is
     emitted alone.
+    
     :param list1: first list of tuples
     :type list1: list
     :param list2: second list of tuples
