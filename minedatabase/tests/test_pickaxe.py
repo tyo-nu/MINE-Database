@@ -143,9 +143,8 @@ def test_multiprocessing(params=None):
     return pk3
 
 
-@unittest.skipIf("TRAVIS" in os.environ and os.environ["TRAVIS"] == "true",
-                 "Skipping this test on Travis CI.")
 def test_cli():
+    os.chdir(data_dir+"/../..") # ensure the following executes from minedatabase
     rc = subprocess.call('python pickaxe.py -o tests -r tests/data/test_cd_rxn_rule.tsv', shell=True)
     assert not rc
     purge('tests/', ".*\.tsv$")
@@ -182,6 +181,7 @@ def test_save_as_MINE():
         mine_db.reactions.drop()
         mine_db.operators.drop()
         purge(data_dir, ".*\.svg$")
+
 
 def test_save_no_rxn_MINE():
     pk3 = pickaxe.Pickaxe(database='MINE_test')
