@@ -103,7 +103,7 @@ class Pickaxe:
         # split_text[0] is compound name, split_text[1] is SMILES string
         # Generate a Mol object from the SMILES string if possible
         try:
-            mol = AllChem.MolFromSmiles(split_text[1])
+            mol = AllChem.MolFromSmiles(split_text[2])
             if not mol:
                 raise ValueError
             # Generate SMILES string with stereochemistry taken into account
