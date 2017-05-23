@@ -54,8 +54,8 @@ def test_compound_loading():
 
 def test_transform_compounds():
     pk._add_compound("Start", smi=fadh)
-    pk._load_coreactant('ATP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
-    pk._load_coreactant('ADP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
+    pk._load_coreactant('ATP		Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
+    pk._load_coreactant('ADP		Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
     pk.rxn_rules['2.7.1.a'] = rule
     pk.transform_compound(fadh)
     pk.assign_ids()
@@ -74,7 +74,7 @@ def test_transform_compounds_implicit():
 def test_hashing():
     pk2 = pickaxe.Pickaxe(coreactant_list=data_dir + '/test_coreactants.tsv',
                           rule_list=data_dir + '/test_reaction_rules.tsv')
-    pk2._load_coreactant('S-Adenosylmethionine	C[S+](CC[C@H](N)C(=O)O)C[C@H]1O[C@@H](n2cnc3c(N)ncnc32)[C@H](O)[C@@H]1O')
+    pk2._load_coreactant('S-Adenosylmethionine		C[S+](CC[C@H](N)C(=O)O)C[C@H]1O[C@@H](n2cnc3c(N)ncnc32)[C@H](O)[C@@H]1O')
     pk2.transform_compound(l_ala)
     len_rxns = len(pk2.reactions)
     assert len_rxns
@@ -115,8 +115,8 @@ def test_reaction_output_writing():
 
 def test_transform_all():
     pk3 = pickaxe.Pickaxe(errors=False)
-    pk3._load_coreactant('ATP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
-    pk3._load_coreactant('ADP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
+    pk3._load_coreactant('ATP		Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
+    pk3._load_coreactant('ADP		Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
     pk3._add_compound(fadh, fadh, type='Starting Compound')
     pk3.rxn_rules['2.7.1.a'] = rule
     pk3.transform_all(max_generations=2)
@@ -131,8 +131,8 @@ def test_multiprocessing(params=None):
         pk3 = pickaxe.Pickaxe(**params)
     else:
         pk3 = pickaxe.Pickaxe()
-    pk3._load_coreactant('ATP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
-    pk3._load_coreactant('ADP	Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
+    pk3._load_coreactant('ATP		Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
+    pk3._load_coreactant('ADP		Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O')
     pk3._add_compound(fadh, fadh, type='Starting Compound')
     pk3.rxn_rules['2.7.1.a'] = rule
     pk3.transform_all(max_generations=2, num_workers=2)
@@ -143,9 +143,8 @@ def test_multiprocessing(params=None):
     return pk3
 
 
-@unittest.skipIf("TRAVIS" in os.environ and os.environ["TRAVIS"] == "true",
-                 "Skipping this test on Travis CI.")
 def test_cli():
+    os.chdir(data_dir+"/../..") # ensure the following executes from minedatabase
     rc = subprocess.call('python pickaxe.py -o tests -r tests/data/test_cd_rxn_rule.tsv', shell=True)
     assert not rc
     purge('tests/', ".*\.tsv$")
@@ -182,6 +181,7 @@ def test_save_as_MINE():
         mine_db.reactions.drop()
         mine_db.operators.drop()
         purge(data_dir, ".*\.svg$")
+
 
 def test_save_no_rxn_MINE():
     pk3 = pickaxe.Pickaxe(database='MINE_test')

@@ -103,7 +103,7 @@ class Pickaxe:
         # split_text[0] is compound name, split_text[1] is SMILES string
         # Generate a Mol object from the SMILES string if possible
         try:
-            mol = AllChem.MolFromSmiles(split_text[1])
+            mol = AllChem.MolFromSmiles(split_text[2])
             if not mol:
                 raise ValueError
             # Generate SMILES string with stereochemistry taken into account
@@ -573,20 +573,22 @@ class Pickaxe:
                   (self.generation, len(self.compounds)-n_comps,
                    len(self.reactions) - n_rxns, time.time()-ti))
 
-    def write_compound_output_file(self, path, delimiter='\t'):
+    def write_compound_output_file(self, path, dialect='excel-tab'):
         """Writes all compound data to the specified path.
         
         :param path: path to output
-        :type path: basestring
-        :param delimiter: the character with which to separate data entries
-        :type delimiter: basestring
+        :type path: str
+        :param dialect: the output format for the file. Choose excel for csv 
+            excel-tab for tsv.
+        :type dialect: str
         """
         path = utils.prevent_overwrite(path)
+        columns = ('ID', 'Type', 'Generation', 'Inchikey', 'SMILES')
         with open(path, 'w') as outfile:
-            outfile.write('ID\tInChIKey\tSMILES\n')
-            for c in sorted(self.compounds.values(), key=lambda x: x['ID']):
-                outfile.write(delimiter.join([c['ID'], str(c['Inchikey']),
-                                              c['SMILES']])+'\n')
+            w = csv.DictWriter(outfile, columns, dialect=dialect,
+                               extrasaction='ignore')
+            w.writeheader()
+            w.writerows(sorted(self.compounds.values(), key=lambda x: x['ID']))
 
     def write_reaction_output_file(self, path, delimiter='\t'):
         """Writes all reaction data to the specified path.
