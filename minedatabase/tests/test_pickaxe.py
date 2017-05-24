@@ -1,12 +1,11 @@
-import filecmp
 import os
 import re
+import hashlib
 
 from rdkit.Chem import AllChem
 from minedatabase import pickaxe
 from minedatabase.databases import MINE
 import subprocess
-import unittest
 
 data_dir = os.path.dirname(__file__)+'/data'
 
@@ -96,19 +95,27 @@ def test_product_racimization():
 
 
 def test_compound_output_writing():
+    expected = hashlib.sha256(
+        open(data_dir+'/testcompoundsout', 'rb').read()).hexdigest()
     pk.write_compound_output_file(data_dir+'/testcompoundsout')
     assert os.path.exists(data_dir+'/testcompoundsout_new')
     try:
-        assert filecmp.cmp(data_dir+'/testcompoundsout', data_dir+'/testcompoundsout_new')
+        print(open(data_dir+'/testcompoundsout', 'rb').read())
+        print(open(data_dir+'/testcompoundsout_new', 'rb').read())
+        assert hashlib.sha256(open(data_dir+'/testcompoundsout_new', 'rb'
+                                   ).read()).hexdigest() == expected
     finally:
         os.remove(data_dir+'/testcompoundsout_new')
 
 
 def test_reaction_output_writing():
+    expected = hashlib.sha256(
+        open(data_dir + '/testreactionsout', 'rb').read()).hexdigest()
     pk.write_reaction_output_file(data_dir+'/testreactionsout')
     assert os.path.exists(data_dir+'/testreactionsout_new')
     try:
-        assert filecmp.cmp(data_dir+'/testreactionsout', data_dir+'/testreactionsout_new')
+        assert hashlib.sha256(open(data_dir + '/testreactionsout_new', 'rb'
+                                   ).read()).hexdigest() == expected
     finally:
         os.remove(data_dir+'/testreactionsout_new')
 

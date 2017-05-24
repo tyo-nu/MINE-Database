@@ -586,7 +586,7 @@ class Pickaxe:
         columns = ('ID', 'Type', 'Generation', 'Inchikey', 'SMILES')
         with open(path, 'w') as outfile:
             w = csv.DictWriter(outfile, columns, dialect=dialect,
-                               extrasaction='ignore')
+                               extrasaction='ignore', lineterminator='\n')
             w.writeheader()
             w.writerows(sorted(self.compounds.values(), key=lambda x: x['ID']))
 
