@@ -1,5 +1,5 @@
 # MINE Databases
-[![Build Status](https://travis-ci.com/JamesJeffryes/MINE-Database.svg?token=zA5jJCxFo2xWr4FVXuFK&branch=master)](https://travis-ci.com/JamesJeffryes/MINE-Database)
+[![Build Status](https://travis-ci.org/JamesJeffryes/MINE-Database.svg?branch=master)](https://travis-ci.org/JamesJeffryes/MINE-Database)
 [![Codacy Badge](https://api.codacy.com/project/badge/Grade/fe968c8b593d48ebbb55aaf211c66f73)](https://www.codacy.com?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=JamesJeffryes/MINE-Database&amp;utm_campaign=Badge_Grade)
 
 This repository contains code for the generation (though Pickaxe), 
