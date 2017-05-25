@@ -487,7 +487,7 @@ class Pickaxe:
             # fill unused spots to the left with zfill (e.g. ID = '0003721' if
             # i = 3721).
             if not comp['ID']:
-                comp['ID'] = 'pk_cpd'+str(i).zfill(7)
+                comp['ID'] = 'pkc'+str(i).zfill(7)
                 i += 1
                 self.compounds[comp['_id']] = comp
                 # If we are not loading into the mine, we generate the image
@@ -515,7 +515,7 @@ class Pickaxe:
             # Create ID of form ####### ending with i, padded with zeroes to
             # fill unused spots to the left with zfill (e.g. ID = '0003721' if
             # i = 3721).
-            rxn['ID'] = 'pk_rxn'+str(i).zfill(7)
+            rxn['ID'] = 'pkr'+str(i).zfill(7)
             i += 1
             self.reactions[rxn['_id']] = rxn
 
