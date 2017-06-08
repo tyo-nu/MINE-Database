@@ -53,6 +53,7 @@ class MINE:
         self.models = db.models
         self.np_model = None
         self.id_db = client['UniversalMINE']
+        self._mass_cache = {}  # for rapid calculation of reaction mass change
 
     def add_rxn_pointers(self):
         """Add links to the reactions that each compound participates in
@@ -100,6 +101,49 @@ class MINE:
         # Write to log file
         self.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action":
                                "Add Compound Source field"})
+
+    def add_reaction_mass_change(self, reaction=None):
+        """Calculate the change in mass between reactant and product compounds.
+            This is useful for discovering compounds in molecular networking
+        :param reaction: If specified, the function returns the mass change for
+            the supplied reaction. If false, it calculates the mass change for
+            all reactions missing this value in the database.
+        :type reaction: str
+        :return: If reaction specified, the mass change
+        :rtype: float
+        """
+        def _get_mass(_id):
+            if _id not in self._mass_cache:
+                try:
+                    self._mass_cache['_id'] = self.compounds.find_one(
+                        {"_id": _id}, {'Mass': 1})['Mass']
+                except (TypeError, KeyError):
+                    raise ValueError('A mass value for %s was not found in '
+                                     'compounds collection' % _id)
+            return self._mass_cache['_id']
+
+        def _get_mass_change(rxn):
+            if isinstance(rxn['Reactants'][0], dict):
+                key = 'c_id'
+            else:
+                key = 1
+            start_mass = _get_mass(rxn['Reactants'][0][key])
+            return [_get_mass(product[key]) - start_mass for product
+                    in rxn['Products'] if product[key][0] == 'C']
+
+        if reaction:
+            return _get_mass_change(reaction)
+
+        bulk = self.reactions.initialize_unordered_bulk_op()
+        reactions = self.reactions.find({"Mass_Change": {'$exists': 0}})
+        for rxn in reactions:
+            try:
+                bulk.find({'_id': rxn['_id']}).update({'$set': {
+                    'Mass_Change': _get_mass_change(rxn)}})
+            except ValueError as e:
+                print(e.args[0])
+                print('Failed to parse rxn %s' % rxn['_id'])
+        bulk.execute()
 
     def generate_image_files(self, path, query=None, dir_depth=0,
                              img_type='svg:-a,nosource,w500,h500',
@@ -270,6 +314,8 @@ class MINE:
         compound_dict['_id'] = utils.compound_hash(
             compound_dict['SMILES'], ('Type' in compound_dict and
                                       compound_dict['Type'] == 'Coreactant'))
+        # Caching this for rapid reaction mass change calculation
+        self._mass_cache[compound_dict['_id']] = compound_dict['Mass']
 
         # If the compound is a reactant, then make sure the reactant name is
         # in a correct format.
