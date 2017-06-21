@@ -214,9 +214,11 @@ class Pickaxe:
                     # compound and store SMILES string to be returned
                     smi = AllChem.MolToSmiles(mol, True)
                     _id = line[id_field]
+                    # Do not operate on inorganic compounds
                     if "C" in smi or "c" in smi:
-                        self._add_compound(_id, smi, mol=mol, type='Starting '
-                                                                  'Compound')
+                        AllChem.SanitizeMol(mol)
+                        self._add_compound(_id, smi, mol=mol,
+                                           type='Starting Compound')
                         compound_smiles.append(smi)
         # If a MINE database is being used instead, search for compounds
         # annotated as starting compounds and return those as a list of
@@ -250,6 +252,7 @@ class Pickaxe:
             self.compounds[_id] = {'ID': id, '_id': _id, "SMILES": smi,
                                    'Inchikey': i_key, 'Type': type,
                                    'Generation': self.generation,
+                                   'Formula': self._get_atom_count(mol),
                                    'Reactant_in': [], 'Product_of': [],
                                    "Sources": []}
             # Don't track sources of coreactants
@@ -317,17 +320,16 @@ class Pickaxe:
                 print("Runtime ERROR!"+rule_name)
                 print(compound_SMILES)
                 continue
-            reactant_atoms = self._get_atom_count(reactant_mols)
             # No enumeration for reactant stereoisomers. _make_half_rxn
             # returns a generator, the first element of which is the reactants.
-            reactants = next(self._make_half_rxn(reactant_mols,
+            reactants, reactant_atoms = next(self._make_half_rxn(reactant_mols,
                                                  rule[1]['Reactants']))
             # By sorting the reactant (and later products) we ensure that
             # compound order is fixed.
             reactants.sort()
             for product_mols in product_sets:
                 try:
-                    for stereo_prods in self._make_half_rxn(
+                    for stereo_prods, product_atoms in self._make_half_rxn(
                             product_mols, rule[1]['Products'], self.racemize):
                         # Update predicted compounds list
                         pred_compounds.update(x.c_id for x in stereo_prods)
@@ -335,7 +337,6 @@ class Pickaxe:
                         # Get reaction text (e.g. A + B <==> C + D)
                         text_rxn = self._add_reaction(reactants, rule_name,
                                                       stereo_prods)
-                        product_atoms = self._get_atom_count(product_mols)
                         # If the SMARTS rule is not atom balanced, this check
                         # detects the accidental alchemy.
                         if reactant_atoms - product_atoms \
@@ -350,26 +351,22 @@ class Pickaxe:
                     continue
         return pred_compounds, pred_rxns
 
-    def _get_atom_count(self, molecules):
+    def _get_atom_count(self, mol):
         """Takes a set of mol objects and returns a counter with each element
         type in the set"""
-        if self.explicit_h:
-            return 0
         atoms = collections.Counter()
-        for mol in molecules:
-            AllChem.SanitizeMol(mol)
-            # Find all strings of the form A# in the molecular formula where A
-            # is the element (e.g. C) and # is the number of atoms of that
-            # element in the molecule. Pair is of form [A, #]
-            for pair in re.findall('([A-Z][a-z]*)(\d*)',
-                                   AllChem.CalcMolFormula(mol)):
-                # Add # to atom count, unless there is no # (in which case
-                # there is just one of that element, as ones are implicit in
-                # chemical formulas)
-                if pair[1]:
-                    atoms[pair[0]] += int(pair[1])
-                else:
-                    atoms[pair[0]] += 1
+        # Find all strings of the form A# in the molecular formula where A
+        # is the element (e.g. C) and # is the number of atoms of that
+        # element in the molecule. Pair is of form [A, #]
+        for pair in re.findall('([A-Z][a-z]*)(\d*)',
+                               AllChem.CalcMolFormula(mol)):
+            # Add # to atom count, unless there is no # (in which case
+            # there is just one of that element, as ones are implicit in
+            # chemical formulas)
+            if pair[1]:
+                atoms[pair[0]] += int(pair[1])
+            else:
+                atoms[pair[0]] += 1
         return atoms
 
     def _add_reaction(self, reactants, rule_name, stereo_prods):
@@ -403,12 +400,16 @@ class Pickaxe:
         comps = [self._calculate_compound_information(m, split_stereoisomers)
                  if r == 'Any' else (self.coreactants[r][1],)
                  for m, r in zip(mols, rules)]
+        # count the number of atoms on a side
+        atom_count = collections.Counter()
+        for x in comps:
+            atom_count += self.compounds[x[0]]['Formula']
         # Remove duplicates from comps
         half_rxns = [collections.Counter(subrxn) for subrxn
                      in itertools.product(*comps)]
         # Yield generator with stoichiometry tuples (of form stoichiometry, id)
         for rxn in half_rxns:
-            yield [stoich_tuple(y, x) for x, y in rxn.items()]
+            yield [stoich_tuple(y, x) for x, y in rxn.items()], atom_count
 
     def _calculate_compound_information(self, mol_obj, split_stereoisomers):
         """Calculate the standard data for a compound & return a tuple with
