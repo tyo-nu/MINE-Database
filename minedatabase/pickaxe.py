@@ -61,6 +61,7 @@ class Pickaxe:
         self.neutralise = neutralise
         self.image_dir = image_dir
         self.errors = errors
+        self.radical_check = False
         # Make sure that if a database is to be used, that the database is empty
         if database:
             self.mine = database
@@ -346,7 +347,8 @@ class Pickaxe:
                             print(text_rxn)
                             print(reactant_atoms, product_atoms)
                         pred_rxns.add(text_rxn)
-                except ValueError:
+                except ValueError as e:
+                    print(e)
                     print("Error Processing Rule: " + rule_name)
                     continue
         return pred_compounds, pred_rxns
@@ -367,6 +369,11 @@ class Pickaxe:
                 atoms[pair[0]] += int(pair[1])
             else:
                 atoms[pair[0]] += 1
+        if self.radical_check:
+            radical = any([atom.GetNumRadicalElectrons()
+                           for atom in mol.GetAtoms()])
+            if radical:
+                atoms["*"] += 1
         return atoms
 
     def _add_reaction(self, reactants, rule_name, stereo_prods):
