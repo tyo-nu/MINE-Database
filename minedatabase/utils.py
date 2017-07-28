@@ -4,8 +4,14 @@ from rdkit.Chem import AllChem
 import hashlib
 import collections
 from os import path
+import csv
 
 stoich_tuple = collections.namedtuple("stoich_tuple", 'stoich,c_id')
+
+
+def file_to_id_list(filepath, struct_col='structure'):
+    reader = csv.DictReader(open(filepath), dialect='excel-tab')
+    return [compound_hash(line[struct_col]) for line in reader]
 
 
 def compound_hash(compound, cofactor=False):

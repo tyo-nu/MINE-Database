@@ -390,6 +390,8 @@ class Pickaxe:
         else:
             self.reactions[rhash]['Operators'].add(rule_name)
             self.reactions[rhash]['Reaction_rules'].add(rule_name)
+        for prod_id in [x.c_id for x in stereo_prods if x.c_id[0] == 'C']:
+            self.compounds[prod_id]['Sources'].append(rhash)
         return text_rxn
 
     def _make_half_rxn(self, mols, rules, split_stereoisomers=False):
@@ -577,6 +579,29 @@ class Pickaxe:
                   (self.generation, len(self.compounds)-n_comps,
                    len(self.reactions) - n_rxns, time.time()-ti))
 
+    def prune_network(self, white_list):
+        comp_set, rxn_set = self.find_minimal_set(white_list)
+        self.compounds = dict([(k, v) for k, v in self.compounds.items() if k in comp_set])
+        self.reactions = dict([(k, v) for k, v in self.reactions.items() if k in rxn_set])
+
+    def find_minimal_set(self, white_list):
+        # make an ordered set
+        white_set = set(white_list)
+        comp_set = set()
+        rxn_set = set()
+        for c_id in white_list:
+            if c_id not in self.compounds:
+                continue
+            for r_id in self.compounds[c_id]['Sources']:
+                rxn_set.add(r_id)
+                comp_set.update([x.c_id for x in self.reactions[r_id]['Products']])
+                for tup in self.reactions[r_id]['Reactants']:
+                    comp_set.add(tup.c_id)
+                    if tup.c_id[0] == 'C' and tup.c_id not in white_set:
+                        white_list.append(tup.c_id)
+                        white_set.add(tup.c_id)
+        return comp_set, rxn_set
+
     def write_compound_output_file(self, path, dialect='excel-tab'):
         """Writes all compound data to the specified path.
         
@@ -725,6 +750,8 @@ if __name__ == "__main__":
                         default="tests/data/test_compounds.tsv",
                         help="Specify a list of starting compounds as a "
                              "tab-separated file")
+    parser.add_argument('-p', '--pruning_whitelist', default=None,
+                        help="Specify a list of target compounds to prune reaction network down")
     parser.add_argument('-s', '--smiles', default=None,
                         help="Specify a starting compound as SMILES.")
     parser.add_argument('-o', '--output_dir', default=".",
@@ -768,6 +795,8 @@ if __name__ == "__main__":
     # Generate reaction network
     pk.transform_all(max_generations=options.generations,
                      num_workers=options.max_workers)
+    if options.pruning_whitelist:
+        pk.prune_network(utils.file_to_id_list(options.pruning_whitelist))
     # Save to database (e.g. Mongo) if present, otherwise create output file
     if options.database:
         print("Saving results to %s" % options.database)
