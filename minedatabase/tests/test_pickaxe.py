@@ -1,11 +1,12 @@
 import os
 import re
 import hashlib
+import subprocess
+from filecmp import cmp
 
 from rdkit.Chem import AllChem
 from minedatabase import pickaxe
 from minedatabase.databases import MINE
-import subprocess
 
 data_dir = os.path.dirname(__file__)+'/data'
 
@@ -85,12 +86,12 @@ def test_product_racimization():
     pk2 = pickaxe.Pickaxe(racemize=False, coreactant_list=data_dir + '/test_coreactants.tsv',
                           rule_list=data_dir+'/test_reaction_rules.tsv')
     comps, rxns = pk2.transform_compound(meh, rules=['2.6.1.a'])
-    assert len(comps) == 2
+    assert len(comps) == 38
     assert len(rxns) == 1
     pk2 = pickaxe.Pickaxe(racemize=True, coreactant_list=data_dir + '/test_coreactants.tsv',
                           rule_list=data_dir+'/test_reaction_rules.tsv')
     rcomps, rrxns = pk2.transform_compound(meh, rules=['2.6.1.a'])
-    assert len(rcomps) == 3
+    assert len(rcomps) == 39
     assert len(rrxns) == 2
 
 
@@ -100,8 +101,6 @@ def test_compound_output_writing():
     pk.write_compound_output_file(data_dir+'/testcompoundsout')
     assert os.path.exists(data_dir+'/testcompoundsout_new')
     try:
-        print(open(data_dir+'/testcompoundsout', 'rb').read())
-        print(open(data_dir+'/testcompoundsout_new', 'rb').read())
         assert hashlib.sha256(open(data_dir+'/testcompoundsout_new', 'rb'
                                    ).read()).hexdigest() == expected
     finally:
@@ -155,6 +154,26 @@ def test_cli():
     rc = subprocess.call('python pickaxe.py -o tests -r tests/data/test_cd_rxn_rule.tsv', shell=True)
     assert not rc
     purge('tests/', ".*\.tsv$")
+
+
+def test_pruning():
+    pk3 = test_multiprocessing({'database': 'MINE_test', 'image_dir':
+        data_dir})
+    ids = ['C9d4089d24d09c0c86a817af75ded95dd0f6d5b07', 'C177697ec7f877acf4f1439ce57c03c22fbe5f897', 'C69']
+    pk3.prune_network(ids)
+    pk3.assign_ids()
+    pk3.write_compound_output_file(data_dir + '/pruned_comps')
+    pk3.write_reaction_output_file(data_dir + '/pruned_rxns')
+    assert os.path.exists(data_dir + '/pruned_comps_new')
+    assert os.path.exists(data_dir + '/pruned_rxns_new')
+    try:
+        assert cmp(data_dir + '/pruned_comps', data_dir + '/pruned_comps_new')
+    finally:
+        os.remove(data_dir + '/pruned_comps_new')
+    try:
+        assert cmp(data_dir + '/pruned_rxns', data_dir + '/pruned_rxns_new')
+    finally:
+        os.remove(data_dir + '/pruned_rxns_new')
 
 
 def test_load_compounds_from_MINE():

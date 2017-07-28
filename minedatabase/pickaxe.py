@@ -283,14 +283,9 @@ class Pickaxe:
         :param rules: The names of the reaction rules to apply. If none,
             all rules in the pickaxe's dict will be used.
         :type rules: list
-        :return: Transformed compounds as tuple of id and SMILES string and
-            reactions as a tuple of reactants & products
-        :rtype: tuple of lists
+        :return: Transformed compounds as tuple of compound and reaction dicts
+        :rtype: tuple
         """
-        # These sets collect predictions if this function is being used in
-        # isolation
-        pred_rxns = set()
-        pred_compounds = set()
         if not rules:
             rules = self.rxn_rules.keys()
         # Create Mol object from input SMILES string and remove hydrogens
@@ -333,7 +328,6 @@ class Pickaxe:
                     for stereo_prods, product_atoms in self._make_half_rxn(
                             product_mols, rule[1]['Products'], self.racemize):
                         # Update predicted compounds list
-                        pred_compounds.update(x.c_id for x in stereo_prods)
                         stereo_prods.sort()
                         # Get reaction text (e.g. A + B <==> C + D)
                         text_rxn = self._add_reaction(reactants, rule_name,
@@ -346,12 +340,11 @@ class Pickaxe:
                                   + rule_name)
                             print(text_rxn)
                             print(reactant_atoms, product_atoms)
-                        pred_rxns.add(text_rxn)
                 except ValueError as e:
                     print(e)
                     print("Error Processing Rule: " + rule_name)
                     continue
-        return pred_compounds, pred_rxns
+        return self.compounds, self.reactions
 
     def _get_atom_count(self, mol):
         """Takes a set of mol objects and returns a counter with each element
@@ -397,6 +390,8 @@ class Pickaxe:
         else:
             self.reactions[rhash]['Operators'].add(rule_name)
             self.reactions[rhash]['Reaction_rules'].add(rule_name)
+        for prod_id in [x.c_id for x in stereo_prods if x.c_id[0] == 'C']:
+            self.compounds[prod_id]['Sources'].append(rhash)
         return text_rxn
 
     def _make_half_rxn(self, mols, rules, split_stereoisomers=False):
@@ -537,6 +532,15 @@ class Pickaxe:
             may be applied
         :type max_generations: int
         """
+        def print_progress(done, total):
+            # Use print_on to print % completion roughly every 5 percent
+            # Include max to print no more than once per compound (e.g. if
+            # less than 20 compounds)
+            print_on = max(round(.05 * total), 1)
+            if not done % print_on:
+                print("Generation %s: %s percent complete" %
+                      (self.generation,
+                       round(done / total * 100)))
         while self.generation < max_generations:
             self.generation += 1
             # Use to print out time per generation at end of loop
@@ -547,39 +551,56 @@ class Pickaxe:
             compound_smiles = [c['SMILES'] for c in self.compounds.values()
                                if c['Generation'] == self.generation - 1
                                and c['Type'] != 'Coreactant']
-            # Use print_on to print % completion roughly every 5 percent
-            # Include max to print no more than once per compound (e.g. if
-            # less than 20 compounds)
-            print_on = max(round(.05 * len(compound_smiles)), 1)
-            if compound_smiles:
-                if num_workers > 1:
-                    pool = multiprocessing.Pool(processes=num_workers)
-                    # The compound and reaction processes will be shared across
-                    # processes and thus need a Manager to handle requests.
-                    # This can be a bottleneck if running on a server with a
-                    # large number of CPUs but that's not the predominate use
-                    # case.
-                    manager = multiprocessing.Manager()
-                    self.compounds = manager.dict(self.compounds)
-                    self.reactions = manager.dict(self.reactions)
-                    for i, res in enumerate(pool.imap_unordered(
-                            self.transform_compound, compound_smiles)):
-                        if not (i+1) % print_on:
-                            print("Generation %s: %s percent complete" %
-                                  (self.generation,
-                                   round((i+1) / len(compound_smiles) * 100)))
-                else:
-                    for i, smi in enumerate(compound_smiles):
-                        # Perform possible reactions on compound
-                        self.transform_compound(smi)
-                        if not (i+1) % print_on:
-                            print("Generation %s: %s percent complete" %
-                                  (self.generation,
-                                   round((i+1) / len(compound_smiles) * 100)))
-            print("Generation %s produced %s new compounds and %s new reactions"
-                  " in %s sec" %
+            if not compound_smiles:
+                continue
+            if num_workers > 1:
+                chunk_size = max(
+                    [round(len(compound_smiles) / (num_workers * 10)), 1])
+                print("Chunk Size:", chunk_size)
+                new_comps = deepcopy(self.compounds)
+                new_rxns = deepcopy(self.reactions)
+                pool = multiprocessing.Pool(processes=num_workers)
+                for i, res in enumerate(pool.imap_unordered(
+                        self.transform_compound, compound_smiles, chunk_size)):
+                    new_comps.update(res[0])
+                    new_rxns.update(res[1])
+                    print_progress((i+1), len(compound_smiles))
+                self.compounds = new_comps
+                self.reactions = new_rxns
+
+            else:
+                for i, smi in enumerate(compound_smiles):
+                    # Perform possible reactions on compound
+                    self.transform_compound(smi)
+                    print_progress(i, len(compound_smiles))
+
+            print("Generation %s produced %s new compounds and %s new "
+                  "reactions in %s sec" %
                   (self.generation, len(self.compounds)-n_comps,
                    len(self.reactions) - n_rxns, time.time()-ti))
+
+    def prune_network(self, white_list):
+        comp_set, rxn_set = self.find_minimal_set(white_list)
+        self.compounds = dict([(k, v) for k, v in self.compounds.items() if k in comp_set])
+        self.reactions = dict([(k, v) for k, v in self.reactions.items() if k in rxn_set])
+
+    def find_minimal_set(self, white_list):
+        # make an ordered set
+        white_set = set(white_list)
+        comp_set = set()
+        rxn_set = set()
+        for c_id in white_list:
+            if c_id not in self.compounds:
+                continue
+            for r_id in self.compounds[c_id]['Sources']:
+                rxn_set.add(r_id)
+                comp_set.update([x.c_id for x in self.reactions[r_id]['Products']])
+                for tup in self.reactions[r_id]['Reactants']:
+                    comp_set.add(tup.c_id)
+                    if tup.c_id[0] == 'C' and tup.c_id not in white_set:
+                        white_list.append(tup.c_id)
+                        white_set.add(tup.c_id)
+        return comp_set, rxn_set
 
     def write_compound_output_file(self, path, dialect='excel-tab'):
         """Writes all compound data to the specified path.
@@ -623,8 +644,6 @@ class Pickaxe:
         :type db_id: basestring
         """
         db = MINE(db_id)
-        self.compounds = dict(self.compounds)
-        self.reactions = dict(self.reactions)
         bulk_c = db.compounds.initialize_unordered_bulk_op()
         bulk_r = db.reactions.initialize_unordered_bulk_op()
 
@@ -731,6 +750,8 @@ if __name__ == "__main__":
                         default="tests/data/test_compounds.tsv",
                         help="Specify a list of starting compounds as a "
                              "tab-separated file")
+    parser.add_argument('-p', '--pruning_whitelist', default=None,
+                        help="Specify a list of target compounds to prune reaction network down")
     parser.add_argument('-s', '--smiles', default=None,
                         help="Specify a starting compound as SMILES.")
     parser.add_argument('-o', '--output_dir', default=".",
@@ -774,6 +795,8 @@ if __name__ == "__main__":
     # Generate reaction network
     pk.transform_all(max_generations=options.generations,
                      num_workers=options.max_workers)
+    if options.pruning_whitelist:
+        pk.prune_network(utils.file_to_id_list(options.pruning_whitelist))
     # Save to database (e.g. Mongo) if present, otherwise create output file
     if options.database:
         print("Saving results to %s" % options.database)
