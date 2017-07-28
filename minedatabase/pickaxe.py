@@ -535,10 +535,10 @@ class Pickaxe:
             # Include max to print no more than once per compound (e.g. if
             # less than 20 compounds)
             print_on = max(round(.05 * total), 1)
-            if not (done + 1) % print_on:
+            if not done % print_on:
                 print("Generation %s: %s percent complete" %
                       (self.generation,
-                       round((done + 1) / total * 100)))
+                       round(done / total * 100)))
         while self.generation < max_generations:
             self.generation += 1
             # Use to print out time per generation at end of loop
@@ -549,25 +549,28 @@ class Pickaxe:
             compound_smiles = [c['SMILES'] for c in self.compounds.values()
                                if c['Generation'] == self.generation - 1
                                and c['Type'] != 'Coreactant']
+            if not compound_smiles:
+                continue
+            if num_workers > 1:
+                chunk_size = max(
+                    [round(len(compound_smiles) / (num_workers * 10)), 1])
+                print("Chunk Size:", chunk_size)
+                new_comps = deepcopy(self.compounds)
+                new_rxns = deepcopy(self.reactions)
+                pool = multiprocessing.Pool(processes=num_workers)
+                for i, res in enumerate(pool.imap_unordered(
+                        self.transform_compound, compound_smiles, chunk_size)):
+                    new_comps.update(res[0])
+                    new_rxns.update(res[1])
+                    print_progress((i+1), len(compound_smiles))
+                self.compounds = new_comps
+                self.reactions = new_rxns
 
-            if compound_smiles:
-                if num_workers > 1:
-                    new_comps = {}
-                    new_rxns = {}
-                    pool = multiprocessing.Pool(processes=num_workers)
-                    for i, res in enumerate(pool.imap_unordered(
-                            self.transform_compound, compound_smiles)):
-                        new_comps.update(res[0])
-                        new_rxns.update(res[1])
-                        print_progress(i, len(compound_smiles))
-                    self.compounds.update(new_comps)
-                    self.reactions.update(new_rxns)
-
-                else:
-                    for i, smi in enumerate(compound_smiles):
-                        # Perform possible reactions on compound
-                        self.transform_compound(smi)
-                        print_progress(i, len(compound_smiles))
+            else:
+                for i, smi in enumerate(compound_smiles):
+                    # Perform possible reactions on compound
+                    self.transform_compound(smi)
+                    print_progress(i, len(compound_smiles))
 
             print("Generation %s produced %s new compounds and %s new "
                   "reactions in %s sec" %
@@ -616,8 +619,6 @@ class Pickaxe:
         :type db_id: basestring
         """
         db = MINE(db_id)
-        self.compounds = dict(self.compounds)
-        self.reactions = dict(self.reactions)
         bulk_c = db.compounds.initialize_unordered_bulk_op()
         bulk_r = db.reactions.initialize_unordered_bulk_op()
 
