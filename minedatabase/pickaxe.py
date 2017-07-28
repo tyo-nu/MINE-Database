@@ -185,42 +185,38 @@ class Pickaxe:
         """
         compound_smiles = []
         if compound_file:
-            with open(compound_file) as infile:
-                # Get all compounds from compound file and store in dictionary
-                reader = csv.DictReader(infile.readlines(), delimiter="\t")
-                for line in reader:
-                    # Generate Mol object from InChI code if present
-                    if "InChI=" in line[structure_field]:
-                        mol = AllChem.MolFromInchi(line[structure_field])
-                    # Otherwise generate Mol object from SMILES string
-                    else:
-                        mol = AllChem.MolFromSmiles(line[structure_field])
-                    if not mol:
-                        if self.errors:
-                            print("Unable to Parse %s" % line[structure_field])
-                        continue
-                    # If compound is disconnected (determined by GetMolFrags
-                    # from rdkit) and loading of these molecules is not
-                    # allowed (i.e. fragmented_mols == 1), then don't add to
-                    # internal dictionary. This is most common when compounds
-                    # are salts.
-                    if not fragmented_mols and len(AllChem.GetMolFrags(mol)) \
-                            > 1:
-                        continue
-                    # If specified remove charges (before applying reaction
-                    # rules later on)
-                    if self.neutralise:
-                        mol = utils.neutralise_charges(mol)
-                    # Add compound to internal dictionary as a starting
-                    # compound and store SMILES string to be returned
-                    smi = AllChem.MolToSmiles(mol, True)
-                    _id = line[id_field]
-                    # Do not operate on inorganic compounds
-                    if "C" in smi or "c" in smi:
-                        AllChem.SanitizeMol(mol)
-                        self._add_compound(_id, smi, mol=mol,
-                                           type='Starting Compound')
-                        compound_smiles.append(smi)
+            for line in utils.file_to_dict_list(compound_file):
+                # Generate Mol object from InChI code if present
+                if "InChI=" in line[structure_field]:
+                    mol = AllChem.MolFromInchi(line[structure_field])
+                # Otherwise generate Mol object from SMILES string
+                else:
+                    mol = AllChem.MolFromSmiles(line[structure_field])
+                if not mol:
+                    if self.errors:
+                        print("Unable to Parse %s" % line[structure_field])
+                    continue
+                # If compound is disconnected (determined by GetMolFrags
+                # from rdkit) and loading of these molecules is not
+                # allowed (i.e. fragmented_mols == 1), then don't add to
+                # internal dictionary. This is most common when compounds
+                # are salts.
+                if not fragmented_mols and len(AllChem.GetMolFrags(mol)) > 1:
+                    continue
+                # If specified remove charges (before applying reaction
+                # rules later on)
+                if self.neutralise:
+                    mol = utils.neutralise_charges(mol)
+                # Add compound to internal dictionary as a starting
+                # compound and store SMILES string to be returned
+                smi = AllChem.MolToSmiles(mol, True)
+                _id = line[id_field]
+                # Do not operate on inorganic compounds
+                if "C" in smi or "c" in smi:
+                    AllChem.SanitizeMol(mol)
+                    self._add_compound(_id, smi, mol=mol,
+                                       type='Starting Compound')
+                    compound_smiles.append(smi)
         # If a MINE database is being used instead, search for compounds
         # annotated as starting compounds and return those as a list of
         # SMILES strings
@@ -580,12 +576,29 @@ class Pickaxe:
                    len(self.reactions) - n_rxns, time.time()-ti))
 
     def prune_network(self, white_list):
+        """
+        Prune the predicted reaction network to only compounds and reactions that terminate
+         in a specified white list of compounds.
+        :param white_list: A list of compound_ids to include (if found)
+        :type white_list: list
+        :return: None
+        """
+        n_white = len(white_list)
         comp_set, rxn_set = self.find_minimal_set(white_list)
+        print("Pruned network to %s compounds and %s reactions based on %s whitelisted compounds"
+              % (len(comp_set), len(rxn_set), n_white))
         self.compounds = dict([(k, v) for k, v in self.compounds.items() if k in comp_set])
         self.reactions = dict([(k, v) for k, v in self.reactions.items() if k in rxn_set])
 
     def find_minimal_set(self, white_list):
-        # make an ordered set
+        """
+        Given a whitelist this function finds the minimal set of compound and reactions ids
+         that comprise the set
+        :param white_list:  A list of compound_ids to include (if found)
+        :type white_list: list
+        :return: compound and reaction id sets
+        :rtype: tuple(set, set)
+        """
         white_set = set(white_list)
         comp_set = set()
         rxn_set = set()
@@ -597,6 +610,7 @@ class Pickaxe:
                 comp_set.update([x.c_id for x in self.reactions[r_id]['Products']])
                 for tup in self.reactions[r_id]['Reactants']:
                     comp_set.add(tup.c_id)
+                    # do not want duplicates or cofactors in the whitelist
                     if tup.c_id[0] == 'C' and tup.c_id not in white_set:
                         white_list.append(tup.c_id)
                         white_set.add(tup.c_id)
@@ -604,10 +618,10 @@ class Pickaxe:
 
     def write_compound_output_file(self, path, dialect='excel-tab'):
         """Writes all compound data to the specified path.
-        
+
         :param path: path to output
         :type path: str
-        :param dialect: the output format for the file. Choose excel for csv 
+        :param dialect: the output format for the file. Choose excel for csv
             excel-tab for tsv.
         :type dialect: str
         """
@@ -796,7 +810,7 @@ if __name__ == "__main__":
     pk.transform_all(max_generations=options.generations,
                      num_workers=options.max_workers)
     if options.pruning_whitelist:
-        pk.prune_network(utils.file_to_id_list(options.pruning_whitelist))
+        pk.prune_network([utils.compound_hash(x['structure']) for x in utils.file_to_dict_list(options.pruning_whitelist)])
     # Save to database (e.g. Mongo) if present, otherwise create output file
     if options.database:
         print("Saving results to %s" % options.database)

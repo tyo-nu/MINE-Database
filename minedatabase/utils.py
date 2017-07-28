@@ -5,13 +5,22 @@ import hashlib
 import collections
 from os import path
 import csv
+import json
 
 stoich_tuple = collections.namedtuple("stoich_tuple", 'stoich,c_id')
 
 
-def file_to_id_list(filepath, struct_col='structure'):
-    reader = csv.DictReader(open(filepath), dialect='excel-tab')
-    return [compound_hash(line[struct_col]) for line in reader]
+def file_to_dict_list(filepath):
+    """Accept a path to a CSV, TSV or JSON file and return a dictionary list"""
+    if '.tsv' in filepath:
+        reader = csv.DictReader(open(filepath), dialect='excel-tab')
+    elif '.csv' in filepath:
+        reader = csv.DictReader(open(filepath))
+    elif '.json' in filepath:
+        reader = json.load(open(filepath))
+    else:
+        raise ValueError('Unrecognized input file type')
+    return list(reader)
 
 
 def compound_hash(compound, cofactor=False):
