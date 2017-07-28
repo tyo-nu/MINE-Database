@@ -283,14 +283,9 @@ class Pickaxe:
         :param rules: The names of the reaction rules to apply. If none,
             all rules in the pickaxe's dict will be used.
         :type rules: list
-        :return: Transformed compounds as tuple of id and SMILES string and
-            reactions as a tuple of reactants & products
-        :rtype: tuple of lists
+        :return: Transformed compounds as tuple of compound and reaction dicts
+        :rtype: tuple
         """
-        # These sets collect predictions if this function is being used in
-        # isolation
-        pred_rxns = set()
-        pred_compounds = set()
         if not rules:
             rules = self.rxn_rules.keys()
         # Create Mol object from input SMILES string and remove hydrogens
@@ -333,7 +328,6 @@ class Pickaxe:
                     for stereo_prods, product_atoms in self._make_half_rxn(
                             product_mols, rule[1]['Products'], self.racemize):
                         # Update predicted compounds list
-                        pred_compounds.update(x.c_id for x in stereo_prods)
                         stereo_prods.sort()
                         # Get reaction text (e.g. A + B <==> C + D)
                         text_rxn = self._add_reaction(reactants, rule_name,
@@ -346,12 +340,11 @@ class Pickaxe:
                                   + rule_name)
                             print(text_rxn)
                             print(reactant_atoms, product_atoms)
-                        pred_rxns.add(text_rxn)
                 except ValueError as e:
                     print(e)
                     print("Error Processing Rule: " + rule_name)
                     continue
-        return pred_compounds, pred_rxns
+        return self.compounds, self.reactions
 
     def _get_atom_count(self, mol):
         """Takes a set of mol objects and returns a counter with each element
@@ -537,6 +530,15 @@ class Pickaxe:
             may be applied
         :type max_generations: int
         """
+        def print_progress(done, total):
+            # Use print_on to print % completion roughly every 5 percent
+            # Include max to print no more than once per compound (e.g. if
+            # less than 20 compounds)
+            print_on = max(round(.05 * total), 1)
+            if not (done + 1) % print_on:
+                print("Generation %s: %s percent complete" %
+                      (self.generation,
+                       round((done + 1) / total * 100)))
         while self.generation < max_generations:
             self.generation += 1
             # Use to print out time per generation at end of loop
@@ -547,37 +549,28 @@ class Pickaxe:
             compound_smiles = [c['SMILES'] for c in self.compounds.values()
                                if c['Generation'] == self.generation - 1
                                and c['Type'] != 'Coreactant']
-            # Use print_on to print % completion roughly every 5 percent
-            # Include max to print no more than once per compound (e.g. if
-            # less than 20 compounds)
-            print_on = max(round(.05 * len(compound_smiles)), 1)
+
             if compound_smiles:
                 if num_workers > 1:
+                    new_comps = {}
+                    new_rxns = {}
                     pool = multiprocessing.Pool(processes=num_workers)
-                    # The compound and reaction processes will be shared across
-                    # processes and thus need a Manager to handle requests.
-                    # This can be a bottleneck if running on a server with a
-                    # large number of CPUs but that's not the predominate use
-                    # case.
-                    manager = multiprocessing.Manager()
-                    self.compounds = manager.dict(self.compounds)
-                    self.reactions = manager.dict(self.reactions)
                     for i, res in enumerate(pool.imap_unordered(
                             self.transform_compound, compound_smiles)):
-                        if not (i+1) % print_on:
-                            print("Generation %s: %s percent complete" %
-                                  (self.generation,
-                                   round((i+1) / len(compound_smiles) * 100)))
+                        new_comps.update(res[0])
+                        new_rxns.update(res[1])
+                        print_progress(i, len(compound_smiles))
+                    self.compounds.update(new_comps)
+                    self.reactions.update(new_rxns)
+
                 else:
                     for i, smi in enumerate(compound_smiles):
                         # Perform possible reactions on compound
                         self.transform_compound(smi)
-                        if not (i+1) % print_on:
-                            print("Generation %s: %s percent complete" %
-                                  (self.generation,
-                                   round((i+1) / len(compound_smiles) * 100)))
-            print("Generation %s produced %s new compounds and %s new reactions"
-                  " in %s sec" %
+                        print_progress(i, len(compound_smiles))
+
+            print("Generation %s produced %s new compounds and %s new "
+                  "reactions in %s sec" %
                   (self.generation, len(self.compounds)-n_comps,
                    len(self.reactions) - n_rxns, time.time()-ti))
 

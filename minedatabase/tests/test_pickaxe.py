@@ -85,12 +85,12 @@ def test_product_racimization():
     pk2 = pickaxe.Pickaxe(racemize=False, coreactant_list=data_dir + '/test_coreactants.tsv',
                           rule_list=data_dir+'/test_reaction_rules.tsv')
     comps, rxns = pk2.transform_compound(meh, rules=['2.6.1.a'])
-    assert len(comps) == 2
+    assert len(comps) == 38
     assert len(rxns) == 1
     pk2 = pickaxe.Pickaxe(racemize=True, coreactant_list=data_dir + '/test_coreactants.tsv',
                           rule_list=data_dir+'/test_reaction_rules.tsv')
     rcomps, rrxns = pk2.transform_compound(meh, rules=['2.6.1.a'])
-    assert len(rcomps) == 3
+    assert len(rcomps) == 39
     assert len(rrxns) == 2
 
 
