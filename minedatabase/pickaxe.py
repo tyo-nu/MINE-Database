@@ -576,12 +576,29 @@ class Pickaxe:
                    len(self.reactions) - n_rxns, time.time()-ti))
 
     def prune_network(self, white_list):
+        """
+        Prune the predicted reaction network to only compounds and reactions that terminate
+         in a specified white list of compounds.
+        :param white_list: A list of compound_ids to include (if found)
+        :type white_list: list
+        :return: None
+        """
+        n_white = len(white_list)
         comp_set, rxn_set = self.find_minimal_set(white_list)
+        print("Pruned network to %s compounds and %s reactions based on %s whitelisted compounds"
+              % (len(comp_set), len(rxn_set), n_white))
         self.compounds = dict([(k, v) for k, v in self.compounds.items() if k in comp_set])
         self.reactions = dict([(k, v) for k, v in self.reactions.items() if k in rxn_set])
 
     def find_minimal_set(self, white_list):
-        # make an ordered set
+        """
+        Given a whitelist this function finds the minimal set of compound and reactions ids
+         that comprise the set
+        :param white_list:  A list of compound_ids to include (if found)
+        :type white_list: list
+        :return: compound and reaction id sets
+        :rtype: tuple(set, set)
+        """
         white_set = set(white_list)
         comp_set = set()
         rxn_set = set()
@@ -593,6 +610,7 @@ class Pickaxe:
                 comp_set.update([x.c_id for x in self.reactions[r_id]['Products']])
                 for tup in self.reactions[r_id]['Reactants']:
                     comp_set.add(tup.c_id)
+                    # do not want duplicates or cofactors in the whitelist
                     if tup.c_id[0] == 'C' and tup.c_id not in white_set:
                         white_list.append(tup.c_id)
                         white_set.add(tup.c_id)
@@ -600,10 +618,10 @@ class Pickaxe:
 
     def write_compound_output_file(self, path, dialect='excel-tab'):
         """Writes all compound data to the specified path.
-        
+
         :param path: path to output
         :type path: str
-        :param dialect: the output format for the file. Choose excel for csv 
+        :param dialect: the output format for the file. Choose excel for csv
             excel-tab for tsv.
         :type dialect: str
         """
