@@ -230,6 +230,8 @@ class Pickaxe:
                 raise ValueError('Structure field not found in input')
             structure_field = self.structure_field
 
+        if structure_field not in input_dict:
+            return
         # Generate Mol object from InChI code if present
         if "InChI=" in input_dict[structure_field]:
             mol = AllChem.MolFromInchi(input_dict[structure_field])
