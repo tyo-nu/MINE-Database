@@ -810,7 +810,9 @@ if __name__ == "__main__":
     pk.transform_all(max_generations=options.generations,
                      num_workers=options.max_workers)
     if options.pruning_whitelist:
-        pk.prune_network([utils.compound_hash(x['structure']) for x in utils.file_to_dict_list(options.pruning_whitelist)])
+        pk.prune_network([utils.compound_hash(x['structure'])
+                          for x in utils.file_to_dict_list(options.pruning_whitelist)
+                          if 'structure' in x])
     # Save to database (e.g. Mongo) if present, otherwise create output file
     if options.database:
         print("Saving results to %s" % options.database)
