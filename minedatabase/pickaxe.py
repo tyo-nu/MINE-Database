@@ -61,7 +61,9 @@ class Pickaxe:
         self.neutralise = neutralise
         self.image_dir = image_dir
         self.errors = errors
+        self.fragmented_mols = False
         self.radical_check = False
+        self.structure_field = None
         # Make sure that if a database is to be used, that the database is empty
         if database:
             self.mine = database
@@ -164,8 +166,8 @@ class Pickaxe:
                     raise ValueError(str(e) + "Failed to parse %s" %
                                      (rule["Name"]))
 
-    def load_compound_set(self, compound_file=None, structure_field='structure',
-                          id_field='id', fragmented_mols=False):
+    def load_compound_set(self, compound_file=None, structure_field=None,
+                          id_field='id'):
         """If a compound file is provided, this function loads the compounds
         into it's internal dictionary. If not, it attempts to find the
         compounds in it's associated MINE database.
@@ -178,35 +180,15 @@ class Pickaxe:
         :param id_field: the name of the column containing the desired
             compound ID (Default: 'id)
         :type id_field: str
-        :param fragmented_mols: Permit the loading of disconnected molecules
-        :type fragmented_mols: bool
         :return: compound SMILES
         :rtype: list
         """
         compound_smiles = []
         if compound_file:
             for line in utils.file_to_dict_list(compound_file):
-                # Generate Mol object from InChI code if present
-                if "InChI=" in line[structure_field]:
-                    mol = AllChem.MolFromInchi(line[structure_field])
-                # Otherwise generate Mol object from SMILES string
-                else:
-                    mol = AllChem.MolFromSmiles(line[structure_field])
+                mol = self._mol_from_dict(line, structure_field)
                 if not mol:
-                    if self.errors:
-                        print("Unable to Parse %s" % line[structure_field])
                     continue
-                # If compound is disconnected (determined by GetMolFrags
-                # from rdkit) and loading of these molecules is not
-                # allowed (i.e. fragmented_mols == 1), then don't add to
-                # internal dictionary. This is most common when compounds
-                # are salts.
-                if not fragmented_mols and len(AllChem.GetMolFrags(mol)) > 1:
-                    continue
-                # If specified remove charges (before applying reaction
-                # rules later on)
-                if self.neutralise:
-                    mol = utils.neutralise_charges(mol)
                 # Add compound to internal dictionary as a starting
                 # compound and store SMILES string to be returned
                 smi = AllChem.MolToSmiles(mol, True)
@@ -235,6 +217,41 @@ class Pickaxe:
                              'starting compounds')
         print("%s compounds loaded" % len(compound_smiles))
         return compound_smiles
+
+    def _mol_from_dict(self, input_dict, structure_field=None):
+        # detect structure field as needed
+        if not structure_field:
+            if not self.structure_field:
+                for field in input_dict:
+                    if str(field).lower() in {'smiles', 'inchi', 'structure'}:
+                        self.structure_field = field
+                        break
+            if not self.structure_field:
+                raise ValueError('Structure field not found in input')
+            structure_field = self.structure_field
+
+        # Generate Mol object from InChI code if present
+        if "InChI=" in input_dict[structure_field]:
+            mol = AllChem.MolFromInchi(input_dict[structure_field])
+        # Otherwise generate Mol object from SMILES string
+        else:
+            mol = AllChem.MolFromSmiles(input_dict[structure_field])
+        if not mol:
+            if self.errors:
+                print("Unable to Parse %s" % input_dict[structure_field])
+            return
+        # If compound is disconnected (determined by GetMolFrags
+        # from rdkit) and loading of these molecules is not
+        # allowed (i.e. fragmented_mols == 1), then don't add to
+        # internal dictionary. This is most common when compounds
+        # are salts.
+        if not self.fragmented_mols and len(AllChem.GetMolFrags(mol)) > 1:
+            return
+        # If specified remove charges (before applying reaction
+        # rules later on)
+        if self.neutralise:
+            mol = utils.neutralise_charges(mol)
+        return mol
 
     def _add_compound(self, id, smi, mol=None, type='Predicted'):
         """Adds a compound to the internal compound dictionary"""
@@ -810,9 +827,8 @@ if __name__ == "__main__":
     pk.transform_all(max_generations=options.generations,
                      num_workers=options.max_workers)
     if options.pruning_whitelist:
-        pk.prune_network([utils.compound_hash(x['structure'])
-                          for x in utils.file_to_dict_list(options.pruning_whitelist)
-                          if 'structure' in x])
+        mols = [pk._mol_from_dict(line) for line in utils.file_to_dict_list(options.pruning_whitelist)]
+        pk.prune_network([utils.compound_hash(x) for x in mols if x])
     # Save to database (e.g. Mongo) if present, otherwise create output file
     if options.database:
         print("Saving results to %s" % options.database)
