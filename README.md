@@ -1,6 +1,7 @@
 # MINE Databases
 [![Build Status](https://travis-ci.org/JamesJeffryes/MINE-Database.svg?branch=master)](https://travis-ci.org/JamesJeffryes/MINE-Database)
-[![Codacy Badge](https://api.codacy.com/project/badge/Grade/fe968c8b593d48ebbb55aaf211c66f73)](https://www.codacy.com?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=JamesJeffryes/MINE-Database&amp;utm_campaign=Badge_Grade)
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/a8d348757fd9495686cd54b08456f6a2)](https://www.codacy.com/app/JamesJeffryes/MINE-Database?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=JamesJeffryes/MINE-Database&amp;utm_campaign=Badge_Grade)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 This repository contains code for the generation (though Pickaxe), 
 storage and querying of MINE databases. For generalinformation on MINE 
