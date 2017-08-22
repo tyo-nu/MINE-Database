@@ -314,6 +314,8 @@ class MINE:
         compound_dict['_id'] = utils.compound_hash(
             compound_dict['SMILES'], ('Type' in compound_dict and
                                       compound_dict['Type'] == 'Coreactant'))
+        if '_atom_count' in compound_dict:
+            del compound_dict['_atom_count']
         # Caching this for rapid reaction mass change calculation
         self._mass_cache[compound_dict['_id']] = compound_dict['Mass']
 
