@@ -268,7 +268,9 @@ class Pickaxe:
             self.compounds[_id] = {'ID': id, '_id': _id, "SMILES": smi,
                                    'Inchikey': i_key, 'Type': type,
                                    'Generation': self.generation,
-                                   'Formula': self._get_atom_count(mol),
+                                   'Formula': AllChem.CalcMolFormula(mol),
+                                   '_atom_count': self._get_atom_count(mol),
+                                   'Charge': AllChem.GetFormalCharge(mol),
                                    'Reactant_in': [], 'Product_of': [],
                                    "Sources": []}
             # Don't track sources of coreactants
@@ -420,7 +422,7 @@ class Pickaxe:
         # count the number of atoms on a side
         atom_count = collections.Counter()
         for x in comps:
-            atom_count += self.compounds[x[0]]['Formula']
+            atom_count += self.compounds[x[0]]['_atom_count']
         # Remove duplicates from comps
         half_rxns = [collections.Counter(subrxn) for subrxn
                      in itertools.product(*comps)]
@@ -645,7 +647,8 @@ class Pickaxe:
         :type dialect: str
         """
         path = utils.prevent_overwrite(path)
-        columns = ('ID', 'Type', 'Generation', 'Inchikey', 'SMILES')
+        columns = ('ID', 'Type', 'Generation', "Formula", "Charge", 'Inchikey',
+                   'SMILES')
         with open(path, 'w') as outfile:
             w = csv.DictWriter(outfile, columns, dialect=dialect,
                                extrasaction='ignore', lineterminator='\n')
