@@ -357,7 +357,7 @@ class Pickaxe:
                                   + rule_name)
                             print(text_rxn)
                             print(reactant_atoms, product_atoms)
-                except ValueError as e:
+                except (ValueError, MemoryError) as e:
                     print(e)
                     print("Error Processing Rule: " + rule_name)
                     continue
