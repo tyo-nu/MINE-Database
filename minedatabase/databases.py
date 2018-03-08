@@ -167,7 +167,7 @@ class MINE:
         """
         ids = []
         extension = img_type.split(":")[0]
-        structure_file = path[:-4] + 'tmp.smiles'
+        structure_file = os.path.join(path, 'tmp.smiles')
         if not query:
             query = {}
 

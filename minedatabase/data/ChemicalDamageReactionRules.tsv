@@ -38,7 +38,7 @@ AmineRiboseHydrolysis	Any;cpd00001	[#6;R1:5]-[#7H1:4]-[#6;R1r5:2](-[#6;R1r5:3])-
 AromaticDeamination	Any;cpd00001	[#6;a:1]-[#7H2:2].[#8:3]>>[#6;a:1]-[#8:3].[#7:2]	Any;cpd00013
 AromaticDecarboxylation	Any	[#8R0:1][cR1:2][cR1:3][C:4](-[#8H1:6])=[O:5]>>[#8:1]-[c:2][c:3].[O:5]=[C:4]=[O:6]	Any;cpd00011	RXN-7859;RXN-7858;RXN-7857;RXN-12063
 AutoxidationToCarboxylicAcid	Any;cpd00025	[#6:5]-[#6;R0:2](=[O:1])-[#6;H2R0:3]-[#8:4].[#8:6]-[#8:7]>>[#6:5]-[#6;R0:2](-[#8:1])-[#6:3](-[#8:4])=[O:6].[#8:7]	Any;cpd00001
-AutoxidationToKetone	Any;cpd00007	[#8H1:4]-[#6R0h@:3]-[#6;R0:2]=[O:1].[O:5]=[O:6]>>[O:4]=[#6H0:3]-[#6:2]=[O:1].[#8:5]-[#8:6]	Any;cpd00025	21376711; 6365176; 12566068; 6099220
+AutoxidationToKetone	Any;cpd00007	[#8H1:4]-[#6R0h2:3]-[#6;R0:2]=[O:1].[O:5]=[O:6]>>[O:4]=[#6H1:3]-[#6:2]=[O:1].[#8:5]-[#8:6]	Any;cpd00025	21376711; 6365176; 12566068; 6099220
 BetaHydroxyDehydration	Any	[#8H1:1]-[#6;H2:2]-[#6:3](=[O:6])-[#6:4]-;!@[#8:5]>>[#6:4]-[#6:3](=[O:6])-[#6:2]=[O:1].[#8:5]	Any;Any
 BetaKetoDecarboxylation	Any	[#8H1:2]-[#6:1](=[O:3])-[#6;H1,H2:4]-[#6:5]=[O:6]>>[O:3]=[C:1]=[O:2].[#6:4]-[#6:5]=[O:6]	cpd00011;Any	Gomez-Sanchez A et al (1992) Carbohydrate Research 229: 307-322
 Carbamylation_CarbamoylPhosphate	Any;cpd00146	[#6:2]-[#7h,#16H1:1].[#7:5]-[#6:4](-[#7,#8:6])=[O:3]>>[#6:2]-[*:1]-[#6:4](-[#7:5])=[O:3].[*:6]	Any;cpd00009	14229666; 14193831; 14193831
