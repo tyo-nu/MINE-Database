@@ -1,6 +1,7 @@
 """Queries.py: Contains functions which power the API queries"""
 from ast import literal_eval
 from rdkit.Chem import AllChem
+import re
 
 default_projection = {'SMILES': 1, 'Formula': 1, 'MINE_id': 1, 'Names': 1,
                       'Inchikey': 1, 'Mass': 1, 'Sources': 1, 'Generation': 1,
@@ -24,14 +25,15 @@ def quick_search(db, query, search_projection=default_projection.copy()):
     # Determine what kind of query was input (e.g. KEGG code, MINE id, etc.)
     # If it can't be determined to be an id or a key, assume it is the name
     # of a compound.
-    if (len(query) == 41) and (query[0] == 'C'):
+    if re.match("C\w{40}", query):
         query_field = '_id'
-    elif (len(query) == 6) and (query[0] == 'C'):
+    elif re.match("C\d{5}", query):
         query_field = 'DB_links.KEGG'
-    elif (len(query) == 8) and (query[0:2] == 'cpd'):
+    elif re.match('cpd\d{5}', query):
         query_field = 'DB_links.Model_SEED'
-    elif len(query.split('-')[0]) == 14 and query.isupper():
+    elif re.search("[A-Z]{14}-[A-Z]{10}-[A-Z]", query):
         query_field = 'Inchikey'
+        query = query.split("=", 1)[-1]
     elif query.isdigit():
         query_field = "MINE_id"
         query = int(query)

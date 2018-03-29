@@ -45,6 +45,10 @@ glucose_id = {'_id': 'Ccffda1b2e82fcdb0e1e710cad4d5f70df7a5d74f'}
 
 def test_quick_search():
     assert glucose not in queries.quick_search(test_db, 'WQZGKKKJIJFFOK-UHFFFAOYSA-N')
+    assert glucose in queries.quick_search(test_db, 'InChIKey=WQZGKKKJIJFFOK-GASJEMHNSA-N')
+    assert glucose in queries.quick_search(test_db, "Ccffda1b2e82fcdb0e1e710cad4d5f70df7a5d74f")
+    assert glucose in queries.quick_search(test_db, "917030")
+    assert glucose in queries.quick_search(test_db, "cpd00027")
     assert glucose in queries.quick_search(test_db, 'C00031')
     assert glucose in queries.quick_search(test_db, 'Glucose')
     assert glucose_id in queries.quick_search(test_db, 'WQZGKKKJIJFFOK-GASJEMHNSA-N', {'_id': 1})
