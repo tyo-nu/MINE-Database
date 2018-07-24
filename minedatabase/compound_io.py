@@ -266,6 +266,53 @@ def export_kbase(mine_db, target):
             w.writerow(rxn)
 
 
+def export_inchi_rxns(mine_db, target, rxn_ids=None):
+    reaction_fields = collections.OrderedDict(
+        [("Reaction Rule", "Operators"), ('ID', "_id"), ('Equation', '')])
+    comp_memo = {}
+
+    def get_name_and_inchi(comp_id):
+        if comp_id not in comp_memo:
+            comp = mine_db.compounds.find_one({"_id": comp_id},
+                                              {"Names": 1, "Inchi": 1, "MINE_id": 1})
+            comp_memo[comp_id] = (comp.get('Names', [comp['MINE_id']])[0], comp.get('Inchi'))
+        return comp_memo[comp_id]
+
+    def to_str(half_rxn):
+        lst = []
+        for x in half_rxn:
+            name, inchi = get_name_and_inchi(x['c_id'])
+            lst.append('(%s) %s[%s]' % (x['stoich'], name, inchi))
+        return lst
+
+    with open(utils.prevent_overwrite(os.path.join(target, mine_db.name)
+                                      + "_reactions.tsv"), 'w') as out:
+        w = csv.DictWriter(out, fieldnames=reaction_fields, dialect='excel-tab')
+        w.writeheader()
+        if rxn_ids:
+            query = {"_id": {"$in": rxn_ids}}
+        else:
+            query = {}
+        for rxn in mine_db.reactions.find(
+                query, dict([('Reactants', 1), ('Products', 1)] +
+                            [(x, 1) for x in reaction_fields.values()])):
+            for k, v in reaction_fields.items():
+                if v in rxn:
+                    if isinstance(rxn[v], list):
+                        rxn[k] = ", ".join(rxn[v])
+                    else:
+                        rxn[k] = rxn[v]
+                    del rxn[v]
+            if 'Equation' in reaction_fields:
+                rxn['Equation'] = ' + '.join(to_str(rxn['Reactants'])) + \
+                                  ' => ' + ' + '.join(to_str(rxn['Products']))
+            if 'Reactants' not in reaction_fields:
+                del rxn['Reactants']
+            if 'Products' not in reaction_fields:
+                del rxn['Products']
+            w.writerow(rxn)
+
+
 def import_sdf(mine_db, target,):
     """Imports a SDF file as a MINE database
     
