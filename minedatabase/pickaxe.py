@@ -22,7 +22,7 @@ from rdkit.Chem.Draw import MolToFile, rdMolDraw2D
 class Pickaxe:
     def __init__(self, rule_list=None, coreactant_list=None, explicit_h=True,
                  kekulize=True, neutralise=True, errors=True,
-                 racemize=False, database=None, image_dir=None):
+                 racemize=False, database=None, image_dir=None, quiet=False):
         """This class generates new compounds from user-specified starting
         compounds using a set of SMARTS-based reaction rules. It may be
         initialized with a text file containing the reaction rules and
@@ -48,6 +48,8 @@ class Pickaxe:
         :type database: str
         :param image_dir: Path to desired image folder
         :type image_dir: str
+        :param quiet: Silence unbalenced reaction warnings
+        :type quiet: bool
         """
         self.rxn_rules = {}
         self.coreactants = {}
@@ -61,6 +63,7 @@ class Pickaxe:
         self.neutralise = neutralise
         self.image_dir = image_dir
         self.errors = errors
+        self.quiet = quiet
         self.fragmented_mols = False
         self.radical_check = False
         self.structure_field = None
@@ -163,8 +166,7 @@ class Pickaxe:
                     # Update reaction rules dictionary
                     self.rxn_rules[rule["Name"]] = (rxn, rule)
                 except Exception as e:
-                    raise ValueError(str(e) + "Failed to parse %s" %
-                                     (rule["Name"]))
+                    raise ValueError(str(e) + "\nFailed to parse %s" % (rule["Name"]))
 
     def load_compound_set(self, compound_file=None, structure_field=None,
                           id_field='id'):
@@ -349,19 +351,24 @@ class Pickaxe:
                         # Get reaction text (e.g. A + B <==> C + D)
                         text_rxn = self._add_reaction(reactants, rule_name,
                                                       stereo_prods)
-                        # If the SMARTS rule is not atom balanced, this check
-                        # detects the accidental alchemy.
-                        if reactant_atoms - product_atoms \
-                                or product_atoms - reactant_atoms:
-                            print("Warning: Unbalanced Reaction produced by "
-                                  + rule_name)
-                            print(text_rxn)
-                            print(reactant_atoms, product_atoms)
+
+                        if not self.quiet:
+                            self._check_atom_balance(product_atoms, reactant_atoms,
+                                                     rule_name, text_rxn)
                 except (ValueError, MemoryError) as e:
                     print(e)
                     print("Error Processing Rule: " + rule_name)
                     continue
         return self.compounds, self.reactions
+
+    def _check_atom_balance(self, product_atoms, reactant_atoms, rule_name, text_rxn):
+        """If the SMARTS rule is not atom balanced, this check detects the accidental alchemy."""
+        if reactant_atoms - product_atoms \
+                or product_atoms - reactant_atoms:
+            print("Warning: Unbalanced Reaction produced by "
+                  + rule_name)
+            print(text_rxn)
+            print(reactant_atoms, product_atoms)
 
     def _get_atom_count(self, mol):
         """Takes a set of mol objects and returns a counter with each element
@@ -814,12 +821,15 @@ if __name__ == "__main__":
     parser.add_argument('-i', '--image_dir', default=None,
                         help="Specify a directory to store images of all "
                              "created compounds")
+    parser.add_argument('-q', '--quiet', action='store_true', default=False,
+                        help="Silence warnings about imbalenced reactions")
     options = parser.parse_args()
     pk = Pickaxe(coreactant_list=options.coreactant_list,
                  rule_list=options.rule_list, racemize=options.racemize,
                  errors=options.verbose, explicit_h=options.bnice,
                  kekulize=options.bnice, neutralise=options.bnice,
-                 image_dir=options.image_dir, database=options.database)
+                 image_dir=options.image_dir, database=options.database,
+                 quiet=options.quiet)
     # Create a directory for image output file if it doesn't already exist
     if options.image_dir and not os.path.exists(options.image_dir):
         os.mkdir(options.image_dir)
