@@ -135,6 +135,7 @@ class Pickaxe:
         :param rule_path: path to file
         :type rule_path: str
         """
+        skipped = 0
         with open(rule_path) as infile:
             # Get all reaction rules from tsv file and store in dictionary (rdr)
             rdr = csv.DictReader((row for row in infile if not
@@ -159,14 +160,17 @@ class Pickaxe:
                     if rxn.GetNumReactantTemplates() != len(rule['Reactants']) \
                             or rxn.GetNumProductTemplates() != \
                             len(rule['Products']):
-                        raise ValueError("Number of coreactants does not "
-                                         "match supplied reaction rule")
+                        skipped += 1
+                        print("The number of coreactants does not match the number of compounds in"
+                              " the SMARTS for reaction rule: " + rule["Name"])
                     if rule["Name"] in self.rxn_rules:
                         raise ValueError("Duplicate reaction rule name")
                     # Update reaction rules dictionary
                     self.rxn_rules[rule["Name"]] = (rxn, rule)
                 except Exception as e:
                     raise ValueError(str(e) + "\nFailed to parse %s" % (rule["Name"]))
+        if skipped:
+            print("WARNING: {} rules skipped".format(skipped))
 
     def load_compound_set(self, compound_file=None, structure_field=None,
                           id_field='id'):
