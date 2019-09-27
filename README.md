@@ -6,7 +6,7 @@
 This repository contains code for the generation (though Pickaxe), 
 storage and querying of MINE databases. For generalinformation on MINE 
 Databases, please consult [JJeffryes et al. 2015](http://jcheminf.springeropen.com/articles/10.1186/s13321-015-0087-1)
-APIs can found in [the API Repository](https://github.com/JamesJeffryes/MINE-API)
+APIs can found in [the API Repository](https://github.com/tyo-nu/MINE-API)
 
 ## Repository Structure
 This repository primarily consists of the minedatabases python module 
