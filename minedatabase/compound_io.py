@@ -1,19 +1,20 @@
 """Compound_io.py: Functions to load MINE databases from and dump compounds
 into common cheminformatics formats"""
+import collections
 import csv
 import datetime
 import os
 import sys
-import collections
+
+from rdkit.Chem import AllChem
 
 from minedatabase import utils
 from minedatabase.databases import MINE
-from rdkit.Chem import AllChem
 
 
 def export_sdf(mine_db, dir_path, max_compounds=None):
     """Exports compounds from the database as an MDL SDF file
-    
+
     :param mine_db: a MINE object
     :param dir_path: directory for files
     :param max_compounds: maximum number of compounds per file (defaults to
@@ -30,8 +31,8 @@ def export_sdf(mine_db, dir_path, max_compounds=None):
     target = utils.prevent_overwrite(os.path.join(dir_path, mine_db.name)
                                      + "_1.sdf")
     # SDWriter (rdkit) writes Mol objects to SD files
-    w = AllChem.SDWriter(target)
-    w.SetKekulize(True)
+    writer = AllChem.SDWriter(target)
+    writer.SetKekulize(True)
     n_files = 1
     for compound in mine_db.compounds.find():
         # Convert SMILES string to Mol object, replacing 'CoA' and 'R' by '*'
@@ -45,20 +46,20 @@ def export_sdf(mine_db, dir_path, max_compounds=None):
                 mol.SetProp('Reactant_in', str(compound['Reactant_in']))
             if 'Product_of' in compound:
                 mol.SetProp('Product_of', str(compound['Product_of']))
-            w.write(mol)
+            writer.write(mol)
             # Start writing a new sdf file if the maximum (set by user) has
             # been reached for the current file
-            if max_compounds and (w.NumMols() >= max_compounds):
+            if max_compounds and (writer.NumMols() >= max_compounds):
                 n_files += 1
                 target = utils.prevent_overwrite(
                     os.path.join(dir_path, mine_db.name) + "_%s.sdf" % n_files)
-                w = AllChem.SmilesWriter(target)
-    w.close()
+                writer = AllChem.SmilesWriter(target)
+    writer.close()
 
 
 def export_smiles(mine_db, dir_path, max_compounds=None):
     """Exports compounds from the database as a SMILES file
-    
+
     :param mine_db: a MINE object
     :param dir_path: directory for files
     :param max_compounds: maximum number of compounds per file (defaults to
@@ -77,26 +78,27 @@ def export_smiles(mine_db, dir_path, max_compounds=None):
 
     # DictWriter allows for each key:value pair of a dictionary to be written
     # on its own row (by writerow)
-    w = csv.DictWriter(target, fieldnames=header, dialect='excel-tab')
+    writer = csv.DictWriter(target, fieldnames=header, dialect='excel-tab')
     n_files = 1
     i = 0
     for compound in mine_db.compounds.find({}, dict([(x, 1) for x in header])):
-        w.writerow(compound)
+        writer.writerow(compound)
         i += 1
         # If max compounds per file has been set by user and our number of
         # compounds that we have written so far is divisible by the max number,
         # then we start a new file
-        if max_compounds and not (i % max_compounds):
+        if max_compounds and not i % max_compounds:
             n_files += 1
-            target = open(utils.prevent_overwrite(
-                os.path.join(dir_path, mine_db.name) + "_%s.smiles" % n_files),
-                'w')
-            w = csv.DictWriter(target, fieldnames=header, dialect='excel-tab')
+            target = open(
+                utils.prevent_overwrite(os.path.join(dir_path, mine_db.name)
+                                        + "_%s.smiles" % n_files), 'w')
+            writer = csv.DictWriter(target, fieldnames=header,
+                                    dialect='excel-tab')
 
 
 def export_mol(mine_db, target, name_field='_id'):
     """Exports compounds from the database as MDL molfiles
-    
+
     :param mine_db: The database to export
     :type mine_db: a MINE object
     :param target: a directory in which to place the files
@@ -131,7 +133,7 @@ def export_mol(mine_db, target, name_field='_id'):
         # Use MolToMolFile (rdkit) to create a mol file from the Mol object
         # with the file path specified.
         AllChem.MolToMolFile(mol, os.path.join(target,
-                                               compound[name_field]+'.mol'))
+                                               compound[name_field] + '.mol'))
 
 
 def export_tsv(mine_db, target, compound_fields=('_id', 'Names', 'Model_SEED',
@@ -139,7 +141,7 @@ def export_tsv(mine_db, target, compound_fields=('_id', 'Names', 'Model_SEED',
                reaction_fields=('_id', 'SMILES_rxn', 'C_id_rxn')):
     """Exports MINE compound and reaction data as tab-separated values files
     amenable to use in ModelSEED.
-    
+
     :param mine_db: The database to export
     :type mine_db: a MINE object
     :param target: a directory in which to place the files
@@ -154,12 +156,13 @@ def export_tsv(mine_db, target, compound_fields=('_id', 'Names', 'Model_SEED',
                                                      mine_db.name))
     with open(utils.prevent_overwrite(os.path.join(target, mine_db.name)
                                       + "_compounds.tsv"), 'w') as out:
-        w = csv.DictWriter(out, fieldnames=compound_fields, dialect='excel-tab')
-        w.writeheader()
+        writer = csv.DictWriter(out, fieldnames=compound_fields,
+                                dialect='excel-tab')
+        writer.writeheader()
         for compound in mine_db.compounds.find(
-                {}, dict([('SMILES', 1)]+[('DB_links.'+x, 1) if x in db_links
-                                          else (x, 1) for x
-                                          in compound_fields])):
+                {}, dict([('SMILES', 1)] + [('DB_links.' + x, 1) if x
+                                            in db_links else (x, 1) for x
+                                            in compound_fields])):
             # This is a work around for supporting older MINEs which lack Inchi
             if 'Inchi' in compound_fields and 'Inchi' not in compound:
                 compound['Inchi'] = AllChem.MolToInchi(AllChem.MolFromSmiles(
@@ -170,17 +173,18 @@ def export_tsv(mine_db, target, compound_fields=('_id', 'Names', 'Model_SEED',
                 for k, v in compound['DB_links'].items():
                     compound[k] = ", ".join(v)
                 del compound['DB_links']
-            w.writerow(compound)
+            writer.writerow(compound)
 
     print("Exporting %s reactions from %s to tsv" % (mine_db.reactions.count(),
                                                      mine_db.name))
     with open(utils.prevent_overwrite(os.path.join(target, mine_db.name)
                                       + "_reactions.tsv"), 'w') as out:
-        w = csv.DictWriter(out, fieldnames=reaction_fields, dialect='excel-tab')
-        w.writeheader()
+        writer = csv.DictWriter(out, fieldnames=reaction_fields,
+                                dialect='excel-tab')
+        writer.writeheader()
         for rxn in mine_db.reactions.find(
-                {}, dict([('Reactants', 1), ('Products', 1)] +
-                         [(x, 1) for x in reaction_fields])):
+                {}, dict([('Reactants', 1), ('Products', 1)]
+                         + [(x, 1) for x in reaction_fields])):
             if 'C_id_rxn' in reaction_fields:
                 def to_str(half_rxn):
                     return ['(%s) %s' % (x['stoich'], x['c_id'])
@@ -191,20 +195,20 @@ def export_tsv(mine_db, target, compound_fields=('_id', 'Names', 'Model_SEED',
                 del rxn['Reactants']
             if 'Products' not in reaction_fields:
                 del rxn['Products']
-            w.writerow(rxn)
+            writer.writerow(rxn)
 
 
 def export_kbase(mine_db, target):
     """Exports MINE compound and reaction data as tab-separated values files
     amenable to use in ModelSEED.
-    
+
     :param mine_db: The database to export
     :type mine_db: a MINE object
     :param target: a directory in which to place the files
     :type target: str
     """
     compound_fields = collections.OrderedDict([('id', "_id"), ('name', ""),
-                                               ('formula','Formula'),
+                                               ('formula', 'Formula'),
                                                ('charge', 'Charge'),
                                                ('aliases', "Names")])
     reaction_fields = collections.OrderedDict(
@@ -215,11 +219,11 @@ def export_kbase(mine_db, target):
                                                      mine_db.name))
     with open(utils.prevent_overwrite(os.path.join(target, mine_db.name)
                                       + "_compounds.tsv"), 'w') as out:
-        w = csv.DictWriter(out, fieldnames=compound_fields,
-                           dialect='excel-tab')
-        w.writeheader()
+        writer = csv.DictWriter(out, fieldnames=compound_fields,
+                                dialect='excel-tab')
+        writer.writeheader()
         for compound in mine_db.compounds.find(
-                {}, dict([("Names", 1), ('DB_links.Model_SEED',1)]
+                {}, dict([("Names", 1), ('DB_links.Model_SEED', 1)]
                          + [(x, 1) for x in compound_fields.values()])):
             if compound['_id'][0] == 'X':
                 continue
@@ -237,17 +241,18 @@ def export_kbase(mine_db, target):
                         compound['DB_links']['Model_SEED']))
             if 'DB_links' in compound:
                 del compound['DB_links']
-            w.writerow(compound)
+            writer.writerow(compound)
 
     print("Exporting %s reactions from %s to tsv" % (mine_db.reactions.count(),
                                                      mine_db.name))
     with open(utils.prevent_overwrite(os.path.join(target, mine_db.name)
                                       + "_reactions.tsv"), 'w') as out:
-        w = csv.DictWriter(out, fieldnames=reaction_fields, dialect='excel-tab')
-        w.writeheader()
+        writer = csv.DictWriter(out, fieldnames=reaction_fields,
+                                dialect='excel-tab')
+        writer.writeheader()
         for rxn in mine_db.reactions.find(
-                {}, dict([('Reactants', 1), ('Products', 1)] +
-                         [(x, 1) for x in reaction_fields.values()])):
+                {}, dict([('Reactants', 1), ('Products', 1)]
+                         + [(x, 1) for x in reaction_fields.values()])):
             for k, v in reaction_fields.items():
                 if v in rxn:
                     rxn[k] = rxn[v]
@@ -263,10 +268,16 @@ def export_kbase(mine_db, target):
                 del rxn['Reactants']
             if 'Products' not in reaction_fields:
                 del rxn['Products']
-            w.writerow(rxn)
+            writer.writerow(rxn)
 
 
 def export_inchi_rxns(mine_db, target, rxn_ids=None):
+    """Export reactions from a MINE db to a .tsv file.
+
+    :param mine_db: name of MongoDB to export reactions from
+    :param target: path to folder to save .tsv export file in
+    :param rxn_ids: only export reactions with these ids (list)
+    """
     reaction_fields = collections.OrderedDict(
         [("Reaction Rule", "Operators"), ('ID', "_id"), ('Equation', '')])
     comp_memo = {}
@@ -274,8 +285,10 @@ def export_inchi_rxns(mine_db, target, rxn_ids=None):
     def get_name_and_inchi(comp_id):
         if comp_id not in comp_memo:
             comp = mine_db.compounds.find_one({"_id": comp_id},
-                                              {"Names": 1, "Inchi": 1, "MINE_id": 1})
-            comp_memo[comp_id] = (comp.get('Names', [comp['MINE_id']])[0], comp.get('Inchi'))
+                                              {"Names": 1, "Inchi": 1,
+                                               "MINE_id": 1})
+            comp_memo[comp_id] = (comp.get('Names', [comp['MINE_id']])[0],
+                                  comp.get('Inchi'))
         return comp_memo[comp_id]
 
     def to_str(half_rxn):
@@ -287,15 +300,16 @@ def export_inchi_rxns(mine_db, target, rxn_ids=None):
 
     with open(utils.prevent_overwrite(os.path.join(target, mine_db.name)
                                       + "_reactions.tsv"), 'w') as out:
-        w = csv.DictWriter(out, fieldnames=reaction_fields, dialect='excel-tab')
-        w.writeheader()
+        writer = csv.DictWriter(out, fieldnames=reaction_fields,
+                                dialect='excel-tab')
+        writer.writeheader()
         if rxn_ids:
             query = {"_id": {"$in": rxn_ids}}
         else:
             query = {}
         for rxn in mine_db.reactions.find(
-                query, dict([('Reactants', 1), ('Products', 1)] +
-                            [(x, 1) for x in reaction_fields.values()])):
+                query, dict([('Reactants', 1), ('Products', 1)]
+                            + [(x, 1) for x in reaction_fields.values()])):
             for k, v in reaction_fields.items():
                 if v in rxn:
                     if isinstance(rxn[v], list):
@@ -310,12 +324,12 @@ def export_inchi_rxns(mine_db, target, rxn_ids=None):
                 del rxn['Reactants']
             if 'Products' not in reaction_fields:
                 del rxn['Products']
-            w.writerow(rxn)
+            writer.writerow(rxn)
 
 
-def import_sdf(mine_db, target,):
+def import_sdf(mine_db, target):
     """Imports a SDF file as a MINE database
-    
+
     :param mine_db: a MINE object, the database to insert the compound into
     :param target: a path, the SDF file to be loaded
     :return:
@@ -332,7 +346,7 @@ def import_sdf(mine_db, target,):
                               "SDF Imported", "Filepath": target})
 
 
-def import_smiles(mine_db, target,):
+def import_smiles(mine_db, target):
     """
     Imports a smiles file as a MINE database
     :param mine_db: a MINE object, the database to insert the compound into
@@ -342,7 +356,8 @@ def import_smiles(mine_db, target,):
     # SmilesMolSupplier (rdkit) generates Mol objects from smiles file (.smi)
     mols = AllChem.SmilesMolSupplier(target, delimiter='\t', nameColumn=0)
     # Go through each generated mol file and add molecule to MINE database
-    # Stores compound properties in dict (GetPropsAsDict() from rdkit Mol class)
+    # Stores compound properties in dict (GetPropsAsDict() from rdkit Mol
+    # class)
     for mol in mols:
         if mol:
             mine_db.insert_compound(mol, compound_dict=mol.GetPropsAsDict(),
@@ -355,7 +370,7 @@ def import_smiles(mine_db, target,):
 
 def import_mol_dir(mine_db, target, name_field="Name", overwrite=False):
     """Imports a directory of molfiles as a MINE database
-    
+
     :param mine_db: a MINE object, the database to insert the compound into
     :param target: a path, the molfile directory to be loaded
     :param name_field: a string, the field for the compound name
@@ -366,17 +381,17 @@ def import_mol_dir(mine_db, target, name_field="Name", overwrite=False):
     for file in os.listdir(target):
         if ".mol" in file:
             # MolFromMolFile (rdkit) generates Mol objects from .mol files
-            mol = AllChem.MolFromMolFile(target+'/'+file)
+            mol = AllChem.MolFromMolFile(target + '/' + file)
             # Mol object name becomes name of mol file without .mol extension
             name = file.rstrip('.mol')
             # Check that Mol object is successfully generated
             if mol:
                 # Create hashkey for the compound
-                comphash = utils.compound_hash(mol)
-                # If we don't want to overwrite, and the compound (comphash)
-                # already exists, then add an extra comphash for that molecule
-                if not overwrite and mine_db.compounds.count({"_id": comphash}):
-                    mine_db.compounds.update({"_id": comphash},
+                cpdhash = utils.compound_hash(mol)
+                # If we don't want to overwrite, and the compound (cpdhash)
+                # already exists, then add an extra cpdhash for that molecule
+                if not overwrite and mine_db.compounds.count({"_id": cpdhash}):
+                    mine_db.compounds.update({"_id": cpdhash},
                                              {"$addToSet": {name_field: name}})
                 # If we don't care about overwriting, just insert the new
                 # compound into the database
@@ -390,48 +405,49 @@ def import_mol_dir(mine_db, target, name_field="Name", overwrite=False):
     mine_db.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action":
                               "MolFiles Imported", "Filepath": target})
 
+
 if __name__ == '__main__':
     # User inputs task as first argument (export-sdf, export-smi, export-mol,
     #  import-sdf, import-smi, or import-mol)
-    task = sys.argv[1]
+    TASK = sys.argv[1]
     # User inputs database name as second argument
-    db_name = sys.argv[2]
+    DB_NAME = sys.argv[2]
     # User inputs file path as third argument
-    path = sys.argv[3]
-    database = MINE(db_name)
-    if task == 'export-sdf':
+    PATH = sys.argv[3]
+    database = MINE(DB_NAME)  # pylint: disable=invalid-name
+    if TASK == 'export-sdf':
         # If a maximum molecules per file is specified (fourth argument
         # entered by user), then pass that to the export function.
         if len(sys.argv) == 5:
-            export_sdf(database, path, int(sys.argv[4]))
+            export_sdf(database, PATH, int(sys.argv[4]))
         # Otherwise, assume an unlimited number of molecules per file
         else:
-            export_sdf(database, path)
-    elif task == 'export-smi':
+            export_sdf(database, PATH)
+    elif TASK == 'export-smi':
         # If a maximum molecules per file is specified (fourth argument
         # entered by user), then pass that to the export function.
         if len(sys.argv) == 5:
-            export_smiles(database, path, int(sys.argv[4]))
+            export_smiles(database, PATH, int(sys.argv[4]))
         # Otherwise, assume an unlimited number of molecules per file
         else:
-            export_smiles(database, path)
-    elif task == 'export-mol':
+            export_smiles(database, PATH)
+    elif TASK == 'export-mol':
         # If a maximum molecules per file is specified (fourth argument
         # entered by user), then pass that to the export function.
         if len(sys.argv) == 5:
-            export_mol(database, path, sys.argv[4])
+            export_mol(database, PATH, sys.argv[4])
         # Otherwise, assume an unlimited number of molecules per file
         else:
-            export_mol(database, path)
-    elif task == 'export-tsv':
-        export_tsv(database, path)
-    elif task == 'export-kbase':
-        export_kbase(database, path)
-    elif task == 'import-sdf':
-        import_sdf(database, path)
-    elif task == 'import-smi':
-        import_smiles(database, path)
-    elif task == 'import-mol':
-        import_mol_dir(database, path)
+            export_mol(database, PATH)
+    elif TASK == 'export-tsv':
+        export_tsv(database, PATH)
+    elif TASK == 'export-kbase':
+        export_kbase(database, PATH)
+    elif TASK == 'import-sdf':
+        import_sdf(database, PATH)
+    elif TASK == 'import-smi':
+        import_smiles(database, PATH)
+    elif TASK == 'import-mol':
+        import_mol_dir(database, PATH)
     else:
-        print("ERROR: Unrecognised Task")
+        print("ERROR: Unrecognised TASK")

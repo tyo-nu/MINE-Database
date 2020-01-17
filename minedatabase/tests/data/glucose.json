@@ -1,0 +1,139 @@
+{
+    "SMILES": "OC[C@H]1OC(O)[C@H](O)[C@@H](O)[C@@H]1O",
+    "Inchikey": "WQZGKKKJIJFFOK-GASJEMHNSA-N",
+    "Generation": 1,
+    "MINE_id": 917030,
+    "NP_likeness": 2.62691337083175,
+    "Sources": [
+        {
+            "Operators": [
+                "3.2.1.a"
+            ],
+            "Compounds": [
+                "C08a914cde05039694ef0194d9ee79ff9a79dde33",
+                "C2ce917f1d3aaef7501595123894a68a7d786a9e7"
+            ]
+        },
+        {
+            "Operators": [
+                "3.2.1.a"
+            ],
+            "Compounds": [
+                "C2c3b118fb2dbd237cc8a4878b0643385860fb427",
+                "C08a914cde05039694ef0194d9ee79ff9a79dde33"
+            ]
+        },
+        {
+            "Operators": [
+                "3.2.1.a"
+            ],
+            "Compounds": [
+                "C08a914cde05039694ef0194d9ee79ff9a79dde33",
+                "Ca67dd0794223d284a9517566c3fd4107728e0808"
+            ]
+        },
+        {
+            "Operators": [
+                "3.1.1.b"
+            ],
+            "Compounds": [
+                "C08a914cde05039694ef0194d9ee79ff9a79dde33",
+                "C71c9c2296f22b1aa1bd031d91e391fa415dc72fd"
+            ]
+        },
+        {
+            "Operators": [
+                "3.2.1.a"
+            ],
+            "Compounds": [
+                "C08a914cde05039694ef0194d9ee79ff9a79dde33",
+                "C1f719e8cf42a266bc93fe185816e244f5498fc1e"
+            ]
+        },
+        {
+            "Operators": [
+                "3.2.1.a"
+            ],
+            "Compounds": [
+                "Cd51c567a382bff0cba43ecc97d5807e0ffebb5f8",
+                "C08a914cde05039694ef0194d9ee79ff9a79dde33"
+            ]
+        },
+        {
+            "Operators": [
+                "1.1.-1.h"
+            ],
+            "Compounds": [
+                "C20fa60742147ed7b7c328d7835b84d14036d7f36",
+                "C1b424c6768e3787b3453fa5d572b06106b8933d4",
+                "Cac741137c0d633e53486ed958334b206a85dcc03"
+            ]
+        },
+        {
+            "Operators": [
+                "3.2.1.a"
+            ],
+            "Compounds": [
+                "C8d3efae75c074cd20730fbc4752c0498d94ba40e",
+                "C08a914cde05039694ef0194d9ee79ff9a79dde33"
+            ]
+        },
+        {
+            "Operators": [
+                "1.1.1.g"
+            ],
+            "Compounds": [
+                "C6d0b4d05908b6e7fd3f71b56ca0e81c7a9b9027d",
+                "C8e823fcc54dec371d81eebaa8e01dc4796e4add6"
+            ]
+        },
+        {
+            "Operators": [
+                "3.1.3.a"
+            ],
+            "Compounds": [
+                "C08a914cde05039694ef0194d9ee79ff9a79dde33",
+                "Cff41aa31cc2f8f2f13759ff3d4283726265072ee"
+            ]
+        },
+        {
+            "Operators": [
+                "3.2.1.a"
+            ],
+            "Compounds": [
+                "C08a914cde05039694ef0194d9ee79ff9a79dde33",
+                "Cd51de949ca3a35a5b1bdd3959225766ffd2fc027"
+            ]
+        },
+        {
+            "Operators": [
+                "3.2.1.a"
+            ],
+            "Compounds": [
+                "C08a914cde05039694ef0194d9ee79ff9a79dde33",
+                "Cfdd7350d4ca8405dd44990548ae18d5d56364003"
+            ]
+        },
+        {
+            "Operators": [
+                "1.14.13.d"
+            ],
+            "Compounds": [
+                "C20fa60742147ed7b7c328d7835b84d14036d7f36",
+                "C71c9c2296f22b1aa1bd031d91e391fa415dc72fd",
+                "C1aa818910461f5961959eb05dd06b8f7a4fbbb9f",
+                "Cac741137c0d633e53486ed958334b206a85dcc03"
+            ]
+        }
+    ],
+    "Mass": 180.063388104,
+    "Names": [
+        "Glucose",
+        "Dextrose",
+        "D-Glucose",
+        "Grape sugar",
+        "D-Glucopyranose"
+    ],
+    "Formula": "C6H12O6",
+    "_id": "Ccffda1b2e82fcdb0e1e710cad4d5f70df7a5d74f"
+}

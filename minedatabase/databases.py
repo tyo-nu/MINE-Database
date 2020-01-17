@@ -2,15 +2,17 @@
 loading functions."""
 import ast
 import datetime
-import platform
 import os
-from subprocess import call
+import platform
 from shutil import move
+from subprocess import call
 
 import pymongo
+from pymongo.errors import ServerSelectionTimeoutError
+from rdkit.Chem import AllChem
+
 from minedatabase import utils
 from minedatabase.NP_Score import npscorer as np
-from rdkit.Chem import AllChem
 
 
 def establish_db_client():
@@ -21,8 +23,8 @@ def establish_db_client():
             client = pymongo.MongoClient(host='master',
                                          serverSelectionTimeoutMS=5)
         # Special case for working on a SEED cluster
-        elif 'bio' in platform.node() or 'twig' == platform.node() \
-                or 'branch' == platform.node():
+        elif 'bio' in platform.node() or platform.node() == 'twig' \
+                or platform.node() == 'branch':
             client = pymongo.MongoClient(host='branch',
                                          serverSelectionTimeoutMS=5)
             admin = client['admin']
@@ -30,7 +32,7 @@ def establish_db_client():
         # Local database
         else:
             client = pymongo.MongoClient(serverSelectionTimeoutMS=5)
-    except:
+    except ServerSelectionTimeoutError:
         raise IOError("Failed to load database client. Please verify that "
                       "mongod is running")
     return client
@@ -63,12 +65,14 @@ class MINE:
         for reaction in self.reactions.find().batch_size(500):
             # Update pointers for compounds that are reactants
             for compound in reaction['Reactants']:
-                self.compounds.update({"_id": compound["c_id"]}, {'$push':
-                                      {"Reactant_in": reaction['_id']}})
+                self.compounds.update({"_id": compound["c_id"]},
+                                      {'$push': {
+                                          "Reactant_in": reaction['_id']}})
             # Update pointers for compounds that are products
             for compound in reaction['Products']:
-                self.compounds.update({"_id": compound["c_id"]}, {'$push':
-                                      {"Product_of": reaction['_id']}})
+                self.compounds.update({"_id": compound["c_id"]},
+                                      {'$push': {
+                                          "Product_of": reaction['_id']}})
         # Write to log file
         self.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action":
                                "Add Reaction Pointers"})
@@ -85,9 +89,9 @@ class MINE:
 
             for reaction in self.reactions.find(
                     {"Products.c_id": compound[rxn_key_type]}):
-                compound['Sources'].append({"Compounds": [x['c_id']
-                                           for x in reaction['Reactants']],
-                                           "Operators": reaction["Operators"]})
+                compound['Sources'].append(
+                    {"Compounds": [x['c_id'] for x in reaction['Reactants']],
+                     "Operators": reaction["Operators"]})
             # If there are sources, then save them and make sure there aren't
             #  too many for a single compound.
             if compound['Sources']:
@@ -181,12 +185,13 @@ class MINE:
                     outfile.write("%s\n" % comp['SMILES'])
                 ids.append(comp['_id'])
         if platform.system() == 'Windows':
-            rc = call(['cmd', "/C molconvert -mo %s/.%s %s %s"
-                      % (path, extension, img_type, structure_file)],
+            rc = call("molconvert -mo \"%s/.%s\" %s \"%s\""
+                      % (path, extension, img_type, structure_file),
                       shell=True)
         else:
-            rc = call(["molconvert -mo %s/.%s %s %s" % (
-                       path, extension, img_type, structure_file)], shell=True)
+            rc = call(["molconvert -mo %s/.%s %s %s"
+                       % (path, extension, img_type, structure_file)],
+                      shell=True)
         if rc:
             raise RuntimeError("molconvert returned %s" % rc)
         os.remove(structure_file)
@@ -198,30 +203,30 @@ class MINE:
                 new = os.path.join(new, _id[j])
             if not os.path.exists(new):
                 os.makedirs(new)
-            new = os.path.join(new, _id+'.'+extension)
+            new = os.path.join(new, _id + '.' + extension)
             if os.path.isfile(old):
                 move(old, new)
 
     def build_indexes(self):
         """Builds indexes for efficient querying of MINE databases"""
-        self.compounds.ensure_index([('Mass', pymongo.ASCENDING),
+        self.compounds.create_index([('Mass', pymongo.ASCENDING),
                                      ('Charge', pymongo.ASCENDING),
                                      ('DB_links.Model_SEED',
                                       pymongo.ASCENDING)])
-        self.compounds.ensure_index([('Names', 'text'), ('Pathways', 'text')])
-        self.compounds.ensure_index("DB_links.Model_SEED")
-        self.compounds.ensure_index("DB_links.KEGG")
-        self.compounds.ensure_index("MACCS")
-        self.compounds.ensure_index("len_MACCS")
-        self.compounds.ensure_index("RDKit")
-        self.compounds.ensure_index("len_RDKit")
-        self.compounds.ensure_index("Inchikey")
-        self.compounds.ensure_index("MINE_id")
-        self.compounds.ensure_index("Names")
-        self.reactions.ensure_index("Reactants.c_id")
-        self.reactions.ensure_index("Products.c_id")
-        self.meta_data.insert({"Timestamp": datetime.datetime.now(), "Action":
-                               "Database indexes built"})
+        self.compounds.create_index([('Names', 'text'), ('Pathways', 'text')])
+        self.compounds.create_index("DB_links.Model_SEED")
+        self.compounds.create_index("DB_links.KEGG")
+        self.compounds.create_index("MACCS")
+        self.compounds.create_index("len_MACCS")
+        self.compounds.create_index("RDKit")
+        self.compounds.create_index("len_RDKit")
+        self.compounds.create_index("Inchikey")
+        self.compounds.create_index("MINE_id")
+        self.compounds.create_index("Names")
+        self.reactions.create_index("Reactants.c_id")
+        self.reactions.create_index("Products.c_id")
+        self.meta_data.insert_one({"Timestamp": datetime.datetime.now(),
+                                   "Action": "Database indexes built"})
 
     def link_to_external_database(self, external_database, compound=None,
                                   match_field="Inchikey", fields_to_copy=None):
@@ -272,7 +277,7 @@ class MINE:
         Calculates necessary fields for API and includes additional
         information passed in the compound dict. Overwrites preexisting
         compounds in MINE on _id collision.
-        
+
         :param mol_object: The compound to be stored
         :type mol_object: RDKit Mol object
         :param compound_dict: Additional information about the compound to be
@@ -312,8 +317,9 @@ class MINE:
         compound_dict['len_RDKit'] = len(compound_dict['RDKit'])
         compound_dict['logP'] = AllChem.CalcCrippenDescriptors(mol_object)[0]
         compound_dict['_id'] = utils.compound_hash(
-            compound_dict['SMILES'], ('Type' in compound_dict and
-                                      compound_dict['Type'] == 'Coreactant'))
+            compound_dict['SMILES'],
+            ('Type' in compound_dict
+             and compound_dict['Type'] == 'Coreactant'))
         if '_atom_count' in compound_dict:
             del compound_dict['_atom_count']
         # Caching this for rapid reaction mass change calculation
@@ -369,9 +375,11 @@ class MINE:
             if mine_comp:
                 compound_dict['MINE_id'] = mine_comp['MINE_id']
                 if 'Pos_CFM_spectra' in mine_comp:
-                    compound_dict['Pos_CFM_spectra'] = mine_comp['Pos_CFM_spectra']
+                    compound_dict['Pos_CFM_spectra'] = \
+                        mine_comp['Pos_CFM_spectra']
                 if 'Neg_CFM_spectra' in mine_comp:
-                    compound_dict['Neg_CFM_spectra'] = mine_comp['Neg_CFM_spectra']
+                    compound_dict['Neg_CFM_spectra'] = \
+                        mine_comp['Neg_CFM_spectra']
             # If compound does not exist, create new id based on number of
             # current ids in the MINE
             else:
@@ -382,16 +390,19 @@ class MINE:
         if bulk:
             bulk.find({'_id': compound_dict['_id']}).upsert().\
                 replace_one(compound_dict)
+        elif self.compounds.find_one({'_id': compound_dict['_id']}):           
+            self.compounds.replace_one({'_id': compound_dict['_id']},
+                                       compound_dict)
         else:
-            self.compounds.save(compound_dict)
+            self.compounds.insert_one(compound_dict)
         return compound_dict['_id']
 
     def insert_reaction(self, reaction_dict, bulk=None):
         """Inserts a reaction into the MINE database and returns _id of the
          reaction in the mine database.
-        
+
         :param reaction_dict: A dictionary containing "Reactants" and
-         "Products" lists of stoich_tuples
+         "Products" lists of StoichTuples
         :type reaction_dict: dict
         :param bulk: A pymongo bulk operation object. If None, reaction is
          immediately inserted in the database
@@ -403,7 +414,7 @@ class MINE:
 
         # By converting to a dict, mongo stores the data as objects not
         # arrays allowing for queries by compound hash
-        if isinstance(reaction_dict['Reactants'][0], utils.stoich_tuple):
+        if isinstance(reaction_dict['Reactants'][0], utils.StoichTuple):
             reaction_dict['Reactants'] = [x._asdict() for x
                                           in reaction_dict['Reactants']]
             reaction_dict['Products'] = [x._asdict() for x
@@ -415,10 +426,19 @@ class MINE:
             bulk.find({'_id': reaction_dict['_id']}).upsert().\
                 replace_one(reaction_dict)
         else:
-            self.reactions.save(reaction_dict)
+            if '_id' in reaction_dict:
+                self.reactions.replace_one({'_id': reaction_dict['_id']},
+                                           reaction_dict)
+            else:
+                self.reactions.insert_one(reaction_dict)
         return reaction_dict['_id']
 
     def map_reactions(self, ext_db, match_field='_id'):
+        """Update operators by adding the reactions they participate in.
+
+        :param ext_db: name of MongoDB
+        :param match_field: name of reaction field to match based on
+        """
         # Update operators by adding the reactions they participate in
         lit_db = MINE(ext_db)
         for lit_rxn in lit_db.reactions.find():
@@ -434,7 +454,8 @@ class MINE:
                     self.operators.update(
                         {'_id': op},
                         {"$addToSet": {"Mapped_Rxns": lit_rxn["_id"],
-                         "References": {"$each": lit_rxn['References']}}})
+                                       "References": {
+                                           "$each": lit_rxn['References']}}})
                 lit_db.reactions.update(
                     {"_id": lit_rxn["_id"]},
                     {"$set": {"Mapped_Rules": mine_rxn['Operators']}})

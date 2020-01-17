@@ -1,14 +1,15 @@
 """Queries.py: Contains functions which power the API queries"""
-from ast import literal_eval
-from rdkit.Chem import AllChem
 import re
+from ast import literal_eval
 
-default_projection = {'SMILES': 1, 'Formula': 1, 'MINE_id': 1, 'Names': 1,
+from rdkit.Chem import AllChem
+
+DEFAULT_PROJECTION = {'SMILES': 1, 'Formula': 1, 'MINE_id': 1, 'Names': 1,
                       'Inchikey': 1, 'Mass': 1, 'Sources': 1, 'Generation': 1,
                       'NP_likeness': 1}
 
 
-def quick_search(db, query, search_projection=default_projection.copy()):
+def quick_search(db, query, search_projection=DEFAULT_PROJECTION.copy()):
     """This function takes user provided compound identifiers and attempts to
      find a related database ID
 
@@ -25,13 +26,13 @@ def quick_search(db, query, search_projection=default_projection.copy()):
     # Determine what kind of query was input (e.g. KEGG code, MINE id, etc.)
     # If it can't be determined to be an id or a key, assume it is the name
     # of a compound.
-    if re.match("C\w{40}", query):
+    if re.match(r"C\w{40}", query):
         query_field = '_id'
-    elif re.match("C\d{5}", query):
+    elif re.match(r"C\d{5}", query):
         query_field = 'DB_links.KEGG'
-    elif re.match('cpd\d{5}', query):
+    elif re.match(r'cpd\d{5}', query):
         query_field = 'DB_links.Model_SEED'
-    elif re.search("[A-Z]{14}-[A-Z]{10}-[A-Z]", query):
+    elif re.search(r"[A-Z]{14}-[A-Z]{10}-[A-Z]", query):
         query_field = 'Inchikey'
         query = query.split("=", 1)[-1]
     elif query.isdigit():
@@ -43,30 +44,31 @@ def quick_search(db, query, search_projection=default_projection.copy()):
     if query_field == 'Names':
         # Return results for all compounds with specified name
         # Make sure that cofactors are not included
-        results = [x for x in db.compounds.find(
-                              {"Names": {'$regex': '^'+query+'$', '$options':
-                               'i'}}, search_projection) if x['_id'][0] == "C"]
+        results = db.compounds.find({"Names": {'$regex': '^' + query + '$',
+                                               '$options': 'i'}},
+                                    search_projection)
+        results = [x for x in results if x['_id'][0] == "C"]
         if not results:
             cursor = db.compounds.find({"$text": {"$search": query}},
                                        {"score": {"$meta": "textScore"},
                                         'Formula': 1, 'MINE_id': 1, 'Names': 1,
                                         'Inchikey': 1, 'SMILES': 1, 'Mass': 1})
-            results.extend(x for x in cursor.sort(
-                [("score",
-                 {"$meta": "textScore"})]).limit(500) if x['_id'][0] == "C")
+            top_x = cursor.sort([("score", {"$meta": "textScore"})]).limit(500)
+            results.extend(x for x in top_x if x['_id'][0] == "C")
     else:
         # If query isn't a compound name, then return compounds with
         # specified query
         results = [x for x in db.compounds.find({query_field: query},
-                   search_projection).limit(500) if x['_id'][0] == "C"]
+                                                search_projection).limit(500)
+                   if x['_id'][0] == "C"]
 
     return results
 
 
 def advanced_search(db, mongo_query,
-                    search_projection=default_projection.copy()):
-    """Returns compounds in the indicated database which match the provided mongo
-    query
+                    search_projection=DEFAULT_PROJECTION.copy()):
+    """Returns compounds in the indicated database which match the provided
+    mongo query
 
     :param db: DB to search
     :type db: A Mongo Database
@@ -86,7 +88,7 @@ def advanced_search(db, mongo_query,
 
 
 def similarity_search(db, comp_structure, min_tc, fp_type, limit,
-                      search_projection=default_projection.copy()):
+                      search_projection=DEFAULT_PROJECTION.copy()):
     """Returns compounds in the indicated database which have structural
      similarity to the provided compound
 
@@ -130,18 +132,18 @@ def similarity_search(db, comp_structure, min_tc, fp_type, limit,
     # Return only id and fingerprint vector
     search_projection[fp_type] = 1
     # Filter compounds that meet tanimoto coefficient size requirements
-    for x in db.compounds.find({"$and": [{"len_"+fp_type: {"$gte": min_tc*len_fp
-                                                           }},
-                               {"len_"+fp_type: {"$lte": len_fp/min_tc}}]},
-                               search_projection):
+    for x in db.compounds.find(
+            {"$and": [{"len_" + fp_type: {"$gte": min_tc * len_fp}},
+                      {"len_" + fp_type: {"$lte": len_fp / min_tc}}]},
+            search_projection):
         # Put fingerprint in set for fast union (&) and intersection (|)
         # calculations
         test_fp = set(x[fp_type])
         # Calculate tanimoto coefficient
-        tc = len(query_fp & test_fp)/float(len(query_fp | test_fp))
+        tmc = len(query_fp & test_fp) / float(len(query_fp | test_fp))
         # If a sufficient tanimoto coefficient is calculated, append the
         # compound to the search results (until the limit is reached)
-        if tc >= min_tc:
+        if tmc >= min_tc:
             del x[fp_type]
             similarity_search_results.append(x)
             if len(similarity_search_results) == limit:
@@ -152,9 +154,9 @@ def similarity_search(db, comp_structure, min_tc, fp_type, limit,
 
 
 def structure_search(db, comp_structure, stereo=True,
-                     search_projection=default_projection.copy()):
-    """Returns compounds in the indicated database which are exact matches to the
-    provided structure
+                     search_projection=DEFAULT_PROJECTION.copy()):
+    """Returns compounds in the indicated database which are exact matches to
+    the provided structure
 
     :param db: DB to search
     :type db: A Mongo Database
@@ -185,12 +187,12 @@ def structure_search(db, comp_structure, stereo=True,
         return quick_search(db, inchi_key, search_projection)
     else:
         return [x for x in db.compounds.find(
-            {"Inchikey": {'$regex': '^'+inchi_key.split('-')[0]}},
+            {"Inchikey": {'$regex': '^' + inchi_key.split('-')[0]}},
             search_projection)]
 
 
 def substructure_search(db, sub_structure, limit,
-                        search_projection=default_projection.copy()):
+                        search_projection=DEFAULT_PROJECTION.copy()):
     """Returns compounds in the indicated database which contain the provided
     structure
 
@@ -224,7 +226,8 @@ def substructure_search(db, sub_structure, limit,
         # Get Mol object from SMILES string (rdkit)
         comp = AllChem.MolFromSmiles(x['SMILES'])
         # Use HasSubstructMatch (rdkit) to determine if compound has a
-        # specified substructure. If so, append it to the results (until limit).
+        # specified substructure. If so, append it to the results (until
+        # limit).
         if comp and comp.HasSubstructMatch(mol):
             substructure_search_results.append(x)
             if len(substructure_search_results) == limit:

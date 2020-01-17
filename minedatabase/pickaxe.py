@@ -12,22 +12,24 @@ import time
 from argparse import ArgumentParser
 from copy import deepcopy
 
-from minedatabase import utils
-from minedatabase.databases import MINE
-from minedatabase.utils import rxn2hash, stoich_tuple
+from rdkit import RDLogger
 from rdkit.Chem import AllChem
 from rdkit.Chem.Draw import MolToFile, rdMolDraw2D
 
+from minedatabase import utils
+from minedatabase.databases import MINE
+from minedatabase.utils import rxn2hash, StoichTuple
+
 
 class Pickaxe:
+    """This class generates new compounds from user-specified starting
+    compounds using a set of SMARTS-based reaction rules. It may be initialized
+    with a text file containing the reaction rules and coreactants or this may
+    be done on an ad hoc basis."""
     def __init__(self, rule_list=None, coreactant_list=None, explicit_h=True,
                  kekulize=True, neutralise=True, errors=True,
                  racemize=False, database=None, image_dir=None, quiet=False):
-        """This class generates new compounds from user-specified starting
-        compounds using a set of SMARTS-based reaction rules. It may be
-        initialized with a text file containing the reaction rules and
-        coreactants or this may be done on an ad hock basis.
-
+        """
         :param rule_list: Path to a list of reaction rules in TSV form
         :type rule_list: str
         :param coreactant_list: Path to list of coreactants in TSV form
@@ -67,22 +69,21 @@ class Pickaxe:
         self.fragmented_mols = False
         self.radical_check = False
         self.structure_field = None
-        # Make sure that if a database is to be used, that the database is empty
+        # Make sure that if a database is to be used, that database is empty
         if database:
             self.mine = database
             db = MINE(database)
-            if db.compounds.count():
-                print("Warning: expansion will overwrite existing compounds and"
-                      " operators!")
+            if db.compounds.estimated_document_count():
+                print("Warning: expansion will overwrite existing compounds "
+                      "and operators!")
         else:
             self.mine = None
 
         # Use RDLogger to catch errors in log file. SetLevel indicates mode (
-        # 0 - debug, 1 - info, 2 - warning, 3 - critical). Default is no errors.
-        from rdkit import RDLogger
-        lg = RDLogger.logger()
+        # 0 - debug, 1 - info, 2 - warning, 3 - critical). Default is no errors
+        logger = RDLogger.logger()
         if not errors:
-            lg.setLevel(4)
+            logger.setLevel(4)
 
         # Load coreactants (if any) into Pickaxe object
         if coreactant_list:
@@ -100,7 +101,6 @@ class Pickaxe:
             string
         :param coreactant_text: tab-delimited string with the compound name and
             SMILES
-        :type coreactant_text: basestring
         """
         # If coreactant is commented out (with '#') then don't import
         if coreactant_text[0] == "#":
@@ -116,7 +116,8 @@ class Pickaxe:
             smi = AllChem.MolToSmiles(mol, True)
         except (IndexError, ValueError):
             raise ValueError("Unable to load coreactant: %s" % coreactant_text)
-        _id = self._add_compound(split_text[0], smi, mol=mol, type='Coreactant')
+        _id = self._add_compound(split_text[0], smi, mol=mol,
+                                 cpd_type='Coreactant')
         # If hydrogens are to be explicitly represented, add them to the Mol
         # object
         if self.explicit_h:
@@ -131,13 +132,13 @@ class Pickaxe:
 
     def load_rxn_rules(self, rule_path):
         """Loads all reaction rules from file_path into rxn_rule dict.
-        
+
         :param rule_path: path to file
         :type rule_path: str
         """
         skipped = 0
         with open(rule_path) as infile:
-            # Get all reaction rules from tsv file and store in dictionary (rdr)
+            # Get all reaction rules from tsv file and store in dict (rdr)
             rdr = csv.DictReader((row for row in infile if not
                                   row.startswith('#')), delimiter='\t')
             for rule in rdr:
@@ -147,28 +148,32 @@ class Pickaxe:
                     rule['Reactants'] = rule['Reactants'].split(';')
                     rule['Products'] = rule['Products'].split(';')
                     # Ensure that all coreactants are known and accounted for
-                    for coreactant_name in rule['Reactants']+rule['Products']:
-                        if coreactant_name not in self.coreactants and \
-                                        coreactant_name != "Any":
+                    all_rules = rule['Reactants'] + rule['Products']
+                    for coreactant_name in all_rules:
+                        if ((coreactant_name not in self.coreactants
+                             and coreactant_name != "Any")):
                             raise ValueError('Undefined coreactant:%s' %
                                              coreactant_name)
                     # Create ChemicalReaction object from SMARTS string
                     rxn = AllChem.ReactionFromSmarts(rule['SMARTS'])
-                    rule.update({"_id": rule["Name"], "Reactions_predicted": 0})
+                    rule.update({"_id": rule["Name"],
+                                 "Reactions_predicted": 0})
                     # Ensure that we have number of expected reactants for
                     # each rule
-                    if rxn.GetNumReactantTemplates() != len(rule['Reactants']) \
+                    if rxn.GetNumReactantTemplates() != len(rule['Reactants'])\
                             or rxn.GetNumProductTemplates() != \
                             len(rule['Products']):
                         skipped += 1
-                        print("The number of coreactants does not match the number of compounds in"
-                              " the SMARTS for reaction rule: " + rule["Name"])
+                        print("The number of coreactants does not match the "
+                              "number of compounds in the SMARTS for reaction "
+                              "rule: " + rule["Name"])
                     if rule["Name"] in self.rxn_rules:
                         raise ValueError("Duplicate reaction rule name")
                     # Update reaction rules dictionary
                     self.rxn_rules[rule["Name"]] = (rxn, rule)
                 except Exception as e:
-                    raise ValueError(str(e) + "\nFailed to parse %s" % (rule["Name"]))
+                    raise ValueError(str(e) + "\nFailed to parse %s"
+                                     % (rule["Name"]))
         if skipped:
             print("WARNING: {} rules skipped".format(skipped))
 
@@ -177,7 +182,7 @@ class Pickaxe:
         """If a compound file is provided, this function loads the compounds
         into it's internal dictionary. If not, it attempts to find the
         compounds in it's associated MINE database.
-        
+
         :param compound_file: Path to a file containing compounds as tsv
         :type compound_file: basestring
         :param structure_field: the name of the column containing the
@@ -203,7 +208,7 @@ class Pickaxe:
                 if "C" in smi or "c" in smi:
                     AllChem.SanitizeMol(mol)
                     self._add_compound(_id, smi, mol=mol,
-                                       type='Starting Compound')
+                                       cpd_type='Starting Compound')
                     compound_smiles.append(smi)
         # If a MINE database is being used instead, search for compounds
         # annotated as starting compounds and return those as a list of
@@ -216,7 +221,7 @@ class Pickaxe:
                 # Assume unannotated compounds are starting compounds
                 if 'type' not in compound:
                     compound['Type'] = 'Starting Compound'
-                self._add_compound(_id, smi, type=compound['Type'])
+                self._add_compound(_id, smi, cpd_type=compound['Type'])
                 compound_smiles.append(smi)
         else:
             raise ValueError('No input file or database specified for '
@@ -261,9 +266,9 @@ class Pickaxe:
             mol = utils.neutralise_charges(mol)
         return mol
 
-    def _add_compound(self, id, smi, mol=None, type='Predicted'):
+    def _add_compound(self, cpd_id, smi, mol=None, cpd_type='Predicted'):
         """Adds a compound to the internal compound dictionary"""
-        _id = utils.compound_hash(smi, type == 'Coreactant')
+        _id = utils.compound_hash(smi, cpd_type == 'Coreactant')
         self._raw_compounds[smi] = _id
         # We don't want to overwrite the same compound from a prior
         # generation so we check with hashed id from above
@@ -271,8 +276,8 @@ class Pickaxe:
             if not mol:
                 mol = AllChem.MolFromSmiles(smi)
             i_key = AllChem.InchiToInchiKey(AllChem.MolToInchi(mol))
-            self.compounds[_id] = {'ID': id, '_id': _id, "SMILES": smi,
-                                   'Inchikey': i_key, 'Type': type,
+            self.compounds[_id] = {'ID': cpd_id, '_id': _id, "SMILES": smi,
+                                   'Inchikey': i_key, 'Type': cpd_type,
                                    'Generation': self.generation,
                                    'Formula': AllChem.CalcMolFormula(mol),
                                    '_atom_count': self._get_atom_count(mol),
@@ -296,13 +301,13 @@ class Pickaxe:
                     print("Unable to generate image for %s" % smi)
         return _id
 
-    def transform_compound(self, compound_SMILES, rules=None):
+    def transform_compound(self, compound_smiles, rules=None):
         """Perform transformations to a compound returning the products and the
         predicted reactions
-        
-        :param compound_SMILES: The compound on which to operate represented
+
+        :param compound_smiles: The compound on which to operate represented
             as SMILES
-        :type compound_SMILES: string
+        :type compound_smiles: string
         :param rules: The names of the reaction rules to apply. If none,
             all rules in the pickaxe's dict will be used.
         :type rules: list
@@ -313,13 +318,13 @@ class Pickaxe:
             rules = self.rxn_rules.keys()
         # Create Mol object from input SMILES string and remove hydrogens
         # (rdkit)
-        mol = AllChem.MolFromSmiles(compound_SMILES)
+        mol = AllChem.MolFromSmiles(compound_smiles)
         mol = AllChem.RemoveHs(mol)
         if not mol:
             if self.errors:
-                raise ValueError('Unable to parse: %s' % compound_SMILES)
+                raise ValueError('Unable to parse: %s' % compound_smiles)
             else:
-                print('Unable to parse: %s' % compound_SMILES)
+                print('Unable to parse: %s' % compound_smiles)
                 return
         if self.kekulize:
             AllChem.Kekulize(mol, clearAromaticFlags=True)
@@ -329,20 +334,21 @@ class Pickaxe:
             # Lookup rule in dictionary from rule name
             rule = self.rxn_rules[rule_name]
             # Get RDKit Mol objects for reactants
-            reactant_mols = tuple([mol if x == 'Any' else self.coreactants[x][0]
+            reactant_mols = tuple([mol if x == 'Any'
+                                   else self.coreactants[x][0]
                                    for x in rule[1]['Reactants']])
             # Perform chemical reaction on reactants for each rule
             try:
                 product_sets = rule[0].RunReactants(reactant_mols)
             # This error should be addressed in a new version of RDKit
             except RuntimeError:
-                print("Runtime ERROR!"+rule_name)
-                print(compound_SMILES)
+                print("Runtime ERROR!" + rule_name)
+                print(compound_smiles)
                 continue
             # No enumeration for reactant stereoisomers. _make_half_rxn
             # returns a generator, the first element of which is the reactants.
-            reactants, reactant_atoms = next(self._make_half_rxn(reactant_mols,
-                                                 rule[1]['Reactants']))
+            reactants, reactant_atoms = next(
+                self._make_half_rxn(reactant_mols, rule[1]['Reactants']))
             # By sorting the reactant (and later products) we ensure that
             # compound order is fixed.
             reactants.sort()
@@ -357,16 +363,19 @@ class Pickaxe:
                                                       stereo_prods)
 
                         if not self.quiet:
-                            self._check_atom_balance(product_atoms, reactant_atoms,
-                                                     rule_name, text_rxn)
+                            self._check_atom_balance(product_atoms,
+                                                     reactant_atoms, rule_name,
+                                                     text_rxn)
                 except (ValueError, MemoryError) as e:
                     print(e)
                     print("Error Processing Rule: " + rule_name)
                     continue
         return self.compounds, self.reactions
 
-    def _check_atom_balance(self, product_atoms, reactant_atoms, rule_name, text_rxn):
-        """If the SMARTS rule is not atom balanced, this check detects the accidental alchemy."""
+    def _check_atom_balance(self, product_atoms, reactant_atoms, rule_name,
+                            text_rxn):
+        """If the SMARTS rule is not atom balanced, this check detects the
+        accidental alchemy."""
         if reactant_atoms - product_atoms \
                 or product_atoms - reactant_atoms:
             print("Warning: Unbalanced Reaction produced by "
@@ -381,7 +390,7 @@ class Pickaxe:
         # Find all strings of the form A# in the molecular formula where A
         # is the element (e.g. C) and # is the number of atoms of that
         # element in the molecule. Pair is of form [A, #]
-        for pair in re.findall('([A-Z][a-z]*)(\d*)',
+        for pair in re.findall(r'([A-Z][a-z]*)(\d*)',
                                AllChem.CalcMolFormula(mol)):
             # Add # to atom count, unless there is no # (in which case
             # there is just one of that element, as ones are implicit in
@@ -422,14 +431,14 @@ class Pickaxe:
             self.compounds[prod_id]['Sources'].append(rhash)
         return text_rxn
 
-    def _make_half_rxn(self, mols, rules, split_stereoisomers=False):
+    def _make_half_rxn(self, mol_list, rules, split_stereoisomers=False):
         """Takes a list of mol objects for a half reaction, combines like
         compounds and returns a generator for stoich tuples"""
         # Get compound ids from Mol objects, except for coreactants, in which
         #  case we look them up in the coreactant dictionary
         comps = [self._calculate_compound_information(m, split_stereoisomers)
                  if r == 'Any' else (self.coreactants[r][1],)
-                 for m, r in zip(mols, rules)]
+                 for m, r in zip(mol_list, rules)]
         # count the number of atoms on a side
         atom_count = collections.Counter()
         for x in comps:
@@ -439,7 +448,7 @@ class Pickaxe:
                      in itertools.product(*comps)]
         # Yield generator with stoichiometry tuples (of form stoichiometry, id)
         for rxn in half_rxns:
-            yield [stoich_tuple(y, x) for x, y in rxn.items()], atom_count
+            yield [StoichTuple(y, x) for x, y in rxn.items()], atom_count
 
     def _calculate_compound_information(self, mol_obj, split_stereoisomers):
         """Calculate the standard data for a compound & return a tuple with
@@ -451,9 +460,9 @@ class Pickaxe:
                 # Remove hydrogens if explicit (this step slows down the
                 # process quite a bit)
                 if self.explicit_h:
-                        mol_obj = AllChem.RemoveHs(mol_obj)
+                    mol_obj = AllChem.RemoveHs(mol_obj)
                 AllChem.SanitizeMol(mol_obj)
-            except:
+            except ValueError:
                 print("Product ERROR!: " + raw)
                 raise ValueError
             # In case we want to have separate entries for stereoisomers
@@ -464,7 +473,8 @@ class Pickaxe:
             # Get list of SMILES string(s) from Mol object(s)
             smiles = [AllChem.MolToSmiles(m, True) for m in processed_mols]
             # Add compound(s) to internal dictionary
-            self._raw_compounds[raw] = tuple([self._add_compound(None, s, mol=m)
+            self._raw_compounds[raw] = tuple([self._add_compound(None, s,
+                                                                 mol=m)
                                               for s, m in zip(smiles,
                                                               processed_mols)])
         return self._raw_compounds[raw] if isinstance(
@@ -497,12 +507,12 @@ class Pickaxe:
         products.sort()
         r_1, r_2, r_s = __get_blocks(reactants)
         p_1, p_2, p_s = __get_blocks(products)
-        first_block = r_1+'<==>'+p_1
-        second_block = r_2+'<==>'+p_2
-        smiles_rxn = r_s+' => '+p_s
+        first_block = r_1 + '<==>' + p_1
+        second_block = r_2 + '<==>' + p_2
+        smiles_rxn = r_s + ' => ' + p_s
 
-        return hashlib.sha256(first_block.encode()).hexdigest()+"-"+hashlib.md5(
-            second_block.encode()).hexdigest(), smiles_rxn
+        return hashlib.sha256(first_block.encode()).hexdigest() + "-" \
+            + hashlib.md5(second_block.encode()).hexdigest(), smiles_rxn
 
     def assign_ids(self):
         """Assigns a numerical ID to compounds (and reactions) for ease of
@@ -518,7 +528,7 @@ class Pickaxe:
             # fill unused spots to the left with zfill (e.g. ID = '0003721' if
             # i = 3721).
             if not comp['ID']:
-                comp['ID'] = 'pkc'+str(i).zfill(7)
+                comp['ID'] = 'pkc' + str(i).zfill(7)
                 i += 1
                 self.compounds[comp['_id']] = comp
                 # If we are not loading into the mine, we generate the image
@@ -536,17 +546,15 @@ class Pickaxe:
         i = 1
         for rxn in sorted(self.reactions.values(),
                           key=lambda x: (x['Generation'], x['_id'])):
-            rxn['ID_rxn'] = ' + '.join(['(%s) %s[c0]' %
-                                        (x.stoich, self.compounds[x.c_id]["ID"])
-                                        for x in rxn["Reactants"]]) \
-                            + ' => ' + \
-                            ' + '.join(['(%s) %s[c0]' %
-                                        (x.stoich, self.compounds[x.c_id]["ID"])
-                                        for x in rxn["Products"]])
+            rxn['ID_rxn'] = ' + '.join(
+                ['(%s) %s[c0]' % (x.stoich, self.compounds[x.c_id]["ID"])
+                 for x in rxn["Reactants"]]) + ' => ' + ' + '.join(
+                     ['(%s) %s[c0]' % (x.stoich, self.compounds[x.c_id]["ID"])
+                      for x in rxn["Products"]])
             # Create ID of form ####### ending with i, padded with zeroes to
             # fill unused spots to the left with zfill (e.g. ID = '0003721' if
             # i = 3721).
-            rxn['ID'] = 'pkr'+str(i).zfill(7)
+            rxn['ID'] = 'pkr' + str(i).zfill(7)
             i += 1
             self.reactions[rxn['_id']] = rxn
 
@@ -572,7 +580,7 @@ class Pickaxe:
         while self.generation < max_generations:
             self.generation += 1
             # Use to print out time per generation at end of loop
-            ti = time.time()
+            time_init = time.time()
             n_comps = len(self.compounds)
             n_rxns = len(self.reactions)
             # Get all SMILES strings for compounds
@@ -592,7 +600,7 @@ class Pickaxe:
                         self.transform_compound, compound_smiles, chunk_size)):
                     new_comps.update(res[0])
                     new_rxns.update(res[1])
-                    print_progress((i+1), len(compound_smiles))
+                    print_progress((i + 1), len(compound_smiles))
                 self.compounds = new_comps
                 self.reactions = new_rxns
 
@@ -604,28 +612,31 @@ class Pickaxe:
 
             print("Generation %s produced %s new compounds and %s new "
                   "reactions in %s sec" %
-                  (self.generation, len(self.compounds)-n_comps,
-                   len(self.reactions) - n_rxns, time.time()-ti))
+                  (self.generation, len(self.compounds) - n_comps,
+                   len(self.reactions) - n_rxns, time.time() - time_init))
 
     def prune_network(self, white_list):
         """
-        Prune the predicted reaction network to only compounds and reactions that terminate
-         in a specified white list of compounds.
+        Prune the predicted reaction network to only compounds and reactions
+        that terminate in a specified white list of compounds.
         :param white_list: A list of compound_ids to include (if found)
         :type white_list: list
         :return: None
         """
         n_white = len(white_list)
         comp_set, rxn_set = self.find_minimal_set(white_list)
-        print("Pruned network to %s compounds and %s reactions based on %s whitelisted compounds"
-              % (len(comp_set), len(rxn_set), n_white))
-        self.compounds = dict([(k, v) for k, v in self.compounds.items() if k in comp_set])
-        self.reactions = dict([(k, v) for k, v in self.reactions.items() if k in rxn_set])
+        print("Pruned network to %s compounds and %s reactions based on "
+              "%s whitelisted compounds" % (len(comp_set), len(rxn_set),
+                                            n_white))
+        self.compounds = dict([(k, v) for k, v in self.compounds.items()
+                               if k in comp_set])
+        self.reactions = dict([(k, v) for k, v in self.reactions.items()
+                               if k in rxn_set])
 
     def find_minimal_set(self, white_list):
         """
-        Given a whitelist this function finds the minimal set of compound and reactions ids
-         that comprise the set
+        Given a whitelist this function finds the minimal set of compound and
+        reactions ids that comprise the set
         :param white_list:  A list of compound_ids to include (if found)
         :type white_list: list
         :return: compound and reaction id sets
@@ -639,7 +650,8 @@ class Pickaxe:
                 continue
             for r_id in self.compounds[c_id]['Sources']:
                 rxn_set.add(r_id)
-                comp_set.update([x.c_id for x in self.reactions[r_id]['Products']])
+                comp_set.update([x.c_id for x
+                                 in self.reactions[r_id]['Products']])
                 for tup in self.reactions[r_id]['Reactants']:
                     comp_set.add(tup.c_id)
                     # do not want duplicates or cofactors in the whitelist
@@ -661,14 +673,15 @@ class Pickaxe:
         columns = ('ID', 'Type', 'Generation', "Formula", "Charge", 'Inchikey',
                    'SMILES')
         with open(path, 'w') as outfile:
-            w = csv.DictWriter(outfile, columns, dialect=dialect,
-                               extrasaction='ignore', lineterminator='\n')
-            w.writeheader()
-            w.writerows(sorted(self.compounds.values(), key=lambda x: x['ID']))
+            writer = csv.DictWriter(outfile, columns, dialect=dialect,
+                                    extrasaction='ignore', lineterminator='\n')
+            writer.writeheader()
+            writer.writerows(sorted(self.compounds.values(),
+                                    key=lambda x: x['ID']))
 
     def write_reaction_output_file(self, path, delimiter='\t'):
         """Writes all reaction data to the specified path.
-        
+
         :param path: path to output
         :type path: basestring
         :param delimiter: the character with which to separate data entries
@@ -684,9 +697,9 @@ class Pickaxe:
                                               ';'.join(rxn['Reaction_rules'])])
                               + '\n')
 
-    def save_to_MINE(self, db_id):
+    def save_to_mine(self, db_id):
         """Save compounds to a MINE database.
-        
+
         :param db_id: The name of the target database
         :type db_id: basestring
         """
@@ -695,7 +708,7 @@ class Pickaxe:
         bulk_r = db.reactions.initialize_unordered_bulk_op()
 
         # This loop performs 4 functions to reactions:
-        #   1. Convert stoich_tuples to dicts with hashes
+        #   1. Convert StoichTuples to dicts with hashes
         #   2. Add reaction links to compounds
         #   3. Add source information to compounds
         #   4. Iterate the reactions predicted for each relevant reaction rule
@@ -716,26 +729,26 @@ class Pickaxe:
             db.insert_reaction(rxn, bulk=bulk_r)
         if self.reactions:
             bulk_r.execute()
-            db.meta_data.insert({"Timestamp": datetime.datetime.now(),
-                                 "Action": "Reactions Inserted"})
+            db.meta_data.insert_one({"Timestamp": datetime.datetime.now(),
+                                     "Action": "Reactions Inserted"})
 
         for comp_dict in self.compounds.values():
             db.insert_compound(AllChem.MolFromSmiles(comp_dict['SMILES']),
                                comp_dict, bulk=bulk_c)
         bulk_c.execute()
-        db.meta_data.insert({"Timestamp": datetime.datetime.now(),
-                             "Action": "Compounds Inserted"})
+        db.meta_data.insert_one({"Timestamp": datetime.datetime.now(),
+                                 "Action": "Compounds Inserted"})
 
         for x in self.rxn_rules.values():
             # There are fewer reaction rules so bulk operations are not
             # really faster.
-            db.operators.save(x[1])
+            db.operators.insert_one(x[1])
         db.build_indexes()
 
 
 def _racemization(compound, max_centers=3, carbon_only=True):
     """Enumerates all possible stereoisomers for unassigned chiral centers.
-    
+
     :param compound: A compound
     :type compound: rdMol object
     :param max_centers: The maximum number of unspecified stereocenters to
@@ -764,15 +777,14 @@ def _racemization(compound, max_centers=3, carbon_only=True):
     if not unassigned_centers or len(unassigned_centers) > max_centers:
         return [compound]
     for seq in itertools.product([1, 0], repeat=len(unassigned_centers)):
-        for atomId, cw in zip(unassigned_centers, seq):
-            # cw - Clockwise; ccw - Counterclockwise
+        for atomid, clockwise in zip(unassigned_centers, seq):
             # Get both cw and ccw chiral centers for each center. Used
             # itertools.product to get all combinations.
-            if cw:
-                compound.GetAtomWithIdx(atomId).SetChiralTag(
+            if clockwise:
+                compound.GetAtomWithIdx(atomid).SetChiralTag(
                     AllChem.rdchem.ChiralType.CHI_TETRAHEDRAL_CW)
             else:
-                compound.GetAtomWithIdx(atomId).SetChiralTag(
+                compound.GetAtomWithIdx(atomid).SetChiralTag(
                     AllChem.rdchem.ChiralType.CHI_TETRAHEDRAL_CCW)
         # Duplicate C++ object so that we don't get multiple pointers to
         # same object
@@ -782,13 +794,13 @@ def _racemization(compound, max_centers=3, carbon_only=True):
 
 if __name__ == "__main__":
     # Get initial time to calculate execution time at end
-    t1 = time.time()
+    t1 = time.time()  # pylint: disable=invalid-name
     # Parse all command line arguments
-    parser = ArgumentParser()
+    parser = ArgumentParser()  # pylint: disable=invalid-name
     parser.add_argument('-C', '--coreactant_list',
                         default="tests/data/test_coreactants.tsv",
-                        help="Specify a list of coreactants as a tab-separated "
-                             "file")
+                        help="Specify a list of coreactants as a "
+                             "tab-separated file")
     parser.add_argument('-r', '--rule_list',
                         default="tests/data/test_reaction_rules.tsv",
                         help="Specify a list of reaction rules as a "
@@ -798,7 +810,8 @@ if __name__ == "__main__":
                         help="Specify a list of starting compounds as a "
                              "tab-separated file")
     parser.add_argument('-p', '--pruning_whitelist', default=None,
-                        help="Specify a list of target compounds to prune reaction network down")
+                        help="Specify a list of target compounds to prune "
+                             "reaction network down")
     parser.add_argument('-s', '--smiles', default=None,
                         help="Specify a starting compound as SMILES.")
     parser.add_argument('-o', '--output_dir', default=".",
@@ -810,12 +823,12 @@ if __name__ == "__main__":
     parser.add_argument('-R', '--racemize', action='store_true', default=False,
                         help="Enumerate the possible chiral "
                         "forms for all unassigned stereocenters in compounds &"
-                             " reactions")
+                        " reactions")
     parser.add_argument('-v', '--verbose', action='store_true', default=False,
                         help="Display RDKit errors & warnings")
     parser.add_argument('--bnice', action='store_true', default=False,
-                        help="Set several options to enable compatibility with "
-                             "bnice operators.")
+                        help="Set several options to enable compatibility "
+                             "with bnice operators.")
     parser.add_argument('-m', '--max_workers', default=1, type=int,
                         help="Set the nax number of processes to spawn to "
                              "perform calculations.")
@@ -827,34 +840,37 @@ if __name__ == "__main__":
                              "created compounds")
     parser.add_argument('-q', '--quiet', action='store_true', default=False,
                         help="Silence warnings about imbalenced reactions")
-    options = parser.parse_args()
-    pk = Pickaxe(coreactant_list=options.coreactant_list,
-                 rule_list=options.rule_list, racemize=options.racemize,
-                 errors=options.verbose, explicit_h=options.bnice,
-                 kekulize=options.bnice, neutralise=options.bnice,
-                 image_dir=options.image_dir, database=options.database,
-                 quiet=options.quiet)
+    OPTIONS = parser.parse_args()
+    pk = Pickaxe(coreactant_list=OPTIONS.coreactant_list,
+                 rule_list=OPTIONS.rule_list, racemize=OPTIONS.racemize,
+                 errors=OPTIONS.verbose, explicit_h=OPTIONS.bnice,
+                 kekulize=OPTIONS.bnice, neutralise=OPTIONS.bnice,
+                 image_dir=OPTIONS.image_dir, database=OPTIONS.database,
+                 quiet=OPTIONS.quiet)
     # Create a directory for image output file if it doesn't already exist
-    if options.image_dir and not os.path.exists(options.image_dir):
-        os.mkdir(options.image_dir)
+    if OPTIONS.image_dir and not os.path.exists(OPTIONS.image_dir):
+        os.mkdir(OPTIONS.image_dir)
     # If starting compound specified as SMILES string, then add it
-    if options.smiles:
-        pk._add_compound("Start", options.smiles, type='Starting Compound')
+    if OPTIONS.smiles:
+        # pylint: disable=protected-access
+        pk._add_compound("Start", OPTIONS.smiles, cpd_type='Starting Compound')
     else:
-        pk.load_compound_set(compound_file=options.compound_file)
+        pk.load_compound_set(compound_file=OPTIONS.compound_file)
     # Generate reaction network
-    pk.transform_all(max_generations=options.generations,
-                     num_workers=options.max_workers)
-    if options.pruning_whitelist:
-        mols = [pk._mol_from_dict(line) for line in utils.file_to_dict_list(options.pruning_whitelist)]
+    pk.transform_all(max_generations=OPTIONS.generations,
+                     num_workers=OPTIONS.max_workers)
+    if OPTIONS.pruning_whitelist:
+        # pylint: disable=invalid-name,protected-access
+        mols = [pk._mol_from_dict(line) for line
+                in utils.file_to_dict_list(OPTIONS.pruning_whitelist)]
         pk.prune_network([utils.compound_hash(x) for x in mols if x])
     # Save to database (e.g. Mongo) if present, otherwise create output file
-    if options.database:
-        print("Saving results to %s" % options.database)
-        pk.save_to_MINE(options.database)
+    if OPTIONS.database:
+        print("Saving results to %s" % OPTIONS.database)
+        pk.save_to_mine(OPTIONS.database)
     else:
         pk.assign_ids()
-        pk.write_compound_output_file(options.output_dir+'/compounds.tsv')
-        pk.write_reaction_output_file(options.output_dir+'/reactions.tsv')
+        pk.write_compound_output_file(OPTIONS.output_dir + '/compounds.tsv')
+        pk.write_reaction_output_file(OPTIONS.output_dir + '/reactions.tsv')
 
-    print("Execution took %s seconds." % (time.time()-t1))
+    print("Execution took %s seconds." % (time.time() - t1))
