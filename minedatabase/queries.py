@@ -87,7 +87,7 @@ def advanced_search(db, mongo_query,
     return [x for x in db.compounds.find(query_dict, search_projection)]
 
 
-def similarity_search(db, comp_structure, min_tc, fp_type, limit,
+def similarity_search(db, comp_structure, min_tc, limit, fp_type='RDKit',
                       search_projection=DEFAULT_PROJECTION.copy()):
     """Returns compounds in the indicated database which have structural
      similarity to the provided compound
@@ -168,7 +168,6 @@ def structure_search(db, comp_structure, stereo=True,
     :type search_projection: str
     :return: Query results
     :rtype: list    """
-
     # Create Mol object from Molfile (has newlines)
     if "\n" in comp_structure:
         mol = AllChem.MolFromMolBlock(str(comp_structure))
@@ -207,7 +206,6 @@ def substructure_search(db, sub_structure, limit,
     :return: Query results
     :rtype: list
     """
-
     substructure_search_results = []
     # Create Mol object from Molfile (has newlines)
     if "\n" in sub_structure:
@@ -233,3 +231,111 @@ def substructure_search(db, sub_structure, limit,
             if len(substructure_search_results) == limit:
                 break
     return substructure_search_results
+
+
+def get_ids(db, collection, query):
+    """Returns ids for documents in database collection matching query.
+
+    :param db: DB to search
+    :type db: A Mongo Database
+    :param collection: collection within DB to search
+    :type collection: A Mongo Database Collection
+    :param query: A valid Mongo query.
+    :type query: str
+    """
+
+    if query:
+        query = literal_eval(query)
+    else:
+        query = {}
+    ids = [x['_id'] for x in db[collection].find(query)]
+
+    return ids
+
+
+def get_comps(db, id_list):
+    """Returns compounds with associated IDs from a Mongo database.
+
+    :param db: DB to search
+    :type db: A Mongo Database
+    :param id_list: IDs to get compounds for.
+    :type id_list: list
+    :return: Compound JSON documents
+    :rtype: list
+    """
+    compounds = []
+    for cpd_id in id_list:
+        excluded_fields = {"len_FP2": 0, "FP2": 0, "len_FP4": 0, "FP4": 0}
+        if isinstance(cpd_id, int):
+            cpd = db.compounds.find_one({'MINE_id': cpd_id}, excluded_fields)
+        else:
+            cpd = db.compounds.find_one({'_id': cpd_id}, excluded_fields)
+        # New MINEs won't have this precomputed
+        if cpd and 'Reactant_in' not in cpd and 'Product_of' not in cpd:
+            rxns_as_sub = db.reactions.find({'Reactants.c_id': cpd['_id']})
+            cpd['Reactant_in'] = [x['_id'] for x in rxns_as_sub]
+            rxns_as_prod = db.reactions.find({'Products.c_id': cpd['_id']})
+            cpd['Product_of'] = [x['_id'] for x in rxns_as_prod]
+        compounds.append(cpd)
+
+    return compounds
+
+
+def get_rxns(db, id_list):
+    """Returns reactions with associated IDs from a Mongo database.
+
+    :param db: DB to search
+    :type db: A Mongo Database
+    :param id_list: IDs to get compounds for.
+    :type id_list: list
+    :return: Reaction JSON documents
+    :rtype: list
+    """
+    reactions = []
+    for rxn_id in id_list:
+        reactions.append(db.reactions.find_one({'_id': rxn_id}))
+
+    return reactions
+
+
+def get_ops(db, operator_ids):
+    """Returns operators from a Mongo database.
+
+    :param db: DB to search
+    :type db: A Mongo Database
+    :param operator_ids: Mongo _ids or operator names (e.g. 1.1.-1.h)
+    :type operator_ids: list
+    :return: Operator JSON documents
+    :rtype: list
+    """
+    if not operator_ids:
+        operators = [op for op in db.operators.find()]
+    else:
+        operators = []
+        for op_id in operator_ids:
+            op = db.operators.find_one({'$or': [{'_id': op_id},
+                                                {"Name": op_id}]})
+            operators.append(op)
+
+    return operators
+
+
+def get_op_w_rxns(db, operator_id):
+    """Returns operator with all its associated reactions.
+
+    :param db: DB to search
+    :type db: A Mongo Database
+    :param operator_id: Mongo _id or operator name (e.g. 1.1.-1.h)
+    :type operator_id: str
+    :return: Operator JSON document (with reactions)
+    :rtype: list
+    """
+    operator = db.operators.find_one({'$or': [{'_id': operator_id},
+                                              {"Name": operator_id}]})
+    if operator:
+        operator['Reaction_ids'] = \
+            db.reactions.find({"Operators": operator_id}).distinct("_id")
+    else:
+        return None
+
+    return operator

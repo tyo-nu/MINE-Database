@@ -390,7 +390,7 @@ class MINE:
         if bulk:
             bulk.find({'_id': compound_dict['_id']}).upsert().\
                 replace_one(compound_dict)
-        elif self.compounds.find_one({'_id': compound_dict['_id']}):           
+        elif self.compounds.find_one({'_id': compound_dict['_id']}):
             self.compounds.replace_one({'_id': compound_dict['_id']},
                                        compound_dict)
         else:

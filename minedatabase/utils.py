@@ -310,3 +310,42 @@ def neutralise_charges(mol, reactions=None):
             rms = AllChem.ReplaceSubstructs(mol, reactant, product)
             mol = rms[0]
     return mol
+
+
+def score_compounds(db, compounds, model_id, parent_frac=0.5,
+                    reaction_frac=0.5):
+    """This function validates compounds against a metabolic model, returning
+    only the compounds which pass."""
+    if not model_id:
+        return compounds
+    model = db.models.find_one({"_id": model_id})
+    if not model:
+        return compounds
+    parents = set(model["Compound_ids"])
+    operators = dict((x[0], x[1]) for x in model['Operators'])
+
+    for comp in compounds:
+        if comp['_id'] in parents:
+            comp['Likelihood_score'] = parent_frac + reaction_frac
+            continue
+        elif comp['Generation'] == 0:
+            comp['Likelihood_score'] = reaction_frac
+            continue
+        else:
+            comp['Likelihood_score'] = 0.0
+
+        for source in comp['Sources']:
+            likelihood_score = reaction_frac
+            for op in source['Operators']:
+                if op in operators:
+                    likelihood_score *= operators[op]
+                else:
+                    likelihood_score *= 0
+
+            if source['Compound'] in parents:
+                likelihood_score += parent_frac
+
+            if likelihood_score > comp['Likelihood_score']:
+                comp['Likelihood_score'] = likelihood_score
+
+    return compounds
