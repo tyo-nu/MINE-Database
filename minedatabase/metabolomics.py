@@ -17,7 +17,6 @@ from ast import literal_eval
 import pandas as pd
 import numpy as np
 
-from app import app
 from minedatabase.databases import establish_db_client
 from minedatabase.utils import score_compounds
 
@@ -29,39 +28,43 @@ class MetabolomicsDataset:
         self.name = name
         self.options = options  # Object containing all options from optparser
 
-        dtype = np.dtype("S20, f8, f8")
-        all_pos_adducts = np.loadtxt(app.config['POS_ADDUCT_PATH'],
-                                     dtype=dtype)
-        all_neg_adducts = np.loadtxt(app.config['NEG_ADDUCT_PATH'],
-                                     dtype=dtype)
+        dtype = np.dtype("U20, f8, f8")
+        pos_fp = 'C:/Users/jonst/Box Sync/MINE_development/MINE-Database/' \
+                 'minedatabase/data/adducts/Positive Adducts full.txt'
+        neg_fp = 'C:/Users/jonst/Box Sync/MINE_development/MINE-Database/' \
+                 'minedatabase/data/adducts/Negative Adducts full.txt'
+        all_pos_adducts = np.loadtxt(pos_fp, dtype=dtype)
+        all_neg_adducts = np.loadtxt(neg_fp, dtype=dtype)
 
-        if hasattr(options, 'adducts'):
+        if hasattr(options, 'adducts') and options.adducts:
             pos_adducts = filter(lambda x: x[0] in options.adducts,
                                  all_pos_adducts)
-            self.pos_adducts = np.array(pos_adducts, dtype=dtype)
+            self.pos_adducts = np.array(list(pos_adducts), dtype=dtype)
             neg_adducts = filter(lambda x: x[0] in options.adducts,
                                  all_neg_adducts)
-            self.neg_adducts = np.array(neg_adducts, dtype=dtype)
+            self.neg_adducts = np.array(list(neg_adducts), dtype=dtype)
         else:
-            if hasattr(options, 'positive_adduct_file'):
+            if hasattr(options, 'positive_adduct_file') \
+                and options.positive_adduct_file:
                 self.pos_adducts = np.loadtxt(options.positive_adduct_file,
                                               dtype=dtype)
             else:
                 self.pos_adducts = all_pos_adducts
 
-            if hasattr(options, 'negative_adduct_file'):
+            if hasattr(options, 'negative_adduct_file') \
+                and options.negative_adduct_file:
                 self.neg_adducts = np.loadtxt(options.negative_adduct_file,
                                               dtype=dtype)
             else:
                 self.neg_adducts = all_neg_adducts
 
-        if hasattr(options, 'kovats'):
+        if hasattr(options, 'kovats') and options.kovats:
             self.min_kovats = options.kovats[0]
             self.max_kovats = options.kovats[1]
 
-        if hasattr(options, 'logP'):
-            self.min_logp = options.logP[0]
-            self.max_logp = options.logP[1]
+        if hasattr(options, 'logp') and options.logp:
+            self.min_logp = options.logp[0]
+            self.max_logp = options.logp[1]
 
         self.hit_projection = {'Formula': 1, 'MINE_id': 1, 'logP': 1,
                                'minKovatsRI': 1, 'maxKovatsRI': 1,
@@ -149,8 +152,8 @@ class MetabolomicsDataset:
             else:
                 raise ValueError("Invalid compound charge specification. "
                                  "Please use \"+\" or \"Positive\" for "
-                                 "positive ions and \"-\" or \"Negative\"for "
-                                 "negative ions.")
+                                 "positive ions and \"-\" or \"Negative\" for "
+                                 f"negative ions. (charge = {peak.charge})")
 
             if peak.total_hits > 0:
                 self.matched_peaks += 1
@@ -390,6 +393,7 @@ def read_msp(input_string, charge):
         ms2 = []
         inchikey = "False"
         r_time = 0
+        name = 'N/A'
         for line in spec.split('\n'):
             sl = line.split(': ')
             sl[0] = sl[0].replace(' ', '').replace('/', '').upper()
@@ -416,8 +420,7 @@ def read_msp(input_string, charge):
 def read_mzxml(input_string, charge):
     """Parse mzXML metabolomics data file."""
     peaks = []
-    tree = ET.fromstring(input_string)
-    root = tree.getroot()
+    root = ET.fromstring(input_string)
     prefix = root.tag.strip('mzXML')
 
     for scan in root.findall('.//%sscan' % prefix):
@@ -451,9 +454,10 @@ def ms_adduct_search(db, keggdb, text, text_type, ms_params):
         Contains models with associated compound documents.
     text : str
         Text as in metabolomics datafile for specific peak.
-    text_type : str, optional (default: None)
+    text_type : str
         Type of metabolomics datafile (mgf, mzXML, and msp are supported). If
-        None, assumes m/z values are separated by newlines.
+        text, assumes m/z values are separated by newlines (and set text_type
+        to 'form').
     ms_params : dict
         Specifies search settings, using the following key-value pairs:
         ------------------------
@@ -467,7 +471,7 @@ def ms_adduct_search(db, keggdb, text, text_type, ms_params):
         ------------------------
         'adducts': list of adducts to use. If not specified, uses all adducts.
         'models': List of model _ids. If supplied, score compounds higher if
-            present in model.
+            present in model. ['eco'] by default (E. coli).
         'ppm': bool specifying whether 'tolerance' is in mDa or ppm. Default
             value for ppm is False (so tolerance is in mDa by default).
         'kovats': length 2 tuple specifying min and max kovats retention index
@@ -498,12 +502,15 @@ def ms_adduct_search(db, keggdb, text, text_type, ms_params):
                                           "False"))
     elif text_type == 'mgf':
         dataset.unk_peaks = read_mgf(text, ms_params.charge)
-    elif text_type == 'mzXML':
+    elif text_type == 'mzXML' or text_type == 'mzxml':
         dataset.unk_peaks = read_mzxml(text, ms_params.charge)
     elif text_type == 'msp':
         dataset.unk_peaks = read_msp(text, ms_params.charge)
     else:
         raise IOError('%s files not supported' % text_type)
+
+    if not ms_params.models:
+        ms_params.models = ['eco']
 
     dataset.native_set = get_KEGG_comps(db, keggdb, ms_params.models)
     dataset.annotate_peaks(db)
@@ -514,10 +521,9 @@ def ms_adduct_search(db, keggdb, text, text_type, ms_params):
                 del hit['CFM_spectra']
             ms_adduct_output.append(hit)
 
-    if ms_params.models:
-        ms_adduct_output = score_compounds(db, ms_adduct_output,
-                                           ms_params.models[0],
-                                           parent_frac=.75, reaction_frac=.25)
+    ms_adduct_output = score_compounds(db, ms_adduct_output,
+                                       ms_params.models[0],
+                                       parent_frac=.75, reaction_frac=.25)
 
     return ms_adduct_output
 
@@ -533,9 +539,10 @@ def ms2_search(db, keggdb, text, text_type, ms_params):
         Contains models with associated compound documents.
     text : str
         Text as in metabolomics datafile for specific peak.
-    text_type : str, optional (default: None)
+    text_type : str
         Type of metabolomics datafile (mgf, mzXML, and msp are supported). If
-        None, assumes m/z values are separated by newlines.
+        text, assumes m/z values are separated by newlines (and set text_type
+        to 'form').
     ms_params : dict
         Specifies search settings, using the following key-value pairs:
         ------------------------
@@ -592,6 +599,9 @@ def ms2_search(db, keggdb, text, text_type, ms_params):
         dataset.unk_peaks = read_msp(text, ms_params.charge)
     else:
         raise IOError('%s files not supported' % text_type)
+
+    if not ms_params.models:
+        ms_params.models = ['eco']
 
     dataset.native_set = get_KEGG_comps(db, keggdb, ms_params.models)
     dataset.annotate_peaks(db)

@@ -40,3 +40,9 @@ without database storage. To list all options call `python pickaxe.py -h`.
 To predict all chemical damage reactions for one generation on compounds in the iAF1260 
 model one would call `python pickaxe.py -C ./data/ChemicalDamageCoreactants.tsv -r 
 ./data/ChemicalDamageRxnRules.tsv -g 1 -c ./data/iAF1260.tsv`
+
+### Testing
+`pytest` to run all tests. Ensure that pytest is installed.
+To add coverage, run:
+`pytest --cov-report term --cov-report xml:tests/cov.xml --cov=minedatabase minedatabase/tests/`
+Ensure that coverage and pytest-cov are both installed.

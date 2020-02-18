@@ -1,0 +1,6 @@
+#Negative adducts
+#New adducts may be appended to the end of the list
+#To remove an adduct from consideration simply comment it out with a hash
+#adduct_name mass_mult ion_mass
+M-H 	1	-1.007276
+M+CH3COO 	1	59.013851

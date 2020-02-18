@@ -90,9 +90,9 @@ def test_similarity_search(test_db, test_molfile, glucose):
     """
     assert len(queries.similarity_search(
         test_db, 'Cc1cc2c(cc1C)N(CC(O)C(O)C(O)COP(=O)(O)OP(=O)(O)OCC1OC(n3cn'
-        'c4c(N)ncnc43)C(O)C1O)c1nc(O)nc(O)c1N2', 0.9, "RDKit", 100)) == 8
-    result = queries.similarity_search(test_db, test_molfile, 0.5, 'MACCS',
-                                       100)
+        'c4c(N)ncnc43)C(O)C1O)c1nc(O)nc(O)c1N2', 0.9, 100)) == 8
+    result = queries.similarity_search(test_db, test_molfile, 0.5, 100,
+                                       fp_type='MACCS')
     assert glucose in result
     assert len(result) == 3
 

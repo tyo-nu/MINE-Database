@@ -29,15 +29,21 @@ def test_db():
         with open(datafile_path) as infile:
             jsondb = json.load(infile)
         for doc in jsondb[0]:
-            if '_id' in doc:
+            if testdb.compounds.find_one({'_id': doc['_id']}):
                 testdb.compounds.replace_one({'_id': doc['_id']}, doc)
             else:
                 testdb.compounds.insert_one(doc)
         for doc in jsondb[1]:
-            if '_id' in doc:
+            if testdb.reactions.find_one({'_id': doc['_id']}):
                 testdb.reactions.replace_one({'_id': doc['_id']}, doc)
             else:
                 testdb.reactions.insert_one(doc)
+        for doc in jsondb[2]:
+            if testdb.operators.find_one({'_id': doc['_id']}):
+                testdb.operators.replace_one({'_id': doc['_id']}, doc)
+            else:
+                testdb.operators.insert_one(doc)
+
     except ServerSelectionTimeoutError:
         print('No Mongo DB server detected')
 

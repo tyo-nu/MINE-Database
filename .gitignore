@@ -59,4 +59,16 @@ docs/_build/
 # PyBuilder
 target/
 
+# Code coverage
+cov.xml
 
+# Test images
+minedatabase/tests/imgs/*
+
+# KEGG db scripts and data
+Scripts/kegg/data/*
+Scripts/kegg/*
+
+# CFM_ID scripts and data
+Scripts/cfm_id/data/*
+Scripts/cfm_id/esi_msms_models/*

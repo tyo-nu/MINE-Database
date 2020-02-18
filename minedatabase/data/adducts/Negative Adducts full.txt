@@ -1,0 +1,19 @@
+#Negative adducts
+#New adducts may be appended to the end of the list
+#To remove an adduct from consideration simply comment it out with a hash
+#adduct_name mass_mult ion_mass
+[M-H]- 	1	-1.007276
+[M+CH3COO]- 	1	59.013851
+[M-2H]- 	0.5	-1.007276
+[2M-H]- 	2	-1.007276
+[M+H2O-2H]- 	1	15.994915
+[M+COO]- 	1	44.998201
+[M-3H]- 	0.333333333	-1.007276
+[M+Na-2H]- 	1	20.974666
+[M+Cl]- 	1	34.969402
+[M+K-2H]- 	1	36.948606
+[M+Br]- 	1	78.918885
+[M+CF3COO]- 	1	112.985586
+[2M+COO]- 	2	44.998201
+[2M+CH3COO]- 	2	59.013851
+[3M-H]- 	3	1.007276
