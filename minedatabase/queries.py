@@ -1,6 +1,7 @@
 """Queries.py: Contains functions which power the API queries"""
 import re
 from ast import literal_eval
+from minedatabase.utils import score_compounds
 
 from rdkit.Chem import AllChem
 
@@ -87,7 +88,8 @@ def advanced_search(db, mongo_query,
     return [x for x in db.compounds.find(query_dict, search_projection)]
 
 
-def similarity_search(db, comp_structure, min_tc, limit, fp_type='RDKit',
+def similarity_search(db, comp_structure, min_tc, limit, parent_filter=None,
+                      model_db=None, fp_type='RDKit',
                       search_projection=DEFAULT_PROJECTION.copy()):
     """Returns compounds in the indicated database which have structural
      similarity to the provided compound
@@ -102,6 +104,8 @@ def similarity_search(db, comp_structure, min_tc, limit, fp_type='RDKit',
     :type fp_type: str
     :param limit: The maximum number of compounds to return
     :type limit: int
+    :param parent_filter: str
+    :type parent_filter: str
     :param search_projection: The fields which should be returned
     :type search_projection: str
     :return: Query results
@@ -131,6 +135,8 @@ def similarity_search(db, comp_structure, min_tc, limit, fp_type='RDKit',
     len_fp = len(query_fp)
     # Return only id and fingerprint vector
     search_projection[fp_type] = 1
+    # Also return DB_Links for finding compounds in KEGG model
+    search_projection['DB_links'] = 1
     # Filter compounds that meet tanimoto coefficient size requirements
     for x in db.compounds.find(
             {"$and": [{"len_" + fp_type: {"$gte": min_tc * len_fp}},
@@ -150,10 +156,17 @@ def similarity_search(db, comp_structure, min_tc, limit, fp_type='RDKit',
                 break
 
     del search_projection[fp_type]
+
+    if parent_filter and model_db:
+        similarity_search_results = score_compounds(model_db,
+                                                    similarity_search_results,
+                                                    parent_filter)
+
     return similarity_search_results
 
 
-def structure_search(db, comp_structure, stereo=True,
+def structure_search(db, comp_structure, stereo=True, parent_filter=None,
+                     model_db=None,
                      search_projection=DEFAULT_PROJECTION.copy()):
     """Returns compounds in the indicated database which are exact matches to
     the provided structure
@@ -177,20 +190,28 @@ def structure_search(db, comp_structure, stereo=True,
     if not mol:
         raise ValueError("Unable to parse comp_structure")
 
+    # Also return DB_Links for finding compounds in KEGG model
+    search_projection['DB_links'] = 1
     # Get InChI string from mol file (rdkit)
     inchi = AllChem.MolToInchi(mol)
     # Get InChI key from InChI string (rdkit)
     inchi_key = AllChem.InchiToInchiKey(inchi)
     # Sure, we could look for a matching SMILES but this is faster
     if stereo:
-        return quick_search(db, inchi_key, search_projection)
+        results = quick_search(db, inchi_key, search_projection)
     else:
-        return [x for x in db.compounds.find(
+        results = [x for x in db.compounds.find(
             {"Inchikey": {'$regex': '^' + inchi_key.split('-')[0]}},
             search_projection)]
 
+    if parent_filter and model_db:
+        results = score_compounds(model_db, results, parent_filter)
 
-def substructure_search(db, sub_structure, limit,
+    return results
+
+
+def substructure_search(db, sub_structure, limit, parent_filter=None,
+                        model_db=None,
                         search_projection=DEFAULT_PROJECTION.copy()):
     """Returns compounds in the indicated database which contain the provided
     structure
@@ -215,6 +236,8 @@ def substructure_search(db, sub_structure, limit,
         mol = AllChem.MolFromSmiles(str(sub_structure))
     if not mol:
         raise ValueError("Unable to parse comp_structure")
+    # Also return DB_Links for finding compounds in KEGG model
+    search_projection['DB_links'] = 1
     # Based on fingerprint type specified by user, get the finger print as an
     # explicit bit vector (series of 1s and 0s). Then, return a set of all
     # indices where a bit is 1 in the bit vector.
@@ -230,7 +253,38 @@ def substructure_search(db, sub_structure, limit,
             substructure_search_results.append(x)
             if len(substructure_search_results) == limit:
                 break
+
+    if parent_filter and model_db:
+        substructure_search_results = \
+            score_compounds(model_db, substructure_search_results,
+                            parent_filter)
+ 
     return substructure_search_results
+
+
+def model_search(db, query):
+    """Returns models that match a given KEGG Org Code query (e.g. 'hsa').
+
+    Parameters
+    ----------
+    db : Mongo DB
+        DB to search. Should contain a 'models' collection. '_id' and 'Name'
+        fields should be indexed for text search.
+    query : str
+        KEGG Org Code or Org Name of model(s) to search for (e.g. 'hsa' or
+        'yeast'). Can provide multiple search terms by separating each term
+        with a space.  TODO: change from space delimiter to something else
+
+    Returns
+    -------
+    model_ids : str
+        List of KEGG Org codes (_id) found in the DB matching search query.
+    """
+    cursor = db.models.find({"$text": {"$search": query}},
+                            {"score": {"$meta": "textScore"}, "_id": 1})
+    model_ids = [x["_id"] for x in cursor.sort([("score",
+                                                 {"$meta": "textScore"})])]
+    return model_ids
 
 
 def get_ids(db, collection, query):
@@ -277,7 +331,6 @@ def get_comps(db, id_list):
             rxns_as_prod = db.reactions.find({'Products.c_id': cpd['_id']})
             cpd['Product_of'] = [x['_id'] for x in rxns_as_prod]
         compounds.append(cpd)
-
     return compounds
 
 

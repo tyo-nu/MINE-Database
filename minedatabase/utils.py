@@ -312,40 +312,69 @@ def neutralise_charges(mol, reactions=None):
     return mol
 
 
-def score_compounds(db, compounds, model_id, parent_frac=0.5,
-                    reaction_frac=0.5):
+def score_compounds(db, compounds, model_id, parent_frac=0.75,
+                    reaction_frac=0.25):
     """This function validates compounds against a metabolic model, returning
-    only the compounds which pass."""
+    only the compounds which pass.
+
+    Parameters
+    ----------
+    db : Mongo DB
+        Should contain a "models" collection with compound and reaction IDs
+        listed.
+    compounds : list
+        Each element is a dict describing that compound. Should have an '_id'
+        field.
+    model_id : str
+        KEGG organism code (e.g. 'hsa').
+    parent_frac : float, optional (default: 0.75)
+        Weighting for compounds derived from compounds in the provided model.
+    reaction_frac : float, optional (default: 0.25)
+        Weighting for compounds derived from known compounds not in the model.
+
+    Returns
+    -------
+    compounds : list
+        Modified version of input compounds list, where each compound now has
+        a 'Likelihood_score' key and value between 0 and 1.
+    """
     if not model_id:
         return compounds
     model = db.models.find_one({"_id": model_id})
     if not model:
         return compounds
-    parents = set(model["Compound_ids"])
-    operators = dict((x[0], x[1]) for x in model['Operators'])
+    parents = set(model["Compounds"])
 
     for comp in compounds:
-        if comp['_id'] in parents:
-            comp['Likelihood_score'] = parent_frac + reaction_frac
-            continue
-        elif comp['Generation'] == 0:
+        try:
+            if set(comp['DB_links']['KEGG']) & parents:
+                comp['Likelihood_score'] = parent_frac + reaction_frac
+                continue
+        except KeyError:
+            pass  # no worries if no KEGG id for this comp, just continue on
+
+        if comp['Generation'] == 0:
             comp['Likelihood_score'] = reaction_frac
             continue
-        else:
-            comp['Likelihood_score'] = 0.0
 
+        comp['Likelihood_score'] = 0.0
         for source in comp['Sources']:
             likelihood_score = reaction_frac
-            for op in source['Operators']:
-                if op in operators:
-                    likelihood_score *= operators[op]
-                else:
-                    likelihood_score *= 0
 
-            if source['Compound'] in parents:
-                likelihood_score += parent_frac
+            for s_comp in source['Compounds']:
+                if 'DB_links' in s_comp and 'KEGG' in s_comp['DB_links']:
+                    if set(s_comp['DB_links']['KEGG']) & parents:
+                        likelihood_score += parent_frac
 
             if likelihood_score > comp['Likelihood_score']:
                 comp['Likelihood_score'] = likelihood_score
 
     return compounds
+
+
+def get_smiles_from_mol_string(mol_string):
+    """Convert a molfile in string format to a SMILES string."""
+    mol = AllChem.MolFromMolBlock(mol_string)
+    smiles = AllChem.MolToSmiles(mol)
+
+    return smiles
