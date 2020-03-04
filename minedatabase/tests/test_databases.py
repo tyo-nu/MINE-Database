@@ -21,8 +21,9 @@ from ..databases import MINE
 def test_db():
     """Create a test MINE database. Created and torn down before and after each
     test it is used in."""
-
-    datafile_path = os.path.dirname(__file__) + '/data/testing_db.json'
+    print(os.path.dirname(__file__))
+    datafile_path = os.path.join(os.path.dirname(__file__),
+                                 'data/testing_db.json')
 
     try:
         testdb = MINE("mongotest")
@@ -58,7 +59,7 @@ def test_generate_image_files(test_db):
     WHEN image files are generated from that database
     THEN make sure that they are all generated correctly
     """
-    img_dir = os.path.dirname(__file__) + '\\imgs'
+    img_dir = os.path.join(os.path.dirname(__file__), 'imgs')
     test_db.generate_image_files(img_dir)
     try:
         assert os.path.exists(

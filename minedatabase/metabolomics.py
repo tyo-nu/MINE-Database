@@ -9,6 +9,7 @@ import math
 import pickle
 import re
 import sys
+import os
 import time
 import xml.etree.ElementTree as ET
 from optparse import OptionParser
@@ -17,8 +18,12 @@ from ast import literal_eval
 import pandas as pd
 import numpy as np
 
+import minedatabase
 from minedatabase.databases import establish_db_client
 from minedatabase.utils import score_compounds
+
+
+MINEDB_DIR = os.path.dirname(minedatabase.__file__)
 
 
 class MetabolomicsDataset:
@@ -29,10 +34,10 @@ class MetabolomicsDataset:
         self.options = options  # Object containing all options from optparser
 
         dtype = np.dtype("U20, f8, f8")
-        pos_fp = 'C:/Users/jonst/Box Sync/MINE_development/MINE-Database/' \
-                 'minedatabase/data/adducts/Positive Adducts full.txt'
-        neg_fp = 'C:/Users/jonst/Box Sync/MINE_development/MINE-Database/' \
-                 'minedatabase/data/adducts/Negative Adducts full.txt'
+        pos_fp = os.path.join(MINEDB_DIR,
+                              'data/adducts/Positive Adducts full.txt')
+        neg_fp = os.path.join(MINEDB_DIR,
+                              'data/adducts/Negative Adducts full.txt')
         all_pos_adducts = np.loadtxt(pos_fp, dtype=dtype)
         all_neg_adducts = np.loadtxt(neg_fp, dtype=dtype)
 
