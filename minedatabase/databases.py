@@ -3,6 +3,7 @@ loading functions."""
 import ast
 import datetime
 import os
+import sys
 import platform
 from shutil import move
 from subprocess import call
@@ -176,7 +177,10 @@ class MINE:
             query = {}
 
         if not os.path.exists(path):
-            os.mkdir(path)
+            if sys.platform == "linux":
+                os.system(f"sudo mkdir {path} -m 777")
+            else:
+                os.mkdir(path)
         with open(structure_file, 'w') as outfile:
             for comp in self.compounds.find(query, {'SMILES': 1}):
                 if convert_r:
