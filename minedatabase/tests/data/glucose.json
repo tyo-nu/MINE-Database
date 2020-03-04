@@ -4,6 +4,17 @@
     "Generation": 1,
     "MINE_id": 917030,
     "NP_likeness": 2.62691337083175,
+    "DB_links": {
+        "NIKKAJI": ["J4.109B"],
+        "CAS": ["50-99-7", "2280-44-6"],
+        "3DMET": ["B04623"],
+        "Model_SEED": ["cpd26821", "cpd00027"],
+        "KNApSAcK": ["C00042470"],
+        "PDB-CCD": ["BGC", "GLC"],
+        "ChEBI": ["4167"],
+        "PubChem": ["3333"],
+        "KEGG": ["C00031"]
+    },
     "Sources": [
         {
             "Operators": [

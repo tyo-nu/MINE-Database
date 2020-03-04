@@ -7,7 +7,7 @@ from rdkit.Chem import AllChem
 
 DEFAULT_PROJECTION = {'SMILES': 1, 'Formula': 1, 'MINE_id': 1, 'Names': 1,
                       'Inchikey': 1, 'Mass': 1, 'Sources': 1, 'Generation': 1,
-                      'NP_likeness': 1}
+                      'NP_likeness': 1, 'DB_links': 1}
 
 
 def quick_search(db, query, search_projection=DEFAULT_PROJECTION.copy()):
@@ -135,8 +135,7 @@ def similarity_search(db, comp_structure, min_tc, limit, parent_filter=None,
     len_fp = len(query_fp)
     # Return only id and fingerprint vector
     search_projection[fp_type] = 1
-    # Also return DB_Links for finding compounds in KEGG model
-    search_projection['DB_links'] = 1
+
     # Filter compounds that meet tanimoto coefficient size requirements
     for x in db.compounds.find(
             {"$and": [{"len_" + fp_type: {"$gte": min_tc * len_fp}},
@@ -190,8 +189,6 @@ def structure_search(db, comp_structure, stereo=True, parent_filter=None,
     if not mol:
         raise ValueError("Unable to parse comp_structure")
 
-    # Also return DB_Links for finding compounds in KEGG model
-    search_projection['DB_links'] = 1
     # Get InChI string from mol file (rdkit)
     inchi = AllChem.MolToInchi(mol)
     # Get InChI key from InChI string (rdkit)
@@ -236,8 +233,7 @@ def substructure_search(db, sub_structure, limit, parent_filter=None,
         mol = AllChem.MolFromSmiles(str(sub_structure))
     if not mol:
         raise ValueError("Unable to parse comp_structure")
-    # Also return DB_Links for finding compounds in KEGG model
-    search_projection['DB_links'] = 1
+
     # Based on fingerprint type specified by user, get the finger print as an
     # explicit bit vector (series of 1s and 0s). Then, return a set of all
     # indices where a bit is 1 in the bit vector.
