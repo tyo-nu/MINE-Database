@@ -390,11 +390,8 @@ class MINE:
         if bulk:
             bulk.find({'_id': compound_dict['_id']}).upsert().\
                 replace_one(compound_dict)
-        elif self.compounds.find_one({'_id': compound_dict['_id']}):
-            self.compounds.replace_one({'_id': compound_dict['_id']},
-                                       compound_dict)
         else:
-            self.compounds.insert_one(compound_dict)
+            save_document(self.compounds, compound_dict)
         return compound_dict['_id']
 
     def insert_reaction(self, reaction_dict, bulk=None):
@@ -426,11 +423,7 @@ class MINE:
             bulk.find({'_id': reaction_dict['_id']}).upsert().\
                 replace_one(reaction_dict)
         else:
-            if '_id' in reaction_dict:
-                self.reactions.replace_one({'_id': reaction_dict['_id']},
-                                           reaction_dict)
-            else:
-                self.reactions.insert_one(reaction_dict)
+            save_document(self.reactions, reaction_dict)
         return reaction_dict['_id']
 
     def map_reactions(self, ext_db, match_field='_id'):
@@ -459,3 +452,21 @@ class MINE:
                 lit_db.reactions.update(
                     {"_id": lit_rxn["_id"]},
                     {"$set": {"Mapped_Rules": mine_rxn['Operators']}})
+
+
+def save_document(collection, doc):
+    """Saves document to given MongoDB collection.
+
+    If document _id already exists, replaces it. Else, inserts it.
+
+    Parameters
+    ----------
+    collection : mongodb.collection
+        Collection to save document to.
+    doc : dict
+        Document to save.
+    """
+    if '_id' in doc and collection.find_one({'_id': doc['_id']}):
+        collection.replace_one({'_id': doc['_id']}, doc)
+    else:
+        collection.insert_one(doc)
