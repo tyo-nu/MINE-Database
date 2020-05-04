@@ -361,7 +361,13 @@ def score_compounds(db, compounds, model_id, parent_frac=0.75,
         for source in comp['Sources']:
             likelihood_score = reaction_frac
 
-            for s_comp in source['Compounds']:
+            try:
+                for s_comp in source['Compounds']:
+                    if 'DB_links' in s_comp and 'KEGG' in s_comp['DB_links']:
+                        if set(s_comp['DB_links']['KEGG']) & parents:
+                            likelihood_score += parent_frac
+            except KeyError:
+                s_comp = source['Compound']  # needed for legacy MINEs
                 if 'DB_links' in s_comp and 'KEGG' in s_comp['DB_links']:
                     if set(s_comp['DB_links']['KEGG']) & parents:
                         likelihood_score += parent_frac
