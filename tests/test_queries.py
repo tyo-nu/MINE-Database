@@ -9,7 +9,7 @@ from pymongo.errors import ServerSelectionTimeoutError
 
 from minedatabase import databases, queries
 
-from ..databases import MINE
+from minedatabase.databases import MINE
 
 
 @pytest.fixture()

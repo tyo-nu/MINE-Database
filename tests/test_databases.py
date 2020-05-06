@@ -14,7 +14,7 @@ from rdkit.Chem import AllChem
 
 from minedatabase import utils
 
-from ..databases import MINE
+from minedatabase.databases import MINE
 
 
 @pytest.fixture()

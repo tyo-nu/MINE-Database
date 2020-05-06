@@ -1,15 +1,19 @@
 from setuptools import setup
+import setuptools
+
+with open("README.md", "r") as fh:
+    long_description = fh.read()
 
 setup(name='minedatabase',
-      version='1.0',
+      version='1.0.0',
       description='Metabolic In silico Network Expansions',
-      url='http://github.com/JamesJeffryes/mine-database',
-      author='James Jeffryes',
-      author_email='jamesgjeffryes@gmail.com',
+      long_description=long_description,
+      long_description_content_type="text/markdown",
+      url='https://github.com/tyo-nu/MINE-Database',
+      author='Jonathan Strutz',
+      author_email='jonstrutz11@gmail.com',
       license='MIT',
-      packages=['minedatabase',
-                'minedatabase.tests',
-                'minedatabase.NP_Score'],
+      packages=setuptools.find_packages(),
       install_requires=['pymongo'],
       package_data={'minedatabase': ['data/*'],
                     'minedatabase.NP_Score': ['*.gz'],
@@ -23,7 +27,6 @@ setup(name='minedatabase',
           'License :: OSI Approved :: MIT License',
           'Topic :: Scientific/Engineering :: Bio-Informatics',
           'Topic :: Scientific/Engineering :: Chemistry',
-          'Programming Language :: Python :: 2.7',
           'Programming Language :: Python :: 3',
       ],
       )

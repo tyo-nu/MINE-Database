@@ -261,7 +261,8 @@ def test_cli():
     """
     os.chdir(DATA_DIR + "/../..")
     rc = subprocess.call(
-        'python pickaxe.py -o tests -r tests/data/test_cd_rxn_rule.tsv',
+        'python minedatabase/pickaxe.py -o tests -r '
+        'tests/data/test_cd_rxn_rule.tsv',
         shell=True)
     assert not rc
     purge('tests/', r".*\.tsv$")
