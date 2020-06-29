@@ -4,7 +4,7 @@ from minedatabase.pickaxe import Pickaxe
 
 # Where are the input rxns coming from and coreactants
 # Compounds that are going to be expanded
-input_cpds = './pickaxe_tests/in_cpds_mid.csv'
+input_cpds = './data/in_cpds_mid.csv'
 
 # Cofactors used in the rules
 coreactant_list = './minedatabase/data/EnzymaticCoreactants.tsv'
