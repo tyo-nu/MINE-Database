@@ -2,7 +2,7 @@ from minedatabase.pickaxe import Pickaxe
 
 # Where are the input rxns coming from and coreactants
 # Compounds that are going to be expanded
-input_cpds = './pickaxe_tests/in_cpds_mid.csv'
+input_cpds = './data/in_cpds_mid.csv'
 
 # Cofactors used in the rules
 coreactant_list = './minedatabase/data/EnzymaticCoreactants.tsv'
@@ -11,8 +11,8 @@ rule_list = './minedatabase/data/EnzymaticReactionRules.tsv'
 
 # Outputs if you are writing the results locally
 write_local = False
-pickaxe_rxns = './pickaxe_tests/test_rxns.tsv'
-pickaxe_cpds = './pickaxe_tests/test_cpds.tsv'
+pickaxe_rxns = './pickaxe_result/test_rxns.tsv'
+pickaxe_cpds = './pickaxe_result/test_cpds.tsv'
 
 # Database to write results to
 write_db = True
