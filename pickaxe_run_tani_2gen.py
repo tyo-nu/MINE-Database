@@ -13,8 +13,8 @@ rule_list = './minedatabase/data/EnzymaticReactionRules.tsv'
 
 # Outputs if you are writing the results locally
 write_local = False
-pickaxe_rxns = './pickaxe_tests/test_rxns.tsv'
-pickaxe_cpds = './pickaxe_tests/test_cpds.tsv'
+pickaxe_rxns = './pickaxe_result/test_rxns.tsv'
+pickaxe_cpds = './pickaxe_result/test_cpds.tsv'
 
 # Database to write results to
 write_db = True
