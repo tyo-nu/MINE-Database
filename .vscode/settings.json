@@ -1,0 +1,6 @@
+{
+    "python.pythonPath": "/Users/kevbot/opt/anaconda3/envs/core/bin/python",
+    "python.linting.pylintEnabled": false,
+    "python.linting.flake8Enabled": true,
+    "python.linting.enabled": false
+}

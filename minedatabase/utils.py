@@ -23,28 +23,35 @@ def file_to_dict_list(filepath):
         raise ValueError('Unrecognized input file type')
     return list(reader)
 
-
-def compound_hash(compound, cofactor=False):
+# KMS
+def get_fp( smi):
+    mol = AllChem.MolFromSmiles(smi)
+    fp = AllChem.RDKFingerprint(mol)
+    return fp
+# KMS
+def compound_hash(smi, cpd_type='Predicted'):
     """Creates hash string for given compound
 
-    :param compound: The compound to be hashed
-    :type compound: str or Mol Object
+    :param smi: The smiles of the to-be-hashed compound
+    :type compound: str
     :param cofactor: is the compound a cofactor
     :type cofactor: bool
     :return: A hashed compound _id
     :rtype: str
     """
-    # Check to see if compound is a Mol object. If true, convert that Mol
-    # object to a SMILES string
-    if isinstance(compound, AllChem.Mol):
-        compound = AllChem.MolToSmiles(compound, True)
+    compound = AllChem.MolFromSmiles(smi)
+    # Take the first part of the InChIKey as it contains structural information only
+    compound = AllChem.MolToInchiKey(compound).split('-')[0]
     # Create hash string using hashlib module
     chash = hashlib.sha1(compound.encode('utf-8')).hexdigest()
-    # Mark cofactors with an X at the beginning, all else with a C
-    if cofactor:
+    # Mark cofactors with an X at the beginning, targets with a T, all else with a C
+    if cpd_type == 'Coreactant':
         return "X" + chash
+    elif cpd_type == 'Target Compound':
+        return "T" + chash
     else:
         return "C" + chash
+    
 
 
 def convert_sets_to_lists(obj):
@@ -211,7 +218,7 @@ def rxn2hash(reactants, products, return_text=False):
     text_rxn = ' + '.join(to_str(reactants)) + ' => ' + \
                ' + '.join(to_str(products))
     # Hash text reaction
-    rhash = hashlib.sha256(text_rxn.encode()).hexdigest()
+    rhash = 'R' + hashlib.sha256(text_rxn.encode()).hexdigest()
     if return_text:
         return rhash, text_rxn
     else:
@@ -242,7 +249,7 @@ def _calculate_rxn_hash(db, reactants, products):
     p_1, p_2 = __get_blocks(products)
     first_block = r_1 + '<==>' + p_1
     second_block = r_2 + '<==>' + p_2
-    return hashlib.sha256(first_block.encode()).hexdigest() + "-" + \
+    return 'R' + hashlib.sha256(first_block.encode()).hexdigest() + "-" + \
         hashlib.md5(second_block.encode()).hexdigest()
 
 
