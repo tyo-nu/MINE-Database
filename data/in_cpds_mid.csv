@@ -1,0 +1,7 @@
+id,smiles
+cpd00036,O=C([O-])CCC(=O)[O-]
+cpd00037,O=C([O-])CCCCCC(=O)[O-]
+cpd00236,O=CC(O)C(O)COP(=O)([O-])[O-]
+cpd27177,[NH3+]C(CCC(=O)[O-])C(=O)[O-]
+cpd00203,O=C(OP(=O)([O-])[O-])C(O)COP(=O)([O-])[O-]
+cpd00911,O=C1OC(COP(=O)([O-])[O-])C(O)C(O)C1O
