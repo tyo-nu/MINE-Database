@@ -18,10 +18,10 @@ pickaxe_cpds = './pickaxe_result/test_cpds.tsv'
 
 # Database to write results to
 write_db = True
-database = 'tani_2gen'
+database = 'tani_test_3gen'
 
 # Pickaxe Options
-generations = 2
+generations = 3
 racemize = False
 verbose = False
 bnice = True
@@ -32,8 +32,8 @@ quiet = True
 max_workers = 12
 
 # Tanimoto Filtering options
-target_cpds = './data/target_list_trunc.csv'
-crit_tani = 0.2
+target_cpds = './data/target_list.csv'
+crit_tani = 0.8
 tani_filter = True
 
 # Run pickaxe
@@ -55,7 +55,7 @@ pk.transform_all(max_generations=generations,
 
 # Write results
 if write_db:
-    pk.save_to_mine(database)
+    pk.save_to_mine()
 
 if write_local:
     pk.write_compound_output_file(pickaxe_cpds)

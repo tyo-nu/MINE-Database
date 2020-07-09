@@ -39,9 +39,16 @@ def compound_hash(smi, cpd_type='Predicted'):
     :return: A hashed compound _id
     :rtype: str
     """
-    compound = AllChem.MolFromSmiles(smi)
-    # Take the first part of the InChIKey as it contains structural information only
-    compound = AllChem.MolToInchiKey(compound).split('-')[0]
+
+    # The ID is generated from a hash of either the InChI key (partial) or SMILES
+    # The InChI key is used if the SMILES does not contain '*'
+    if '*' not in smi:
+        compound = AllChem.MolFromSmiles(smi)
+        # Take the first part of the InChIKey as it contains structural information only
+        compound = ''.join(AllChem.MolToInchiKey(compound).split('-')[0:2])
+    else:
+        compound = smi
+
     # Create hash string using hashlib module
     chash = hashlib.sha1(compound.encode('utf-8')).hexdigest()
     # Mark cofactors with an X at the beginning, targets with a T, all else with a C

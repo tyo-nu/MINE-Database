@@ -24,7 +24,7 @@ def test_db():
     print(os.path.dirname(__file__))
     datafile_path = os.path.join(os.path.dirname(__file__),
                                  'data/testing_db.json')
-
+    delete_database("mongotest")
     try:
         testdb = MINE("mongotest")
         with open(datafile_path) as infile:
@@ -49,6 +49,11 @@ def test_db():
         print('No Mongo DB server detected')
 
     yield testdb
+
+def delete_database(name):
+    mine = MINE(name)
+    mine.client.drop_database(name)
+    mine.client.close()
 
 
 @unittest.skipIf("TRAVIS" in os.environ and os.environ["TRAVIS"] == "true",
@@ -78,26 +83,107 @@ def test_generate_image_files(test_db):
         rmtree(img_dir)
 
 
-def test_insert_compound(test_db):
+def test_insert_single_mine_compound(test_db):
+    """
+    GIVEN a pickaxe object with compounds in it
+    WHEN those compounds and their properties are added to a MINE database
+    THEN check that the compound and its properties are correctly stored
+    """
+    
+    smiles = 'CC(=O)O'
+    compound_dict = {'_id': 'test_cpd', 'SMILES': smiles}
+    test_db.insert_mine_compound(compound_dict, requests=None) 
+    
+    try:
+        entry = test_db.compounds.find_one({'SMILES': smiles})
+        assert entry
+        assert entry['_id'] == 'test_cpd'
+    finally:
+        delete_database("mongotest")
+
+def test_insert_bulk_mine_compounds(test_db):
+    """
+    GIVEN multiple compound informations
+    WHEN those compounds and their properties are added to a MINE database in bulk
+    THEN check that the compound and its properties are correctly stored
+    """
+    
+    smiles1 = 'CC(=O)O'
+    smiles2 = 'CCN'
+    compound_dicts = [{'_id': 'test_cpd1', 'SMILES': smiles1},
+                      {'_id': 'test_cpd2', 'SMILES': smiles2}]
+
+    requests = []
+    for compound_dict in compound_dicts:
+        test_db.insert_mine_compound(compound_dict, requests=requests)
+
+    test_db.compounds.bulk_write(requests, ordered=False)
+    
+    try:
+        entry1 = test_db.compounds.find_one({'SMILES': smiles1})
+        assert entry1
+        assert entry1['_id'] == 'test_cpd1'
+
+        entry2 = test_db.compounds.find_one({'SMILES': smiles2})
+        assert entry2
+        assert entry2['_id'] == 'test_cpd2'
+    finally:
+        delete_database("mongotest")
+
+def test_insert_single_core_compound(test_db):
     """
     GIVEN a compound (Mol object) with associated properties
     WHEN that compound and its properties are added to a MINE database
     THEN check that the compound and its properties are correctly stored
     """
-    smiles = 'CC(=O)O'
+    smiles = "CC(=O)O"
     mol = AllChem.MolFromSmiles(smiles)
-    test_db.insert_compound(mol, {'Generation': 0.0})
+    test_db.insert_core_compound(mol, 'test_mine_cpd', requests=None)
+    # test_db._core_db.bulk_write(insert_request, ordered=False)  
+    #   
     try:
-        entry = test_db.compounds.find_one({"SMILES": smiles})
+        entry = test_db.core_compounds.find_one({'_id': 'test_mine_cpd'})
         assert entry
         assert isinstance(entry['Mass'], float)
-        assert len(entry['RDKit']) > 0
-        assert len(entry['RDKit']) == entry['len_RDKit']
+        assert entry['Inchi']
+        assert entry['Inchikey']
+        assert entry['MINES']
         assert entry["NP_likeness"]
         assert entry['logP']
     finally:
-        test_db.compounds.delete_many({"SMILES": smiles})
+        test_db.core_compounds.delete_many({'_id': 'test_mine_cpd'})
 
+def test_insert_bulk_core_compound(test_db):
+    """
+    GIVEN a compound (Mol object) with associated properties
+    WHEN that compound and its properties are added to a MINE database
+    THEN check that the compound and its properties are correctly stored
+    """
+    smiles1 = 'CC(=O)O'
+    smiles2 = 'CCN'
+
+    mol1 = AllChem.MolFromSmiles(smiles1)
+    mol2 = AllChem.MolFromSmiles(smiles2)
+
+    requests = []
+    for i, mol in enumerate([mol1, mol2]):
+        test_db.insert_core_compound(mol, f'test_mine_cpd{i}', requests=requests)
+    
+    test_db.core_compounds.bulk_write(requests, ordered=False)  
+    #   
+    try:
+        for smiles in [smiles1, smiles2]:
+            entry = test_db.core_compounds.find_one({'SMILES': smiles})
+            assert entry
+            assert isinstance(entry['Mass'], float)
+            assert entry['Inchi']
+            assert entry['Inchikey']
+            assert entry['MINES']
+            assert entry["NP_likeness"]
+            assert entry['logP']
+    finally:
+        for i in [0, 1]:
+            test_db.core_compounds.delete_many({'_id': f'test_mine_cpd{i}'})
 
 def test_insert_reaction(test_db):
     """
@@ -109,7 +195,7 @@ def test_insert_reaction(test_db):
     rxn['Reactants'], rxn['Products'] = utils.parse_text_rxn(rxn['Equation'],
                                                              ' = ', ' + ')
     test_db.insert_reaction(rxn)
-    entry = test_db.reactions.find_one({"_id": "4542c96f4bca04bfe2db15bc71e9"
+    entry = test_db.reactions.find_one({"_id": "R4542c96f4bca04bfe2db15bc71e9"
                                                "eaee38bee5b87ad8a6752a5c4718"
                                                "ba1974c1"})
     assert entry
@@ -129,5 +215,5 @@ def test_init(test_db):
     assert isinstance(test_db.compounds, pymongo.collection.Collection)
     assert isinstance(test_db.reactions, pymongo.collection.Collection)
     assert isinstance(test_db.operators, pymongo.collection.Collection)
+    assert isinstance(test_db.core_compounds, pymongo.collection.Collection)
     assert isinstance(test_db._db, pymongo.database.Database)
-    assert isinstance(test_db.id_db, pymongo.database.Database)
