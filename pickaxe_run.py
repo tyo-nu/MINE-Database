@@ -20,7 +20,7 @@ write_db = True
 database_overwrite = True
 database = 'test_db'
 
-creds = open('credentials.txt').readline().split(',')
+creds = open('credentials.cxv').readline().split(',')
 con_string = f'mongodb://{creds[0]}:{creds[1]}@localhost:27017/?authSource=admin'
 con_string = f'mongodb://{creds[0]}:{creds[1]}@minedatabase.ci.northwestern.edu:27017/?authSource=admin'
 

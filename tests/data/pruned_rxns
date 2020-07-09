@@ -5,7 +5,7 @@ pkr0000003		(1) pkc0000001[c0] + (1) ATP[c0] => (1) pkc0000003[c0] + (1) ADP[c0]
 pkr0000004		(1) pkc0000002[c0] + (1) ATP[c0] => (1) pkc0000004[c0] + (1) ADP[c0]	(1) Cc1cc2c(cc1C)N(CC(O)C(O)C(O)COP(=O)(O)OP(=O)(O)OCC1OC(n3cnc4c(N)ncnc43)C(O)C1O)c1nc(O)nc(OP(=O)(O)O)c1N2 + (1) Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O => (1) Cc1cc2c(cc1C)N(CC(OP(=O)(O)O)C(O)C(O)COP(=O)(O)OP(=O)(O)OCC1OC(n3cnc4c(N)ncnc43)C(O)C1O)c1nc(O)nc(OP(=O)(O)O)c1N2 + (1) Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)O)[C@@H](O)[C@H]1O	Rdcba348e8a34730069606b72e960ac4531bd27fbccc251c8b8a1ed598fd1b5e3	2.7.1.a
 
 db.createUser({
-      user: "username",
-      pwd: "password",
+      user: "kms6743",
+      pwd: "mongorootpass",
       roles: ["root"]
   });
