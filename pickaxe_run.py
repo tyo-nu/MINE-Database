@@ -2,8 +2,8 @@ from minedatabase.pickaxe import Pickaxe
 
 # Where are the input rxns coming from and coreactants
 # Compounds that are going to be expanded
-# input_cpds = './Models/EColi_iML1515/iML1515_startingCpds.csv'
-input_cpds = './data/in_cpds_mid.csv'
+input_cpds = './Models/EColi_iML1515/iML1515_startingCpds.csv'
+# input_cpds = './data/in_cpds_mid.csv'
 
 # Cofactors used in the rules
 coreactant_list = './minedatabase/data/EnzymaticCoreactants.tsv'
@@ -18,7 +18,7 @@ pickaxe_cpds = 'cps_out.tsv'
 # Database to write results to
 write_db = True
 database_overwrite = True
-database = 'test_db'
+database = 'e_coli_write_test'
 
 creds = open('credentials.csv').readline().split(',')
 creds = [cred.strip('\n') for cred in creds]
@@ -27,7 +27,7 @@ con_string = f'mongodb://{creds[0]}:{creds[1]}@minedatabase.ci.northwestern.edu:
 
 
 # Pickaxe Options
-generations = 1
+generations = 2
 racemize = False
 verbose = False
 bnice = True
@@ -39,7 +39,7 @@ max_workers = 12
 
 # Tanimoto Filtering options
 target_cpds = './data/target_list.csv'
-crit_tani = 0.8
+crit_tani = 0.7
 tani_filter = True
 
 # Run pickaxe

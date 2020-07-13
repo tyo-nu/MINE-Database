@@ -863,6 +863,8 @@ class Pickaxe:
         :param db_id: The name of the target database
         :type db_id: basestring
         """
+        then = time.time()
+        print(f'Saving results to {self.mine}')
         db = MINE(self.mine, self.con_string)
         # requests for bulk operations
         core_cpd_requests = []
@@ -930,8 +932,9 @@ class Pickaxe:
         db.meta_data.insert_one({'Timestamp': datetime.datetime.now(),
                                  'Action': "Operators Inserted"})  
 
-        db.build_indexes()
+        # db.build_indexes()
 
+        print(f'Finished saving in {time.time() - then} sec')
 
 def _racemization(compound, max_centers=3, carbon_only=True):
     """Enumerates all possible stereoisomers for unassigned chiral centers.
