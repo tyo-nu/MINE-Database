@@ -23,12 +23,12 @@ database = 'e_coli_test'
 creds = open('credentials.csv').readline().split(',')
 creds = [cred.strip('\n') for cred in creds]
 # con_string = f'mongodb://{creds[0]}:{creds[1]}@localhost:27017/?authSource=admin'
-con_string = 'mongodb://localhost:27017'
-# con_string = f'mongodb://{creds[0]}:{creds[1]}@minedatabase.ci.northwestern.edu:27017/?authSource=admin'
+# con_string = 'mongodb://localhost:27017'
+con_string = f'mongodb://{creds[0]}:{creds[1]}@minedatabase.ci.northwestern.edu:27017/?authSource=admin'
 
 
 # Pickaxe Options
-generations = 2
+generations = 1
 racemize = False
 verbose = False
 bnice = True
@@ -40,7 +40,7 @@ max_workers = 12
 
 # Tanimoto Filtering options
 target_cpds = './data/target_list.csv'
-crit_tani = 0.8
+crit_tani = 0.2
 tani_filter = True
 
 # Run pickaxe
@@ -63,7 +63,7 @@ pk.transform_all(max_generations=generations,
 
 # Write results
 if write_db:
-    pk.save_to_mine()
+    pk.save_to_mine(num_workers=max_workers)
 
 if write_local:
     pk.write_compound_output_file(pickaxe_cpds)

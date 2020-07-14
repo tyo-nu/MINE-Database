@@ -6,6 +6,7 @@ import json
 import os
 import unittest
 from shutil import rmtree
+from copy import copy
 
 import pymongo
 import pytest
@@ -49,6 +50,19 @@ def test_db():
         print('No Mongo DB server detected')
 
     yield testdb
+
+@pytest.fixture()
+def cpd_dict():
+    cpd_dict = {'_id':'Xcb185ea62ba7ad3e1c440310cc8be8cba6c7ec50',
+                'SMILES':'Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OS(=O)(=O)O)[C@@H](OP(=O)(O)O)[C@H]1O',
+                'Inchi':'InChI=1S/C10H15N5O13P2S/c11-8-5-9(13-2-12-8)15(3-14-5)10-6(16)7(27-29(17,18)19)4(26-10)1-25-30(20,21)28-31(22,23)24/h2-4,6-7,10,16H,1H2,(H,20,21)(H2,11,12,13)(H2,17,18,19)(H,22,23,24)/t4-,6-,7-,10-/m1/s1',
+                'Type':'Coreactant',
+                'Generation':0,
+                'Formula':'C10H15N5O13P2S',
+                'Expand':False,
+                }
+
+    yield cpd_dict
 
 def delete_database(name):
     mine = MINE(name)
@@ -130,55 +144,51 @@ def test_insert_bulk_mine_compounds(test_db):
     finally:
         delete_database("mongotest")
 
-def test_insert_single_core_compound(test_db):
+def test_insert_single_core_compound(test_db, cpd_dict):
     """
     GIVEN a compound (Mol object) with associated properties
     WHEN that compound and its properties are added to a MINE database
     THEN check that the compound and its properties are correctly stored
     """
-    smiles = "CC(=O)O"
-    mol = AllChem.MolFromSmiles(smiles)
-    test_db.insert_core_compound(mol, 'test_mine_cpd', requests=None)
-    # test_db._core_db.bulk_write(insert_request, ordered=False)  
-    #   
+    
+    test_db.insert_core_compound(cpd_dict, requests=None)
+
     try:
-        entry = test_db.core_compounds.find_one({'_id': 'test_mine_cpd'})
+        entry = test_db.core_compounds.find_one({'_id': cpd_dict['_id']})
         assert entry
         assert isinstance(entry['Mass'], float)
         assert entry['Inchi']
         assert entry['Inchikey']
-        assert entry['MINES']
+        assert entry['MINES'] == []
         assert entry["NP_likeness"]
         assert entry['logP']
     finally:
-        test_db.core_compounds.delete_many({'_id': 'test_mine_cpd'})
+        test_db.core_compounds.delete_many({'_id': cpd_dict['_id']})
 
-def test_insert_bulk_core_compound(test_db):
+def test_insert_bulk_core_compound(test_db, cpd_dict):
     """
     GIVEN a compound (Mol object) with associated properties
     WHEN that compound and its properties are added to a MINE database
     THEN check that the compound and its properties are correctly stored
     """
-    smiles1 = 'CC(=O)O'
-    smiles2 = 'CCN'
 
-    mol1 = AllChem.MolFromSmiles(smiles1)
-    mol2 = AllChem.MolFromSmiles(smiles2)
+    cpd_dict2 = copy(cpd_dict)
+    cpd_dict2['_id'] = 'cpd_dict2'
 
     requests = []
-    for i, mol in enumerate([mol1, mol2]):
-        test_db.insert_core_compound(mol, f'test_mine_cpd{i}', requests=requests)
+    for i, cpd in enumerate([cpd_dict, cpd_dict2]):
+        test_db.insert_core_compound(cpd, requests=requests)
     
     test_db.core_compounds.bulk_write(requests, ordered=False)  
     #   
     try:
-        for smiles in [smiles1, smiles2]:
+        for smiles in [cpd_dict['SMILES'], cpd_dict2['SMILES']]:
             entry = test_db.core_compounds.find_one({'SMILES': smiles})
             assert entry
             assert isinstance(entry['Mass'], float)
             assert entry['Inchi']
             assert entry['Inchikey']
-            assert entry['MINES']
+            assert entry['MINES'] == []
             assert entry["NP_likeness"]
             assert entry['logP']
     finally:
