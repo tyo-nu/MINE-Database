@@ -6,6 +6,7 @@ import os
 import re
 import hashlib
 import subprocess
+import time
 from filecmp import cmp
 
 import pytest
@@ -252,10 +253,10 @@ def test_multiprocessing(pk, smiles_dict, coreactant_dict):
     THEN make sure those predictions are correct
     """
     pk = multiprocess(pk, smiles_dict, coreactant_dict)
-    assert len(pk.compounds) == 104
-    assert len(pk.reactions) == 155
+    assert len(pk.compounds) == 67
+    assert len(pk.reactions) == 49
     comp_gens = set([x['Generation'] for x in pk.compounds.values()])
-    assert comp_gens == {0, 1, 2, 3}
+    assert comp_gens == {0, 1, 2}
 
 
 def test_cli():
@@ -300,28 +301,6 @@ def test_pruning(default_rule, smiles_dict, coreactant_dict):
     finally:
         os.remove(DATA_DIR + '/pruned_rxns_new')
 
-
-def test_database_already_exists(default_rule, smiles_dict, coreactant_dict):
-    """
-    GIVEN an existing MINE
-    WHEN a new pickaxe object is defined
-    THEN make sure program exits with database collision
-    """
-    delete_database('MINE_test')
-    pk = pickaxe.Pickaxe(database='MINE_test')
-    pk.operators['2.7.1.a'] = default_rule
-    pk = multiprocess(pk, smiles_dict, coreactant_dict)
-    pk.save_to_mine()
-
-    try:     
-        with pytest.raises(SystemExit) as pytest_wrapped_e:
-                pk = pickaxe.Pickaxe(database='MINE_test')
-        assert pytest_wrapped_e.type == SystemExit
-        assert pytest_wrapped_e.value.code == 'Exiting due to database name collision.'
-    finally:
-        delete_database('MINE_test')
-
-
 def test_save_as_mine(default_rule, smiles_dict, coreactant_dict):
     """
     GIVEN a Pickaxe expansion
@@ -332,8 +311,9 @@ def test_save_as_mine(default_rule, smiles_dict, coreactant_dict):
     pk = pickaxe.Pickaxe(database='MINE_test', image_dir=DATA_DIR)
     pk.operators['2.7.1.a'] = default_rule
     pk = multiprocess(pk, smiles_dict, coreactant_dict)
-    pk.save_to_mine()
+    pk.save_to_mine(num_workers=1)
     mine_db = MINE('MINE_test')
+
     try:
         assert mine_db.compounds.estimated_document_count() == 31
         assert mine_db.reactions.estimated_document_count() == 49
@@ -354,6 +334,56 @@ def test_save_as_mine(default_rule, smiles_dict, coreactant_dict):
         delete_database('MINE_test')
         purge(DATA_DIR, r".*\.svg$")
 
+def test_save_as_mine_multiprocess(default_rule, smiles_dict, coreactant_dict):
+    """
+    GIVEN a Pickaxe expansion
+    WHEN that expansion is saved as a MINE DB in the MongoDB
+    THEN make sure that all features are saved in the MongoDB as expected
+    """
+    delete_database('MINE_test')
+    pk = pickaxe.Pickaxe(database='MINE_test', image_dir=DATA_DIR)
+    pk.operators['2.7.1.a'] = default_rule
+    pk = multiprocess(pk, smiles_dict, coreactant_dict)
+    pk.save_to_mine(num_workers=2)
+    mine_db = MINE('MINE_test')
+    try:
+        assert mine_db.compounds.estimated_document_count() == 31
+        assert mine_db.reactions.estimated_document_count() == 49
+        assert mine_db.operators.estimated_document_count() == 1
+        assert os.path.exists(
+            DATA_DIR + '/X02fba734e41145959768095d202750b2c777b274.svg')
+        start_comp = mine_db.compounds.find_one({'Type': 'Starting Compound'})
+        assert len(start_comp['Reactant_in']) > 0
+        # Don't track sources of coreactants
+        coreactant = mine_db.compounds.find_one({'Type': 'Coreactant'})
+        assert 'Product_of' not in coreactant
+        assert 'Reactant_in' not in coreactant
+        product = mine_db.compounds.find_one({'Generation': 2})
+        assert len(product['Product_of']) > 0
+        assert product['Type'] == 'Predicted'
+    finally:
+        delete_database('MINE_test')
+        purge(DATA_DIR, r".*\.svg$")
+
+def test_database_already_exists(default_rule, smiles_dict, coreactant_dict):
+    """
+    GIVEN an existing MINE
+    WHEN a new pickaxe object is defined
+    THEN make sure program exits with database collision
+    """
+    delete_database('MINE_test')
+    pk = pickaxe.Pickaxe(database='MINE_test')
+    pk.operators['2.7.1.a'] = default_rule
+    pk = multiprocess(pk, smiles_dict, coreactant_dict)
+    pk.save_to_mine(num_workers=1)
+
+    try:     
+        with pytest.raises(SystemExit) as pytest_wrapped_e:
+                pk = pickaxe.Pickaxe(database='MINE_test')
+        assert pytest_wrapped_e.type == SystemExit
+        assert pytest_wrapped_e.value.code == 'Exiting due to database name collision.'
+    finally:
+        delete_database('MINE_test')
 
 def test_load_compounds_from_mine(default_rule, smiles_dict, coreactant_dict):
     """
@@ -366,15 +396,14 @@ def test_load_compounds_from_mine(default_rule, smiles_dict, coreactant_dict):
     pk = pickaxe.Pickaxe(database='MINE_test')
     pk.operators['2.7.1.a'] = default_rule
     pk = multiprocess(pk, smiles_dict, coreactant_dict)
-    pk.save_to_mine()
+    pk.save_to_mine(num_workers=1)
     del(pk)
     try:
         pk = pickaxe.Pickaxe()
         compound_smiles = pk.load_compound_set(database='MINE_test')
         assert len(compound_smiles) == 1
     finally:
-        delete_database('MINE_test')
-        
+        delete_database('MINE_test')        
 
 def test_save_no_rxn_mine():
     """
@@ -382,9 +411,10 @@ def test_save_no_rxn_mine():
     WHEN that Pickaxe object is saved into a MINE DB in the MongoDB
     THEN check that starting compounds are present and that no reactions exist
     """
+    delete_database('MINE_test')
     pk = pickaxe.Pickaxe(database='MINE_test')
     pk.load_compound_set(compound_file=DATA_DIR + '/test_compounds.tsv')
-    pk.save_to_mine()
+    pk.save_to_mine(num_workers=1)
     mine_db = MINE('MINE_test')
     try:
         assert mine_db.compounds.estimated_document_count() == 14
