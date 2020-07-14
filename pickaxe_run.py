@@ -18,12 +18,13 @@ pickaxe_cpds = 'cps_out.tsv'
 # Database to write results to
 write_db = True
 database_overwrite = True
-database = 'e_coli_write_test'
+database = 'e_coli_test'
 
 creds = open('credentials.csv').readline().split(',')
 creds = [cred.strip('\n') for cred in creds]
 # con_string = f'mongodb://{creds[0]}:{creds[1]}@localhost:27017/?authSource=admin'
-con_string = f'mongodb://{creds[0]}:{creds[1]}@minedatabase.ci.northwestern.edu:27017/?authSource=admin'
+con_string = 'mongodb://localhost:27017'
+# con_string = f'mongodb://{creds[0]}:{creds[1]}@minedatabase.ci.northwestern.edu:27017/?authSource=admin'
 
 
 # Pickaxe Options
@@ -39,7 +40,7 @@ max_workers = 12
 
 # Tanimoto Filtering options
 target_cpds = './data/target_list.csv'
-crit_tani = 0.7
+crit_tani = 0.8
 tani_filter = True
 
 # Run pickaxe

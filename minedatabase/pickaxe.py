@@ -84,7 +84,8 @@ class Pickaxe:
             db = MINE(database, con_string)
             if database in db.client.list_database_names():
                 if database_overwrite:
-                    print(f"Database {database} already exists. Deleting.")
+                    print(f"Database {database} already exists. Deleting database and removing from core compound mines.")
+                    db.compounds.update_many({}, {'$pull' : {'MINES' : database}})
                     db.client.drop_database(database)
                     self.mine = database
                 else:
@@ -863,26 +864,16 @@ class Pickaxe:
         :param db_id: The name of the target database
         :type db_id: basestring
         """
-        then = time.time()
+        start = time.time()
         print(f'Saving results to {self.mine}')
         db = MINE(self.mine, self.con_string)
         # requests for bulk operations
         core_cpd_requests = []
+        core_update_mine_requests = []
         mine_cpd_requests = []
         mine_rxn_requests = []        
-        
-        # # This loop performs 4 functions to reactions:
-        # #   1. Convert StoichTuples to dicts with hashes
-        # #   2. Add reaction links to compounds
-        # #   3. Add source information to compounds
-        # #   4. Iterate the reactions predicted for each relevant reaction rule
 
-        # for rxn in self.reactions.values():
-        #     for x in rxn['Reactants']:
-        #         self.compounds[x.c_id]['Reactant_in'].append(rxn['_id'])
-        #     for x in rxn['Products']:
-        #         self.compounds[x.c_id]['Product_of'].append(rxn['_id'])
-    
+        # Write Reactions to MINE
         for rxn in self.reactions.values():
             db.insert_reaction(rxn, requests=mine_rxn_requests)
             for op in rxn['Operators']:
@@ -892,45 +883,64 @@ class Pickaxe:
             db.reactions.bulk_write(mine_rxn_requests, ordered=False)
             db.meta_data.insert_one({'Timestamp': datetime.datetime.now(),
                                      'Action': "Reactions Inserted"})
-  
-        # Insert compounds which are correactants, starting compounds, or predicted
+
+        print(f'Done with reactions--took {time.time() - start} seconds.')
+
+        # Write generated compounds to MINE and core compounds to core
         for comp_dict in self.compounds.values():
             # Write everything except for targets
             if not comp_dict['_id'].startswith('T'):
-                mol_object = AllChem.MolFromSmiles(comp_dict['SMILES'])
-                db.insert_core_compound(mol_object, 
-                                        comp_dict['_id'], core_cpd_requests)
+                # mol_object = AllChem.MolFromSmiles(comp_dict['SMILES'])
                 db.insert_mine_compound(comp_dict, mine_cpd_requests)
-
+                db.update_core_compound_MINES(comp_dict, core_update_mine_requests)
+                db.insert_core_compound(comp_dict, core_cpd_requests)
+        
+        then = time.time()
         db.core_compounds.bulk_write(core_cpd_requests, ordered=False)
-        db.compounds.bulk_write(mine_cpd_requests, ordered=False)        
+        print(f'Done with Core Compounds Insertion--took {time.time() - then} seconds.')
+
+        then = time.time()
+        db.core_compounds.bulk_write(core_update_mine_requests, ordered=False)
+        print(f'Done with Core Compounds MINE update--took {time.time() - then} seconds.')
+        db.meta_data.insert_one({'Timestamp': datetime.datetime.now(),
+                                 'Action': "Core Compounds Inserted"})
+
+        then = time.time()
+        db.compounds.bulk_write(mine_cpd_requests, ordered=False)       
+        print(f'Done with Core Compounds MINE update--took {time.time() - then} seconds.')
         db.meta_data.insert_one({'Timestamp': datetime.datetime.now(),
                                  'Action': "Compounds Inserted"})
 
-        # Insert target compounds to a target collection
+        
+        # Write target compounds to target collection
         if self.tani_filter:
             target_cpd_requests = []
             for comp_dict in self.compounds.values():
                 # Write target compound as a core compound
                 if comp_dict['_id'].startswith('T'):
-                    mol_object = AllChem.MolFromSmiles(comp_dict['SMILES'])
-                    db.insert_core_compound(mol_object, 
-                                            comp_dict['_id'], target_cpd_requests)
+                    # mol_object = AllChem.MolFromSmiles(comp_dict['SMILES'])
+                    # db.insert_core_compound(mol_object, 
+                    #                         comp_dict['_id'], target_cpd_requests)
+                    db.insert_mine_compound(comp_dict, target_cpd_requests)
 
             db.target_compounds.bulk_write(target_cpd_requests, ordered=False)
             db.meta_data.insert_one({'Timestamp': datetime.datetime.now(),
                                  'Action': "Target Compounds Inserted"})
 
-        
+        print(f'Done with Targets--took {time.time() - then} seconds.')
 
         # Operator Info
-        for x in self.operators.values():
+        # for x in self.operators.values():
             # There are fewer reaction rules so bulk operations are not
             # really faster.
-            db.operators.insert_one(x[1])
+        db.operators.insert_many([op[1] for op in self.operators.values()])
+            # db.operators.insert_one(x[1])
         
         db.meta_data.insert_one({'Timestamp': datetime.datetime.now(),
                                  'Action': "Operators Inserted"})  
+        db.meta_data.insert_one({'Tani Threshold' : self.crit_tani})
+
+        print(f'Done with Operators--took {time.time() - then} seconds.')
 
         # db.build_indexes()
 
