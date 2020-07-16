@@ -2,12 +2,11 @@ from minedatabase.pickaxe import Pickaxe
 
 # Where are the input rxns coming from and coreactants
 # Compounds that are going to be expanded
-input_cpds = './Models/EColi_iML1515/iML1515_startingCpds.csv'
-# input_cpds = './data/in_cpds_mid.csv'
+# input_cpds = './Models/EColi_iML1515/iML1515_startingCpds.csv'
+input_cpds = './data/starting_cpds_ten.csv'
 
-# Cofactors used in the rules
+# Cofactors and rules
 coreactant_list = './minedatabase/data/EnzymaticCoreactants.tsv'
-# The reaction rules themselves
 rule_list = './minedatabase/data/EnzymaticReactionRules.tsv'
 
 # Outputs if you are writing the results locally
@@ -18,17 +17,20 @@ pickaxe_cpds = 'cps_out.tsv'
 # Database to write results to
 write_db = True
 database_overwrite = True
-database = 'e_coli_test'
+database = 'speed_test'
 
 creds = open('credentials.csv').readline().split(',')
 creds = [cred.strip('\n') for cred in creds]
-# con_string = f'mongodb://{creds[0]}:{creds[1]}@localhost:27017/?authSource=admin'
+# con_string is the login information for the mongodb. The default is localhost:27017
+# Connecting remotely requires the location of the database as well as username/password
+# if security is being used. Username/password are stored in credentials.csv
+# in the following format: username,password
 # con_string = 'mongodb://localhost:27017'
+# con_string = f'mongodb://{creds[0]}:{creds[1]}@localhost:27017/?authSource=admin'
 con_string = f'mongodb://{creds[0]}:{creds[1]}@minedatabase.ci.northwestern.edu:27017/?authSource=admin'
 
-
 # Pickaxe Options
-generations = 1
+generations = 3
 racemize = False
 verbose = False
 bnice = True
@@ -39,11 +41,12 @@ quiet = True
 max_workers = 12
 
 # Tanimoto Filtering options
-target_cpds = './data/target_list.csv'
-crit_tani = 0.2
-tani_filter = True
+tani_filter = False
+target_cpds = './data/target_list_many.csv'
+crit_tani = 0
 
-# Run pickaxe
+# Running pickaxe
+# Initialize the Pickaxe class instance
 pk = Pickaxe(coreactant_list=coreactant_list,
             rule_list=rule_list, racemize=racemize,
             errors=verbose, explicit_h=bnice,
