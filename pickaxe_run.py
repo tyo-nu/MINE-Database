@@ -2,7 +2,6 @@ from minedatabase.pickaxe import Pickaxe
 
 # Where are the input rxns coming from and coreactants
 # Compounds that are going to be expanded
-# input_cpds = './Models/EColi_iML1515/iML1515_startingCpds.csv'
 input_cpds = './data/starting_cpds_ten.csv'
 
 # Cofactors and rules
@@ -17,7 +16,7 @@ pickaxe_cpds = 'cps_out.tsv'
 # Database to write results to
 write_db = True
 database_overwrite = True
-database = 'speed_test'
+database = 'ten_cpds'
 
 creds = open('credentials.csv').readline().split(',')
 creds = [cred.strip('\n') for cred in creds]
@@ -25,12 +24,13 @@ creds = [cred.strip('\n') for cred in creds]
 # Connecting remotely requires the location of the database as well as username/password
 # if security is being used. Username/password are stored in credentials.csv
 # in the following format: username,password
-# con_string = 'mongodb://localhost:27017'
-# con_string = f'mongodb://{creds[0]}:{creds[1]}@localhost:27017/?authSource=admin'
-con_string = f'mongodb://{creds[0]}:{creds[1]}@minedatabase.ci.northwestern.edu:27017/?authSource=admin'
+# Local MINE server
+con_string = 'mongodb://localhost:27017'
+# Connecting to the northwestern MINE server
+# con_string = f'mongodb://{creds[0]}:{creds[1]}@minedatabase.ci.northwestern.edu:27017/?authSource=admin'
 
 # Pickaxe Options
-generations = 3
+generations = 1
 racemize = False
 verbose = False
 bnice = True
@@ -43,7 +43,7 @@ max_workers = 12
 # Tanimoto Filtering options
 tani_filter = False
 target_cpds = './data/target_list_many.csv'
-crit_tani = 0
+crit_tani = 0.9
 
 # Running pickaxe
 # Initialize the Pickaxe class instance
