@@ -16,7 +16,7 @@ pickaxe_cpds = 'cps_out.tsv'
 # Database to write results to
 write_db = True
 database_overwrite = True
-database = 'ten_cpds'
+database = 'max_worker'
 
 creds = open('credentials.csv').readline().split(',')
 creds = [cred.strip('\n') for cred in creds]
@@ -30,7 +30,7 @@ con_string = 'mongodb://localhost:27017'
 # con_string = f'mongodb://{creds[0]}:{creds[1]}@minedatabase.ci.northwestern.edu:27017/?authSource=admin'
 
 # Pickaxe Options
-generations = 1
+generations = 2
 racemize = False
 verbose = False
 bnice = True
@@ -43,7 +43,7 @@ max_workers = 12
 # Tanimoto Filtering options
 tani_filter = False
 target_cpds = './data/target_list_many.csv'
-crit_tani = 0.9
+crit_tani = 0.1
 
 # Running pickaxe
 # Initialize the Pickaxe class instance

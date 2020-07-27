@@ -284,6 +284,7 @@ class Pickaxe:
             # By sorting the reactant (and later products) we ensure that
             # compound order is fixed.
             reactants.sort()
+            # TODO: check for balanced rxn and remove
             for product_mols in product_sets:
                 try:
                     for stereo_prods, product_atoms in self._make_half_rxn(
@@ -300,13 +301,14 @@ class Pickaxe:
                                 self._check_atom_balance(product_atoms,
                                                         reactant_atoms, rule_name,
                                                         text_rxn)
+
+                                # check this and remove unbalanced reactions
                 except (ValueError, MemoryError) as e:
+                    # TODO: silence
                     print(e)
                     print("Error Processing Rule: " + rule_name)
                     continue
-        return self.compounds, self.reactions
-
-        
+        return self.compounds, self.reactions        
     
     def transform_all(self, num_workers=1, max_generations=1):
         """This function applies all of the reaction rules to all the compounds
@@ -620,10 +622,15 @@ class Pickaxe:
         accidental alchemy."""
         if reactant_atoms - product_atoms \
                 or product_atoms - reactant_atoms:
-            print("Warning: Unbalanced Reaction produced by "
-                  + rule_name)
-            print(text_rxn)
-            print(reactant_atoms, product_atoms)
+            return False
+            if self.quiet == False
+                print("Warning: Unbalanced Reaction produced by "
+                    + rule_name)
+                print(text_rxn)
+                print(reactant_atoms, product_atoms)
+        else:
+            return True
+            
 
     def _get_atom_count(self, mol):
         """Takes a set of mol objects and returns a counter with each element
@@ -1173,3 +1180,8 @@ if __name__ == '__main__':
         pk.write_reaction_output_file(OPTIONS.output_dir + '/reactions.tsv')
 
     print(f"Execution took {time.time()-t1} seconds.")
+
+
+    # TODO: balance
+    # TODO: cpd in collection not same for single worker and max worker
+    # TODO: fragmented outputs
