@@ -929,7 +929,7 @@ class Pickaxe:
             print_on = max(round(.05 * total), 1)
             if not (done % print_on):
                 print(f"{section} {round(done / total * 100)} percent complete")
-
+            
         # Initialize variables for saving to mongodb
         print(f'----------------------------------------')
         print(f'Saving results to {self.mine}')

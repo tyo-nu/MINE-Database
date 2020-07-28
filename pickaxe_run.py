@@ -1,14 +1,16 @@
 from minedatabase.pickaxe import Pickaxe
+import pymongo
+import datetime
 
 # Where are the input rxns coming from and coreactants
 # Compounds that are going to be expanded
-input_cpds = './data/iML1515_ecoli_GEM.csv'
+input_cpds = './data/starting_cpds_single.csv'
 
 # Cofactors and rules
-coreactant_list = './minedatabase/data/EnzymaticCoreactants.tsv'
-rule_list = './minedatabase/data/EnzymaticReactionRules.tsv'
-# coreactant_list = './minedatabase/data/MetaCyc_Coreactants.tsv'
-# rule_list = './minedatabase/data/metacyc_generalized_rules_500.tsv'
+# coreactant_list = './minedatabase/data/EnzymaticCoreactants.tsv'
+# rule_list = './minedatabase/data/EnzymaticReactionRules.tsv'
+coreactant_list = './minedatabase/data/MetaCyc_Coreactants.tsv'
+rule_list = './minedatabase/data/metacyc_generalized_rules_500.tsv'
 
 # Outputs if you are writing the results locally
 write_local = False
@@ -32,10 +34,10 @@ con_string = 'mongodb://localhost:27017'
 # con_string = f'mongodb://{creds[0]}:{creds[1]}@minedatabase.ci.northwestern.edu:27017/?authSource=admin'
 
 # Pickaxe Options
-generations = 2
+generations = 1
 racemize = False
 verbose = False
-explicit_h = True
+explicit_h = False
 kekulize = True
 neutralise = True
 image_dir = None
@@ -43,7 +45,7 @@ quiet = True
 max_workers = 12
 
 # Tanimoto Filtering options
-tani_filter = True
+tani_filter = False
 target_cpds = './data/target_list_many.csv'
 crit_tani = 0.7
 
@@ -69,6 +71,12 @@ pk.transform_all(max_generations=generations,
 # Write results
 if write_db:
     pk.save_to_mine(num_workers=max_workers)
+    client = pymongo.MongoClient(con_string)
+    client.database.metadata.insert_one({"Timestamp": datetime.datetime.now(),
+                                    "Generations": f"{generations}",
+                                    "Operator file": f"{rule_list}",
+                                    "Coreactant file": f"{coreactant_list}"}
+                                    )
 
 if write_local:
     pk.write_compound_output_file(pickaxe_cpds)

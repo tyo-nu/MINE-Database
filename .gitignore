@@ -79,5 +79,8 @@ Scripts/cfm_id/esi_msms_models/*
 # Models
 Models/
 
-# credentials
+# mongod credentials
 credentials.csv
+
+# misc
+local_data/
