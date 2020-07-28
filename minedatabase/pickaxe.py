@@ -305,8 +305,9 @@ class Pickaxe:
                                 # check this and remove unbalanced reactions
                 except (ValueError, MemoryError) as e:
                     # TODO: silence
-                    print(e)
-                    print("Error Processing Rule: " + rule_name)
+                    if not self.quiet:
+                        print(e)
+                        print("Error Processing Rule: " + rule_name)
                     continue
         return self.compounds, self.reactions        
     
@@ -368,12 +369,17 @@ class Pickaxe:
             else:
                 for i, smi in enumerate(compound_smiles):
                     # Perform possible reactions on compound
-                    self.transform_compound(smi)
-                    print_progress(i, len(compound_smiles))
+                    try:
+                        self.transform_compound(smi)
+                        print_progress(i, len(compound_smiles))
+                    except:
+                        # TODO what error
+                        continue
 
-            print(f"Generation {self.generation} produced {len(self.compounds) - n_comps} \
-                    new compounds and {len(self.reactions) - n_rxns} new reactions in \
-                    {time.time()-time_init} sec")
+            print(f"Generation {self.generation} took {time.time()-time_init} sec and produced:")
+            print(f"\t\t{len(self.compounds) - n_comps} new compounds")
+            print(f"\t\t{len(self.reactions) - n_rxns} new reactions")
+            print(f'----------------------------------------\n')
 
 
     def _load_coreactant(self, coreactant_text):
@@ -589,8 +595,9 @@ class Pickaxe:
         # Hash reaction text
         rhash = rxn2hash(reactants, stereo_prods)
         # Generate unique hash from InChI keys of reactants and products
-        inchi_rxn_hash, text_rxn = \
-            self._calculate_rxn_hash_and_text(reactants, stereo_prods)
+        # inchi_rxn_hash, text_rxn = \
+        #     self._calculate_rxn_hash_and_text(reactants, stereo_prods)
+        text_rxn = self._calculate_rxn_text(reactants, stereo_prods)
         # Add reaction to reactions dictionary if not already there
         if rhash not in self.reactions:
             self.reactions[rhash] = {'_id': rhash,
@@ -623,7 +630,7 @@ class Pickaxe:
         if reactant_atoms - product_atoms \
                 or product_atoms - reactant_atoms:
             return False
-            if self.quiet == False
+            if self.quiet == False:
                 print("Warning: Unbalanced Reaction produced by "
                     + rule_name)
                 print(text_rxn)
@@ -687,7 +694,8 @@ class Pickaxe:
                     mol_obj = AllChem.RemoveHs(mol_obj)
                 AllChem.SanitizeMol(mol_obj)
             except ValueError:
-                print("Product ERROR!: " + raw)
+                if not self.quiet:
+                    print("Product ERROR!: " + raw)
                 raise ValueError
             # In case we want to have separate entries for stereoisomers
             if split_stereoisomers:
@@ -703,6 +711,23 @@ class Pickaxe:
                                                               processed_mols)])
         return self._raw_compounds[raw] if isinstance(
             self._raw_compounds[raw], tuple) else (self._raw_compounds[raw],)
+
+    def _calculate_rxn_text(self, reactants, products):
+        """Calculates a unique reaction hash using inchikeys. First block is
+        connectivity only, second block is stereo only"""
+        def get_blocks(tups):
+            smiles = []
+            for x in tups:
+                comp = self.compounds[x.c_id]
+                smiles.append(f"({x.stoich}) {comp['SMILES']}")
+                
+            return ' + '.join(smiles)
+
+        r_s = get_blocks(reactants)
+        p_s = get_blocks(products)
+        smiles_rxn = r_s + ' => ' + p_s
+        
+        return smiles_rxn
 
     def _calculate_rxn_hash_and_text(self, reactants, products):
         """Calculates a unique reaction hash using inchikeys. First block is
@@ -906,7 +931,9 @@ class Pickaxe:
                 print(f"{section} {round(done / total * 100)} percent complete")
 
         # Initialize variables for saving to mongodb
+        print(f'----------------------------------------')
         print(f'Saving results to {self.mine}')
+        print(f'----------------------------------------\n')
         start = time.time()
         db = MINE(self.mine, self.con_string)
         # Lists of requests for bulk_write method
@@ -916,7 +943,7 @@ class Pickaxe:
         mine_rxn_requests = []        
         target_cpd_requests = []
 
-        print(f'----------------------------------------\n')
+        
         print('--------------- Reactions ---------------')
         # Insert Reactions
         rxn_start = time.time()
@@ -946,6 +973,7 @@ class Pickaxe:
             print(f'Done with reactions--took {time.time() - rxn_start} seconds.')
             db.meta_data.insert_one({'Timestamp': datetime.datetime.now(),
                                         'Action': "Reactions Inserted"})
+            del(mine_rxn_requests)
         else:
             print('No reactions inserted')
         print(f'----------------------------------------\n')
@@ -983,17 +1011,20 @@ class Pickaxe:
         # Insert the three types of compounds
         cpd_start = time.time()
         db.core_compounds.bulk_write(core_cpd_requests, ordered=False)
+        del(core_cpd_requests)
         print(f'Done with Core Compounds Insertion--took {time.time() - cpd_start} seconds.')
         cpd_start = time.time()
         db.core_compounds.bulk_write(core_update_mine_requests, ordered=False)
+        del(core_update_mine_requests)
         print(f'Done with Updating Core Compounds MINE update--took {time.time() - cpd_start} seconds.')
         db.meta_data.insert_one({'Timestamp': datetime.datetime.now(),
-                                 'Action': "Core Compounds Inserted"})
+                                'Action': "Core Compounds Inserted"})
         cpd_start = time.time()
-        db.compounds.bulk_write(mine_cpd_requests, ordered=False)       
+        db.compounds.bulk_write(mine_cpd_requests, ordered=False)     
+        del(mine_cpd_requests)  
         print(f'Done with MINE Insert--took {time.time() - cpd_start} seconds.')
         db.meta_data.insert_one({'Timestamp': datetime.datetime.now(),
-                                 'Action': "Compounds Inserted"})
+                                'Action': "Compounds Inserted"})
         print(f'----------------------------------------\n')
 
         # Insert target compounds
@@ -1007,29 +1038,32 @@ class Pickaxe:
             # Insert target compounds
             target_start = time.time()
             # get the number of targets
-            if num_workers > 1:
-                # parallel insertion
-                chunk_size = max(
-                    [round(len(self.target_fps) / (num_workers * 10)), 1])
-                print("Chunk Size for Target Writing:", chunk_size)
+            # if num_workers > 1:
+            #     # parallel insertion
+            #     chunk_size = max(
+            #         [round(len(self.target_fps) / (num_workers * 10)), 1])
+            #     print("Chunk Size for Target Writing:", chunk_size)
 
-                pool = multiprocessing.Pool(processes=num_workers)
-                for i, res in enumerate(pool.imap_unordered(
-                        self._save_target_helper, self.compounds.values(), chunk_size)):
-                    if res:
-                        target_cpd_requests.append(res)  
-                        print_progress(i, len(self.compounds), 'Targets')
-            else:
-                # non-parallel insertion
-                for comp_dict in self.compounds.values():
-                    if comp_dict['_id'].startswith('T'):
-                        db.insert_mine_compound(comp_dict, target_cpd_requests)     
+            #     pool = multiprocessing.Pool(processes=num_workers)
+            #     for i, res in enumerate(pool.imap_unordered(
+            #             self._save_target_helper, self.compounds.values(), chunk_size)):
+            #         if res:
+            #             target_cpd_requests.append(res)  
+            #             print_progress(i, len(self.compounds), 'Targets')
+            # else:
+
+            # parallel insertion is taking a weirdly long time
+            # non-parallel insertion
+            for comp_dict in self.compounds.values():
+                if comp_dict['_id'].startswith('T'):
+                    db.insert_mine_compound(comp_dict, target_cpd_requests)     
             print(f'Done with Target Prep--took {time.time() - target_start} seconds.')    
             target_start = time.time()
             db.target_compounds.bulk_write(target_cpd_requests, ordered=False)
+            del(target_cpd_requests)
             print(f'Done with Target Insert--took {time.time() - target_start} seconds.')
             db.meta_data.insert_one({'Timestamp': datetime.datetime.now(),
-                                 'Action': "Target Compounds Inserted"})
+                                'Action': "Target Compounds Inserted"})
             print(f'----------------------------------------\n')                   
 
         # Save operators  
@@ -1051,6 +1085,7 @@ class Pickaxe:
         print('-------------- Overall ---------------')
         print(f'Finished uploading everything in {time.time() - start} sec')
         print(f'----------------------------------------\n')
+
 
 def _racemization(compound, max_centers=3, carbon_only=True):
     """Enumerates all possible stereoisomers for unassigned chiral centers.

@@ -2,11 +2,13 @@ from minedatabase.pickaxe import Pickaxe
 
 # Where are the input rxns coming from and coreactants
 # Compounds that are going to be expanded
-input_cpds = './data/starting_cpds_ten.csv'
+input_cpds = './data/iML1515_ecoli_GEM.csv'
 
 # Cofactors and rules
 coreactant_list = './minedatabase/data/EnzymaticCoreactants.tsv'
 rule_list = './minedatabase/data/EnzymaticReactionRules.tsv'
+# coreactant_list = './minedatabase/data/MetaCyc_Coreactants.tsv'
+# rule_list = './minedatabase/data/metacyc_generalized_rules_500.tsv'
 
 # Outputs if you are writing the results locally
 write_local = False
@@ -16,10 +18,10 @@ pickaxe_cpds = 'cps_out.tsv'
 # Database to write results to
 write_db = True
 database_overwrite = True
-database = 'max_worker'
+database = 'test'
 
-creds = open('credentials.csv').readline().split(',')
-creds = [cred.strip('\n') for cred in creds]
+# creds = open('credentials.csv').readline().split(',')
+# creds = [cred.strip('\n') for cred in creds]
 # con_string is the login information for the mongodb. The default is localhost:27017
 # Connecting remotely requires the location of the database as well as username/password
 # if security is being used. Username/password are stored in credentials.csv
@@ -33,7 +35,7 @@ con_string = 'mongodb://localhost:27017'
 generations = 2
 racemize = False
 verbose = False
-bnice = True
+explicit_h = True
 kekulize = True
 neutralise = True
 image_dir = None
@@ -41,16 +43,16 @@ quiet = True
 max_workers = 12
 
 # Tanimoto Filtering options
-tani_filter = False
+tani_filter = True
 target_cpds = './data/target_list_many.csv'
-crit_tani = 0.1
+crit_tani = 0.7
 
 # Running pickaxe
 # Initialize the Pickaxe class instance
 pk = Pickaxe(coreactant_list=coreactant_list,
             rule_list=rule_list, racemize=racemize,
-            errors=verbose, explicit_h=bnice,
-            kekulize=bnice, neutralise=bnice,
+            errors=verbose, explicit_h=explicit_h,
+            kekulize=kekulize, neutralise=neutralise,
             image_dir=image_dir, database=database,
             database_overwrite=database_overwrite,
             con_string=con_string, quiet=quiet)
