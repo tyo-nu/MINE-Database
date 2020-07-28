@@ -469,6 +469,14 @@ class Pickaxe:
         marking compounds, who have a tanimoto similarity score to a target compound
         greater than or equal to the crit_tani, for expansion.
         """
+        def print_progress(done, total, section):
+            # Use print_on to print % completion roughly every 5 percent
+            # Include max to print no more than once per compound (e.g. if
+            # less than 20 compounds)
+            print_on = max(round(.05 * total), 1)
+            if not (done % print_on):
+                print(f"{section} {round(done / total * 100)} percent complete")
+
         # Get compounds eligible for expansion in the current generation
         compounds_to_check = [cpd for cpd in self.compounds.values() 
                                 if cpd['Generation'] == self.generation
@@ -489,6 +497,7 @@ class Pickaxe:
             if not res[1]:
                 self.compounds[res[0]]['Expand'] = False            
 
+            print_progress(i, len(compounds_to_check), 'Tanimoto filter progress:')
         return None
     
     def _compare_to_targets(self, cpd):
