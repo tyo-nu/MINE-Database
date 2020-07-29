@@ -925,7 +925,7 @@ class Pickaxe:
         else:
             return None
 
-    def save_to_mine(self, num_workers):
+    def save_to_mine(self, num_workers, indexing=True):
         """Save compounds to a MINE database.
 
         :param db_id: The name of the target database
@@ -1085,11 +1085,12 @@ class Pickaxe:
             print(f'Done with Operators Overall--took {time.time() - operator_start} seconds.')
         print(f'----------------------------------------\n')
 
-        print('-------------- Indices ---------------')
-        index_start = time.time()
-        db.build_indexes()
-        print(f'Done with Indices--took {time.time() - index_start} seconds.')
-        print(f'----------------------------------------\n')
+        if indexing:
+            print('-------------- Indices ---------------')
+            index_start = time.time()
+            db.build_indexes()
+            print(f'Done with Indices--took {time.time() - index_start} seconds.')
+            print(f'----------------------------------------\n')
 
         print('-------------- Overall ---------------')
         print(f'Finished uploading everything in {time.time() - start} sec')

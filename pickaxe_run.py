@@ -34,7 +34,7 @@ con_string = 'mongodb://localhost:27017'
 # con_string = f'mongodb://{creds[0]}:{creds[1]}@minedatabase.ci.northwestern.edu:27017/?authSource=admin'
 
 # Pickaxe Options
-generations = 1
+generations = 2
 racemize = False
 verbose = False
 explicit_h = False
@@ -42,7 +42,9 @@ kekulize = True
 neutralise = True
 image_dir = None
 quiet = True
+indexing = False
 max_workers = 12
+
 
 # Tanimoto Filtering options
 tani_filter = False
@@ -70,7 +72,7 @@ pk.transform_all(max_generations=generations,
 
 # Write results
 if write_db:
-    pk.save_to_mine(num_workers=max_workers)
+    pk.save_to_mine(num_workers=max_workers, indexing)
     client = pymongo.MongoClient(con_string)
     client.database.metadata.insert_one({"Timestamp": datetime.datetime.now(),
                                     "Generations": f"{generations}",
