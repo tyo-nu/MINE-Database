@@ -7,10 +7,10 @@ import datetime
 input_cpds = './data/starting_cpds_single.csv'
 
 # Cofactors and rules
-# coreactant_list = './minedatabase/data/EnzymaticCoreactants.tsv'
-# rule_list = './minedatabase/data/EnzymaticReactionRules.tsv'
-coreactant_list = './minedatabase/data/MetaCyc_Coreactants.tsv'
-rule_list = './minedatabase/data/metacyc_generalized_rules_500.tsv'
+coreactant_list = './minedatabase/data/EnzymaticCoreactants.tsv'
+rule_list = './minedatabase/data/EnzymaticReactionRules.tsv'
+# coreactant_list = './minedatabase/data/MetaCyc_Coreactants.tsv'
+# rule_list = './minedatabase/data/metacyc_generalized_rules_500.tsv'
 
 # Outputs if you are writing the results locally
 write_local = False
@@ -37,7 +37,7 @@ con_string = 'mongodb://localhost:27017'
 generations = 2
 racemize = False
 verbose = False
-explicit_h = False
+explicit_h = True
 kekulize = True
 neutralise = True
 image_dir = None
@@ -72,7 +72,7 @@ pk.transform_all(max_generations=generations,
 
 # Write results
 if write_db:
-    pk.save_to_mine(num_workers=max_workers, indexing)
+    pk.save_to_mine(num_workers=max_workers, indexing=indexing)
     client = pymongo.MongoClient(con_string)
     client.database.metadata.insert_one({"Timestamp": datetime.datetime.now(),
                                     "Generations": f"{generations}",
