@@ -75,11 +75,11 @@ if write_db:
     pk.save_to_mine(num_workers=max_workers, indexing=indexing)
     client = pymongo.MongoClient(mongo_uri)
     db = client[database]
-    db.metadata.insert_one({"Timestamp": datetime.datetime.now(),
+    db.meta_data.insert_one({"Timestamp": datetime.datetime.now(),
                                     "Generations": f"{generations}",
                                     "Operator file": f"{rule_list}",
                                     "Coreactant file": f"{coreactant_list}",
                                     "Input compound file": f"{input_cpds}"}
                                     )
-    db.metadata.insert_one({"Timestamp": datetime.datetime.now(),
+    db.meta_data.insert_one({"Timestamp": datetime.datetime.now(),
                             "Message": "Testing out difference b/w pruning and no pruning."})
