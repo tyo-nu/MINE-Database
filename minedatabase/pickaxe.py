@@ -503,22 +503,32 @@ class Pickaxe:
                                 if cpd['Generation'] == self.generation
                                 and cpd['Type'] not in ['Coreactant', 'Target Compound']]
         
-        # Set up parallel computing of compounds to expand
-        chunk_size = max(
-                    [round(len(compounds_to_check) / (num_workers * 10)), 1])
-        print(f'Filtering Generation {self.generation}')
-        pool = multiprocessing.Pool(num_workers)
-        for i, res in enumerate(pool.imap_unordered(
-                self._compare_to_targets, 
-                [cpd for cpd in compounds_to_check 
-                    if cpd['Generation'] == self.generation], chunk_size)):
+        if num_workers > 1:
+            # Set up parallel computing of compounds to expand
+            chunk_size = max(
+                        [round(len(compounds_to_check) / (num_workers * 10)), 1])
+            print(f'Filtering Generation {self.generation}')
+            pool = multiprocessing.Pool(num_workers)
+            for i, res in enumerate(pool.imap_unordered(
+                    self._compare_to_targets, 
+                    [cpd for cpd in compounds_to_check 
+                        if cpd['Generation'] == self.generation], chunk_size)):                
+                # If the result of comparison is false, compound is not expanded
+                # Default value for a compound is True, so no need to specify expansion
+                # TODO: delete these compounds instead of just labeling as false?
+                if not res[1]:
+                    self.compounds[res[0]]['Expand'] = False
+                print_progress(i, len(compounds_to_check), 'Tanimoto filter progress:')
+        else:
+            print(f'Filtering Generation {self.generation}')
+            cpd_to_compare = [cpd for cpd in compounds_to_check 
+                        if cpd['Generation'] == self.generation]
+            for i, cpd in enumerate(cpd_to_compare):
+                res = self._compare_to_targets(cpd)
+                if not res[1]:
+                    self.compounds[res[0]]['Expand'] = False
+                print_progress(i, len(compounds_to_check), 'Tanimoto filter progress:')            
             
-            # If the result of comparison is false, compound is not expanded
-            # Default value for a compound is True, so no need to specify expansion
-            # TODO: delete these compounds instead of just labeling as false?
-            if not res[1]:
-                self.compounds[res[0]]['Expand'] = False
-            print_progress(i, len(compounds_to_check), 'Tanimoto filter progress:')
         return None
     
     def _compare_to_targets(self, cpd):
@@ -954,7 +964,7 @@ class Pickaxe:
         else:
             return None
 
-    def save_to_mine(self, num_workers, indexing=True):
+    def save_to_mine(self, num_workers=1, indexing=True):
         """Save compounds to a MINE database.
 
         :param db_id: The name of the target database

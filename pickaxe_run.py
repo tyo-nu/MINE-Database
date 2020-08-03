@@ -4,7 +4,7 @@ import datetime
 
 # Where are the input rxns coming from and coreactants
 # Compounds that are going to be expanded
-input_cpds = './example_data/starting_cpds_single.csv'
+input_cpds = './example_data/iML1515_ecoli_GEM.csv'
 
 # Cofactors and rules
 coreactant_list = './minedatabase/data/EnzymaticCoreactants.tsv'
@@ -15,7 +15,7 @@ rule_list = './minedatabase/data/EnzymaticReactionRules.tsv'
 # Database to write results to
 write_db = True
 database_overwrite = True
-database = 'test'
+database = 'foo'
 
 # creds = open('credentials.csv').readline().split(',')
 # creds = [cred.strip('\n') for cred in creds]
@@ -29,7 +29,7 @@ mongo_uri = 'mongodb://localhost:27017'
 # mongo_uri = f"mongodb://{creds[0]}:{creds[1]}@minedatabase.ci.northwestern.edu:27017/?authSource=admin"
 
 # Pickaxe Options
-generations = 2
+generations = 1
 racemize = False
 verbose = False
 explicit_h = True
@@ -38,16 +38,16 @@ neutralise = True
 image_dir = None
 quiet = True
 indexing = False
-max_workers = 12
+max_workers = 1
 
 
 # Tanimoto Filtering options
-tani_filter = False
+tani_filter = True
 # Prune results to only give expanded compounds/rxns
 # Currently also includes all of the last generation
-tani_prune = True
-target_cpds = './example_data/target_list_many.csv'
-crit_tani = 0.5
+tani_prune = False
+target_cpds = './example_data/target_list_single.csv'
+crit_tani = 0.8
 
 # Running pickaxe
 # Initialize the Pickaxe class instance
@@ -74,9 +74,12 @@ if write_db:
         pk.remove_unexpanded()
     pk.save_to_mine(num_workers=max_workers, indexing=indexing)
     client = pymongo.MongoClient(mongo_uri)
-    client.database.metadata.insert_one({"Timestamp": datetime.datetime.now(),
+    db = client[database]
+    db.metadata.insert_one({"Timestamp": datetime.datetime.now(),
                                     "Generations": f"{generations}",
                                     "Operator file": f"{rule_list}",
                                     "Coreactant file": f"{coreactant_list}",
                                     "Input compound file": f"{input_cpds}"}
                                     )
+    db.metadata.insert_one({"Timestamp": datetime.datetime.now(),
+                            "Message": "Testing out difference b/w pruning and no pruning."})
