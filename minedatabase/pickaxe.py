@@ -168,7 +168,7 @@ class Pickaxe:
                 c_id = line[id_field]
                 # Do not operate on inorganic compounds
                 if 'C' in smi or 'c' in smi:
-                    mol = AllChem.SanitizeMol(mol)
+                    AllChem.SanitizeMol(mol)
                     self._add_compound(c_id, smi, mol=mol,
                                        cpd_type='Target Compound')                    
                     target_smiles.append(smi)                    
@@ -217,7 +217,7 @@ class Pickaxe:
                     c_id = line[id_field]
                     # Do not operate on inorganic compounds
                     if 'C' in smi or 'c' in smi:
-                        mol = AllChem.SanitizeMol(mol)
+                        AllChem.SanitizeMol(mol)
                         self._add_compound(c_id, smi, mol=mol,
                                         cpd_type='Starting Compound')
                         compound_smiles.append(smi)
@@ -825,6 +825,24 @@ class Pickaxe:
             rxn['ID'] = 'pkr' + str(i).zfill(7)
             i += 1
             self.reactions[rxn['_id']] = rxn
+
+    def remove_unexpanded(self):
+        """
+        Remove compounds that were unexpanded as well as reactions that ended terminally with them.
+        """
+        compounds_to_remove = [cpd for cpd in self.compounds.values() 
+                                if cpd['Expand'] == False
+                                and cpd['Type'] not in ['Coreactant', 'Target Compound']]
+
+        rxn_to_remove = set()
+        for cpd_dict in compounds_to_remove:
+            # Find reactions compounds were made from
+            for rxn in cpd_dict['Product_of']:
+                rxn_to_remove.add(rxn)            
+            del(self.compounds[cpd_dict['_id']])
+        # delete reactions
+        for rxn in rxn_to_remove:
+            del(self.reactions[rxn])
 
     def prune_network(self, white_list):
         """

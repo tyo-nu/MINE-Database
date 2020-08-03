@@ -26,7 +26,7 @@ database = 'test'
 # Local MINE server
 mongo_uri = 'mongodb://localhost:27017'
 # Connecting to the northwestern MINE server
-# mongo_uri = f'mongodb://{creds[0]}:{creds[1]}@minedatabase.ci.northwestern.edu:27017/?authSource=admin'
+# mongo_uri = f"mongodb://{creds[0]}:{creds[1]}@minedatabase.ci.northwestern.edu:27017/?authSource=admin"
 
 # Pickaxe Options
 generations = 2
@@ -43,7 +43,10 @@ max_workers = 12
 
 # Tanimoto Filtering options
 tani_filter = False
-target_cpds = './data/target_list_many.csv'
+# Prune results to only give expanded compounds/rxns
+# Currently also includes all of the last generation
+tani_prune = True
+target_cpds = './example_data/target_list_many.csv'
 crit_tani = 0.5
 
 # Running pickaxe
@@ -67,6 +70,8 @@ pk.transform_all(max_generations=generations,
 
 # Write results
 if write_db:
+    if tani_filter and tani_prune:
+        pk.remove_unexpanded()
     pk.save_to_mine(num_workers=max_workers, indexing=indexing)
     client = pymongo.MongoClient(mongo_uri)
     client.database.metadata.insert_one({"Timestamp": datetime.datetime.now(),
