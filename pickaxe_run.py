@@ -4,18 +4,13 @@ import datetime
 
 # Where are the input rxns coming from and coreactants
 # Compounds that are going to be expanded
-input_cpds = './data/starting_cpds_single.csv'
+input_cpds = './example_data/starting_cpds_single.csv'
 
 # Cofactors and rules
 coreactant_list = './minedatabase/data/EnzymaticCoreactants.tsv'
 rule_list = './minedatabase/data/EnzymaticReactionRules.tsv'
 # coreactant_list = './minedatabase/data/MetaCyc_Coreactants.tsv'
 # rule_list = './minedatabase/data/metacyc_generalized_rules_500.tsv'
-
-# Outputs if you are writing the results locally
-write_local = False
-pickaxe_rxns = 'rxns_out.tsv'
-pickaxe_cpds = 'cps_out.tsv'
 
 # Database to write results to
 write_db = True
@@ -24,14 +19,14 @@ database = 'test'
 
 # creds = open('credentials.csv').readline().split(',')
 # creds = [cred.strip('\n') for cred in creds]
-# con_string is the login information for the mongodb. The default is localhost:27017
+# mongo_uri is the login information for the mongodb. The default is localhost:27017
 # Connecting remotely requires the location of the database as well as username/password
 # if security is being used. Username/password are stored in credentials.csv
 # in the following format: username,password
 # Local MINE server
-con_string = 'mongodb://localhost:27017'
+mongo_uri = 'mongodb://localhost:27017'
 # Connecting to the northwestern MINE server
-# con_string = f'mongodb://{creds[0]}:{creds[1]}@minedatabase.ci.northwestern.edu:27017/?authSource=admin'
+# mongo_uri = f'mongodb://{creds[0]}:{creds[1]}@minedatabase.ci.northwestern.edu:27017/?authSource=admin'
 
 # Pickaxe Options
 generations = 2
@@ -49,7 +44,7 @@ max_workers = 12
 # Tanimoto Filtering options
 tani_filter = False
 target_cpds = './data/target_list_many.csv'
-crit_tani = 0.7
+crit_tani = 0.5
 
 # Running pickaxe
 # Initialize the Pickaxe class instance
@@ -59,7 +54,7 @@ pk = Pickaxe(coreactant_list=coreactant_list,
             kekulize=kekulize, neutralise=neutralise,
             image_dir=image_dir, database=database,
             database_overwrite=database_overwrite,
-            con_string=con_string, quiet=quiet)
+            mongo_uri=mongo_uri, quiet=quiet)
 
 # Load compounds
 pk.load_compound_set(compound_file=input_cpds)
@@ -73,13 +68,10 @@ pk.transform_all(max_generations=generations,
 # Write results
 if write_db:
     pk.save_to_mine(num_workers=max_workers, indexing=indexing)
-    client = pymongo.MongoClient(con_string)
+    client = pymongo.MongoClient(mongo_uri)
     client.database.metadata.insert_one({"Timestamp": datetime.datetime.now(),
                                     "Generations": f"{generations}",
                                     "Operator file": f"{rule_list}",
-                                    "Coreactant file": f"{coreactant_list}"}
+                                    "Coreactant file": f"{coreactant_list}",
+                                    "Input compound file": f"{input_cpds}"}
                                     )
-
-if write_local:
-    pk.write_compound_output_file(pickaxe_cpds)
-    pk.write_reaction_output_file(pickaxe_rxns)

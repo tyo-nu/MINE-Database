@@ -20,28 +20,6 @@ nps_model = nps.readNPModel()
 
 def establish_db_client(con_string=None):
     """This establishes a mongo database client in various environments"""
-    # # Commented below is James' old code... seems outdated for us moving 
-    # # towards a new MINE server
-    # try:
-    #     # Special case for working on a sapphire node
-    #     if 'node' in platform.node():
-    #         client = pymongo.MongoClient(host='master',
-    #                                      serverSelectionTimeoutMS=5)
-    #     # Special case for working on a SEED cluster
-    #     elif 'bio' in platform.node() or platform.node() == 'twig' \
-    #             or platform.node() == 'branch':
-    #         client = pymongo.MongoClient(host='branch',
-    #                                      serverSelectionTimeoutMS=5)
-    #         admin = client['admin']
-    #         admin.authenticate('worker', 'bnice14bot')
-    #     # Local database
-    #     else:
-    #         client = pymongo.MongoClient(serverSelectionTimeoutMS=5)
-    # except ServerSelectionTimeoutError:
-    #     raise IOError("Failed to load database client. Please verify that "
-    #                   "mongod is running")
-    # return client
-
     # If a connection string is given use that, otherwise go to local
     try:
         if con_string:
@@ -53,7 +31,6 @@ def establish_db_client(con_string=None):
                       "mongod is running")
     return client  
 
-
 class MINE:
     """
     This class basically exposes the underlying mongo database to manipulation
@@ -64,11 +41,11 @@ class MINE:
         self.con_string = con_string
         self._db = self.client[name]
         self._core_db = self.client.core
+        self.core_compounds = self._core_db.compounds
         self.name = name
         self.meta_data = self._db.meta_data
         self.compounds = self._db.compounds
-        self.target_compounds = self._db.target_compounds
-        self.core_compounds = self._core_db.compounds
+        self.target_compounds = self._db.target_compounds        
         self.reactions = self._db.reactions
         self.operators = self._db.operators
         self.models = self._db.models

@@ -149,82 +149,42 @@ def test_transform_compounds_implicit(smiles_dict):
     assert len(pk.compounds) == 38
     assert len(pk.reactions) == 1
 
-
-def test_hashing(pk, smiles_dict, coreactant_dict):
-    """
-    GIVEN a default Pickaxe object
-    WHEN compounds with very similar structures are both transformed
-    THEN make sure they result in different products (hashed differently)
-    """
-    pk._load_coreactant(coreactant_dict['S-Adenosylmethionine'])
-    pk.transform_compound(smiles_dict['l_ala'])
-    len_rxns = len(pk.reactions)
-    assert len_rxns > 0
-    pk.transform_compound(smiles_dict['d_ala'])
-    # If hashed differently, should now have an extra set of rxns for d_ala
-    assert len(pk.reactions) == 2 * len_rxns
-
-
-def test_product_racimization(smiles_dict):
-    """
-    GIVEN molecules of undefined steriochemistry
-    WHEN transforming them via pickaxe with or without racemization
-    THEN make sure that when racemized, we observe extra reaction(s)
-    """
-    pk = pickaxe.Pickaxe(racemize=False,
-                         coreactant_list=DATA_DIR + '/test_coreactants.tsv',
-                         rule_list=DATA_DIR + '/test_reaction_rules.tsv')
-    comps, rxns = pk.transform_compound(smiles_dict['meh'], rules=['2.6.1.a'])
-    assert len(comps) == 38
-    assert len(rxns) == 1
-
-    pk = pickaxe.Pickaxe(racemize=True,
-                         coreactant_list=DATA_DIR + '/test_coreactants.tsv',
-                         rule_list=DATA_DIR + '/test_reaction_rules.tsv')
-    rcomps, rrxns = pk.transform_compound(smiles_dict['meh'],
-                                          rules=['2.6.1.a'])
-    # Extra reaction occurs due to undefined chiral center giving rise to
-    # two possible starting structures in this second case
-    assert len(rcomps) == 39
-    assert len(rrxns) == 2
+# def test_compound_output_writing(pk_transformed):
+#     """
+#     GIVEN a Pickaxe object with predicted transformations
+#     WHEN all compounds (including predicted) are written to an output file
+#     THEN make sure they are correctly written, and that they are all present
+#     """
+#     with open(DATA_DIR + '/testcompoundsout.tsv', 'rb') as infile:
+#         expected = hashlib.sha256(infile.read()).hexdigest()
+#     pk_transformed.write_compound_output_file(DATA_DIR
+#                                               + '/testcompoundsout.tsv')
+#     assert os.path.exists(DATA_DIR + '/testcompoundsout_new.tsv')
+#     try:
+#         with open(DATA_DIR + '/testcompoundsout_new.tsv', 'rb') as infile:
+#             output_compounds = hashlib.sha256(infile.read()).hexdigest()
+#         assert expected == output_compounds
+#     finally:
+#         os.remove(DATA_DIR + '/testcompoundsout_new.tsv')
 
 
-def test_compound_output_writing(pk_transformed):
-    """
-    GIVEN a Pickaxe object with predicted transformations
-    WHEN all compounds (including predicted) are written to an output file
-    THEN make sure they are correctly written, and that they are all present
-    """
-    with open(DATA_DIR + '/testcompoundsout.tsv', 'rb') as infile:
-        expected = hashlib.sha256(infile.read()).hexdigest()
-    pk_transformed.write_compound_output_file(DATA_DIR
-                                              + '/testcompoundsout.tsv')
-    assert os.path.exists(DATA_DIR + '/testcompoundsout_new.tsv')
-    try:
-        with open(DATA_DIR + '/testcompoundsout_new.tsv', 'rb') as infile:
-            output_compounds = hashlib.sha256(infile.read()).hexdigest()
-        assert expected == output_compounds
-    finally:
-        os.remove(DATA_DIR + '/testcompoundsout_new.tsv')
-
-
-def test_reaction_output_writing(pk_transformed):
-    """
-    GIVEN a Pickaxe object with predicted transformations
-    WHEN all reactions (including predicted) are written to an output file
-    THEN make sure they are correctly written, and that they are all present
-    """
-    with open(DATA_DIR + '/testreactionsout.tsv', 'rb') as infile:
-        expected = hashlib.sha256(infile.read()).hexdigest()
-    pk_transformed.write_reaction_output_file(DATA_DIR
-                                              + '/testreactionsout.tsv')
-    assert os.path.exists(DATA_DIR + '/testreactionsout_new.tsv')
-    try:
-        with open(DATA_DIR + '/testreactionsout_new.tsv', 'rb') as infile:
-            output_compounds = hashlib.sha256(infile.read()).hexdigest()
-        assert expected == output_compounds
-    finally:
-        os.remove(DATA_DIR + '/testreactionsout_new.tsv')
+# def test_reaction_output_writing(pk_transformed):
+#     """
+#     GIVEN a Pickaxe object with predicted transformations
+#     WHEN all reactions (including predicted) are written to an output file
+#     THEN make sure they are correctly written, and that they are all present
+#     """
+#     with open(DATA_DIR + '/testreactionsout.tsv', 'rb') as infile:
+#         expected = hashlib.sha256(infile.read()).hexdigest()
+#     pk_transformed.write_reaction_output_file(DATA_DIR
+#                                               + '/testreactionsout.tsv')
+#     assert os.path.exists(DATA_DIR + '/testreactionsout_new.tsv')
+#     try:
+#         with open(DATA_DIR + '/testreactionsout_new.tsv', 'rb') as infile:
+#             output_compounds = hashlib.sha256(infile.read()).hexdigest()
+#         assert expected == output_compounds
+#     finally:
+#         os.remove(DATA_DIR + '/testreactionsout_new.tsv')
 
 
 def test_transform_all(default_rule, smiles_dict, coreactant_dict):
@@ -259,47 +219,32 @@ def test_multiprocessing(pk, smiles_dict, coreactant_dict):
     assert comp_gens == {0, 1, 2}
 
 
-def test_cli():
-    """
-    GIVEN the pickaxe CLI
-    WHEN pickaxe is run from the command line
-    THEN make sure it exits with exit code 0 (no errors)
-    """
-    os.chdir(DATA_DIR + "/../..")
-    rc = subprocess.call(
-        'python minedatabase/pickaxe.py -o tests -r '
-        'tests/data/test_cd_rxn_rule.tsv',
-        shell=True)
-    assert not rc
-    purge('tests/', r".*\.tsv$")
+# def test_pruning(default_rule, smiles_dict, coreactant_dict):
+#     """
+#     GIVEN a Pickaxe expansion
+#     WHEN that expansion is pruned via Pickaxe.prune_network()
+#     THEN make sure that the pruned compounds no longer exist in the network
+#     """
 
-
-def test_pruning(default_rule, smiles_dict, coreactant_dict):
-    """
-    GIVEN a Pickaxe expansion
-    WHEN that expansion is pruned via Pickaxe.prune_network()
-    THEN make sure that the pruned compounds no longer exist in the network
-    """
-
-    pk = pickaxe.Pickaxe(database=None, image_dir=None)
-    pk.operators['2.7.1.a'] = default_rule
-    pk = multiprocess(pk, smiles_dict, coreactant_dict)
-    ids = ['C9437bf42d165907392564b23c0ca132b8bd51625',
-           'C70016088b2c54458296232054a1ec58d54035560', 'C41']
-    pk.prune_network(ids)
-    pk.assign_ids()
-    pk.write_compound_output_file(DATA_DIR + '/pruned_comps')
-    pk.write_reaction_output_file(DATA_DIR + '/pruned_rxns')
-    assert os.path.exists(DATA_DIR + '/pruned_comps_new')
-    assert os.path.exists(DATA_DIR + '/pruned_rxns_new')
-    try:
-        assert cmp(DATA_DIR + '/pruned_comps', DATA_DIR + '/pruned_comps_new')
-    finally:
-        os.remove(DATA_DIR + '/pruned_comps_new')
-    try:
-        assert cmp(DATA_DIR + '/pruned_rxns', DATA_DIR + '/pruned_rxns_new')
-    finally:
-        os.remove(DATA_DIR + '/pruned_rxns_new')
+#     pk = pickaxe.Pickaxe(database=None, image_dir=None)
+#     pk.operators['2.7.1.a'] = default_rule
+#     pk = multiprocess(pk, smiles_dict, coreactant_dict)
+#     ids = ['C9437bf42d165907392564b23c0ca132b8bd51625',
+#            'C70016088b2c54458296232054a1ec58d54035560', 'C41']
+#     pk.prune_network(ids)
+#     pk.assign_ids()
+#     pk.write_compound_output_file(DATA_DIR + '/pruned_comps')
+#     pk.write_reaction_output_file(DATA_DIR + '/pruned_rxns')
+#     assert os.path.exists(DATA_DIR + '/pruned_comps_new')
+#     assert os.path.exists(DATA_DIR + '/pruned_rxns_new')
+#     try:
+#         assert cmp(DATA_DIR + '/pruned_comps', DATA_DIR + '/pruned_comps_new')
+#     finally:
+#         os.remove(DATA_DIR + '/pruned_comps_new')
+#     try:
+#         assert cmp(DATA_DIR + '/pruned_rxns', DATA_DIR + '/pruned_rxns_new')
+#     finally:
+#         os.remove(DATA_DIR + '/pruned_rxns_new')
 
 def test_save_as_mine(default_rule, smiles_dict, coreactant_dict):
     """
@@ -320,7 +265,7 @@ def test_save_as_mine(default_rule, smiles_dict, coreactant_dict):
         assert mine_db.operators.estimated_document_count() == 1
         assert mine_db.operators.find_one()["Reactions_predicted"] == 49
         assert os.path.exists(
-            DATA_DIR + '/X02fba734e41145959768095d202750b2c777b274.svg')
+            DATA_DIR + '/X9c29f84930a190d9086a46c344020283c85fb917.svg')
         start_comp = mine_db.compounds.find_one({'Type': 'Starting Compound'})
         assert len(start_comp['Reactant_in']) > 0
         # Don't track sources of coreactants
@@ -351,7 +296,7 @@ def test_save_as_mine_multiprocess(default_rule, smiles_dict, coreactant_dict):
         assert mine_db.reactions.estimated_document_count() == 49
         assert mine_db.operators.estimated_document_count() == 1
         assert os.path.exists(
-            DATA_DIR + '/X02fba734e41145959768095d202750b2c777b274.svg')
+            DATA_DIR + '/X9c29f84930a190d9086a46c344020283c85fb917.svg')
         start_comp = mine_db.compounds.find_one({'Type': 'Starting Compound'})
         assert len(start_comp['Reactant_in']) > 0
         # Don't track sources of coreactants
@@ -385,25 +330,25 @@ def test_database_already_exists(default_rule, smiles_dict, coreactant_dict):
     finally:
         delete_database('MINE_test')
 
-def test_load_compounds_from_mine(default_rule, smiles_dict, coreactant_dict):
-    """
-    GIVEN a Pickaxe object loaded from the 'MINE_test' MINE DB
-    WHEN Pickaxe.load_compound_set() is used to load all compounds from the DB
-    THEN make sure that all compounds are loaded
-    """
-    # Generate database
-    delete_database('MINE_test')
-    pk = pickaxe.Pickaxe(database='MINE_test')
-    pk.operators['2.7.1.a'] = default_rule
-    pk = multiprocess(pk, smiles_dict, coreactant_dict)
-    pk.save_to_mine(num_workers=1)
-    del(pk)
-    try:
-        pk = pickaxe.Pickaxe()
-        compound_smiles = pk.load_compound_set(database='MINE_test')
-        assert len(compound_smiles) == 1
-    finally:
-        delete_database('MINE_test')        
+# def test_load_compounds_from_mine(default_rule, smiles_dict, coreactant_dict):
+#     """
+#     GIVEN a Pickaxe object loaded from the 'MINE_test' MINE DB
+#     WHEN Pickaxe.load_compound_set() is used to load all compounds from the DB
+#     THEN make sure that all compounds are loaded
+#     """
+#     # Generate database
+#     delete_database('MINE_test')
+#     pk = pickaxe.Pickaxe(database='MINE_test')
+#     pk.operators['2.7.1.a'] = default_rule
+#     pk = multiprocess(pk, smiles_dict, coreactant_dict)
+#     pk.save_to_mine(num_workers=1)
+#     del(pk)
+#     try:
+#         pk = pickaxe.Pickaxe()
+#         compound_smiles = pk.load_compound_set(database='MINE_test')
+#         assert len(compound_smiles) == 1
+#     finally:
+#         delete_database('MINE_test')        
 
 def test_save_no_rxn_mine():
     """

@@ -23,12 +23,11 @@ def file_to_dict_list(filepath):
         raise ValueError('Unrecognized input file type')
     return list(reader)
 
-# KMS
 def get_fp( smi):
     mol = AllChem.MolFromSmiles(smi)
     fp = AllChem.RDKFingerprint(mol)
     return fp
-# KMS
+
 def compound_hash(smi, cpd_type='Predicted'):
     """Creates hash string for given compound
 
@@ -45,7 +44,7 @@ def compound_hash(smi, cpd_type='Predicted'):
     if '*' not in smi:
         compound = AllChem.MolFromSmiles(smi)
         # Take the first part of the InChIKey as it contains structural information only
-        compound = ''.join(AllChem.MolToInchiKey(compound).split('-')[0:2])
+        compound = ''.join(AllChem.MolToInchiKey(compound).split('-')[0])
     else:
         compound = smi
 
@@ -57,9 +56,7 @@ def compound_hash(smi, cpd_type='Predicted'):
     elif cpd_type == 'Target Compound':
         return "T" + chash
     else:
-        return "C" + chash
-    
-
+        return "C" + chash 
 
 def convert_sets_to_lists(obj):
     """Recursively converts dictionaries that contain sets to lists"""

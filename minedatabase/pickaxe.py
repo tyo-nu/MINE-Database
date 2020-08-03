@@ -31,7 +31,7 @@ class Pickaxe:
     def __init__(self, rule_list=None, coreactant_list=None, explicit_h=True,
                  kekulize=True, neutralise=True, errors=True,
                  racemize=False, database=None, database_overwrite=False,
-                 con_string='mongodb://localhost:27017',
+                 mongo_uri='mongodb://localhost:27017',
                  image_dir=None, quiet=False):
         """
         :param rule_list: Path to a list of reaction rules in TSV form
@@ -52,6 +52,10 @@ class Pickaxe:
         :type racemize: bool
         :param database: Name of desired Mongo Database
         :type database: str
+        :param database_overwrite: Force overwrite of existing DB
+        :type database_overwrite: bool
+        :param mongo_uri: URI of mongo deployment
+        :type mongo_uri: str
         :param image_dir: Path to desired image folder
         :type image_dir: str
         :param quiet: Silence unbalenced reaction warnings
@@ -72,32 +76,37 @@ class Pickaxe:
         self.quiet = quiet
         self.fragmented_mols = False
         self.radical_check = False
-        self.structure_field = None
-        self.con_string = con_string
+        self.structure_field = None        
         # For tanimoto filtering
         self.target_fps = []
         self.crit_tani = None
         self.tani_filter = False
-
-        # If a database is specified make sure it does not exist already
+        # database info
+        self.mongo_uri = mongo_uri
+        
+        print(f'----------------------------------------')
+        print("Intializing pickaxe object") 
+        # Determine if the specified database is legal
         if database:
-            db = MINE(database, con_string)
+            db = MINE(database, self.mongo_uri)
             if database in db.client.list_database_names():
                 if database_overwrite:
-                    print(f"Database {database} already exists. Deleting database and removing from core compound mines.")
+                    # If db exists, remove db from all of core compounds and drop db
+                    print(f"Database {database} already exists. ",
+                            "Deleting database and removing from core compound mines.")
                     db.core_compounds.update_many({}, {'$pull' : {'MINES' : database}})
                     db.client.drop_database(database)
                     self.mine = database
                 else:
-                    print(f"Warning! Database {database} already exists. Quitting to avoid overwriting")
+                    print(f"Warning! Database {database} already exists."
+                            "Specify database_overwrite as true to delete old database and write new.")
                     exit("Exiting due to database name collision.")
                     self.mine = None
             else:
                 self.mine = database
             del(db)
-
         else:
-            self.mine = None        
+            self.mine = None   
 
         # Use RDLogger to catch errors in log file. SetLevel indicates mode (
         # 0 - debug, 1 - info, 2 - warning, 3 - critical). Default is no errors
@@ -113,7 +122,10 @@ class Pickaxe:
 
         # Load rules (if any) into Pickaxe object
         if rule_list:
-            self._load_operators(rule_list)    
+            self._load_operators(rule_list)   
+
+        print("\nDone intializing pickaxe object")
+        print(f'----------------------------------------\n') 
 
     def load_target_compounds(self, target_compound_file=None, crit_tani=0, 
                                 structure_field=None, id_field='id'):
@@ -134,12 +146,13 @@ class Pickaxe:
         :return: compound SMILES
         :rtype: list
         """
+        # TODO: load targets from mongo db
         # Specify options for tanimoto filtering
         self.tani_filter = True
         self.crit_tani = crit_tani
 
-        # Set structure field to None otherwise load_compounds
-        # could interferece and vice versa
+        # Set structure field to None otherwise value determined by
+        # load_structures can interfere
         self.structure_field = None
 
         # Load target compounds
@@ -152,84 +165,87 @@ class Pickaxe:
                 # Add compound to internal dictionary as a target
                 # compound and store SMILES string to be returned
                 smi = AllChem.MolToSmiles(mol, True)
-                _id = line[id_field]
+                c_id = line[id_field]
                 # Do not operate on inorganic compounds
                 if 'C' in smi or 'c' in smi:
-                    AllChem.SanitizeMol(mol)
-                    self._add_compound(_id, smi, mol=mol,
-                                       cpd_type='Target Compound')
-                    
-                    target_smiles.append(smi)
-
+                    mol = AllChem.SanitizeMol(mol)
+                    self._add_compound(c_id, smi, mol=mol,
+                                       cpd_type='Target Compound')                    
+                    target_smiles.append(smi)                    
                     # Generate fingerprints for tanimoto filtering
+                    # TODO: is there a faster way of doing this?
                     fp = AllChem.RDKFingerprint(mol)
                     self.target_fps.append(fp)
-        
         else:
             raise ValueError("No input file or database specified for "
                              "target compounds")
+
         print(f"{len(target_smiles)} target compounds loaded")
+
         return target_smiles    
 
-    
-
-    def load_compound_set(self, compound_file=None, database=None, con_string='mongodb://localhost:27017',
-                         structure_field=None, id_field='id'):
+    def load_compound_set(self, compound_file=None, id_field='id'): 
             """If a compound file is provided, this function loads the compounds
-            into it's internal dictionary. If not, it attempts to find the
-            compounds in its associated MINE database. 
-            Compound_file supercedes database. Run once for each source.
+            into its internal dictionary. 
 
             :param compound_file: Path to a file containing compounds as tsv
-            :type compound_file: basestring
-            :param database: Existing MINE to load compounds from
-            :type database: basestring
-            :param structure_field: the name of the column containing the
-                structure incarnation as Inchi or SMILES (Default:'structure')
-            :type structure_field: str
+            :type compound_file: basestring            
             :param id_field: the name of the column containing the desired
                 compound ID (Default: 'id)
             :type id_field: str
+
             :return: compound SMILES
             :rtype: list
             """
+            # TODO: add in database/mongo_uri
+            # That behavior will allow compounds to be added from multiple sources
+
+            # Set structure field to None otherwise value determined by
+            # load_targets can interfere
             self.structure_field = None
+
+            # load compounds
             compound_smiles = []
             if compound_file:
                 for line in utils.file_to_dict_list(compound_file):
-                    mol = self._mol_from_dict(line, structure_field)
+                    mol = self._mol_from_dict(line, self.structure_field)
                     if not mol:
                         continue
                     # Add compound to internal dictionary as a starting
                     # compound and store SMILES string to be returned
                     smi = AllChem.MolToSmiles(mol, True)
-                    _id = line[id_field]
+                    c_id = line[id_field]
                     # Do not operate on inorganic compounds
                     if 'C' in smi or 'c' in smi:
-                        AllChem.SanitizeMol(mol)
-                        self._add_compound(_id, smi, mol=mol,
+                        mol = AllChem.SanitizeMol(mol)
+                        self._add_compound(c_id, smi, mol=mol,
                                         cpd_type='Starting Compound')
                         compound_smiles.append(smi)
-            # If a MINE database is being used instead, search for compounds
+
+            # TODO: If a MINE database is being used instead, search for compounds
             # annotated as starting compounds and return those as a list of
             # SMILES strings
-            elif database:
-                db = MINE(database, con_string)
-                # Check to see if database has any compounds
-                if db.compounds.find_one({'Type':'Starting Compound'}):
-                    for compound in db.compounds.find({'Type':'Starting Compound'}):
-                        _id = compound['_id']
-                        smi = compound['SMILES']
-                        # Assume unannotated compounds are starting compounds
-                        if 'type' not in compound:
-                            compound['Type'] = 'Starting Compound'
-                        self._add_compound(_id, smi, cpd_type=compound['Type'])
-                        compound_smiles.append(smi)
-                else:
-                    raise ValueError('Specified MINE contains no starting compounds.')
+            # elif database:
+            #     if mongo_uri:
+            #         db = MINE(database, mongo_uri)
+            #     else:
+            #         db = MINE(database, self.mongo_uri)
+            #     # Check to see if database has any compounds
+            #     if db.compounds.find_one({'Type':'Starting Compound'}):
+            #         for compound in db.compounds.find({'Type':'Starting Compound'}):
+            #             _id = compound['_id']
+            #             smi = compound['SMILES']
+            #             # Assume unannotated compounds are starting compounds
+            #             if 'type' not in compound:
+            #                 compound['Type'] = 'Starting Compound'
+            #             self._add_compound(_id, smi, cpd_type=compound['Type'])
+            #             compound_smiles.append(smi)
+            #     else:
+            #         raise ValueError('Specified MINE contains no starting compounds.')
             else:
-                raise ValueError('No input file or database specified for '
+                raise ValueError('No input file specified for '
                                 'starting compounds')
+
             print(f"{len(compound_smiles)} compounds loaded")
             return compound_smiles
 
@@ -248,6 +264,8 @@ class Pickaxe:
         """
         if not rules:
             rules = self.operators.keys()
+        
+        # Stage compound for transformation
         # Create Mol object from input SMILES string and remove hydrogens
         # (rdkit)
         mol = AllChem.MolFromSmiles(compound_smiles)
@@ -262,10 +280,13 @@ class Pickaxe:
             AllChem.Kekulize(mol, clearAromaticFlags=True)
         if self.explicit_h:
             mol = AllChem.AddHs(mol)
+
+        # Apply reaction rules to prepared compound
         for rule_name in rules:
             # Lookup rule in dictionary from rule name
             rule = self.operators[rule_name]
             # Get RDKit Mol objects for reactants
+            # TODO: add functionality for bimolecular+ reactions
             reactant_mols = tuple([mol if x == 'Any'
                                    else self.coreactants[x][0]
                                    for x in rule[1]['Reactants']])
@@ -273,6 +294,7 @@ class Pickaxe:
             try:
                 product_sets = rule[0].RunReactants(reactant_mols)
             # This error should be addressed in a new version of RDKit
+            # TODO: Check this claim
             except RuntimeError:
                 print("Runtime ERROR!" + rule_name)
                 print(compound_smiles)
@@ -285,6 +307,7 @@ class Pickaxe:
             # compound order is fixed.
             reactants.sort()
             # TODO: check for balanced rxn and remove
+            # Only an issue with Joseph's rules
             for product_mols in product_sets:
                 try:
                     for stereo_prods, product_atoms in self._make_half_rxn(
@@ -304,7 +327,6 @@ class Pickaxe:
 
                                 # check this and remove unbalanced reactions
                 except (ValueError, MemoryError) as e:
-                    # TODO: silence
                     if not self.quiet:
                         print(e)
                         print("Error Processing Rule: " + rule_name)
@@ -332,9 +354,8 @@ class Pickaxe:
         while self.generation < max_generations:
             if self.tani_filter == True:
                 if not self.target_fps:
-                    print(f'No targets to filter for. Can\'t expand.')
-                    return None                
-
+                    print(f'No targets to filter for. Terminating expansion.')
+                    return None
                 # Flag compounds to be expanded
                 self._filter_by_tani(num_workers=num_workers)
 
@@ -344,17 +365,17 @@ class Pickaxe:
             n_comps = len(self.compounds)
             n_rxns = len(self.reactions)
             # Get all SMILES strings for compounds
-            compound_smiles = [c['SMILES'] for c in self.compounds.values()
-                            if c['Generation'] == self.generation - 1
-                            and c['Type'] not in ['Coreactant', 'Target Compound']
-                            and c['Expand'] == True]
+            compound_smiles = [cpd['SMILES'] for cpd in self.compounds.values()
+                            if cpd['Generation'] == self.generation - 1
+                            and cpd['Type'] not in ['Coreactant', 'Target Compound']
+                            and cpd['Expand'] == True]
 
             if not compound_smiles:
                 continue
             if num_workers > 1:
                 chunk_size = max(
                     [round(len(compound_smiles) / (num_workers * 10)), 1])
-                print("Chunk Size:", chunk_size)
+                print(f"Chunk Size for generation {self.generation}:", chunk_size)
                 new_comps = deepcopy(self.compounds)
                 new_rxns = deepcopy(self.reactions)
                 pool = multiprocessing.Pool(processes=num_workers)
@@ -365,7 +386,6 @@ class Pickaxe:
                     print_progress((i + 1), len(compound_smiles))
                 self.compounds = new_comps
                 self.reactions = new_rxns
-
             else:
                 for i, smi in enumerate(compound_smiles):
                     # Perform possible reactions on compound
@@ -380,7 +400,6 @@ class Pickaxe:
             print(f"\t\t{len(self.compounds) - n_comps} new compounds")
             print(f"\t\t{len(self.reactions) - n_rxns} new reactions")
             print(f'----------------------------------------\n')
-
 
     def _load_coreactant(self, coreactant_text):
         """
@@ -399,11 +418,13 @@ class Pickaxe:
             mol = AllChem.MolFromSmiles(split_text[2])
             if not mol:
                 raise ValueError
-            # Generate SMILES string with stereochemistry taken into account
-            smi = AllChem.MolToSmiles(mol, True)
+            # TODO: what do do about stereochemistry? Original comment is below
+            # but stereochem was taken out (isn't it removed later anyway?)
+            # # Generate SMILES string with stereochemistry taken into account
+            smi = AllChem.MolToSmiles(mol)
         except (IndexError, ValueError):
             raise ValueError(f"Unable to load coreactant: {coreactant_text}")
-        _id = self._add_compound(split_text[0], smi, mol=mol,
+        c_id = self._add_compound(split_text[0], smi, mol=mol,
                                  cpd_type='Coreactant')
         # If hydrogens are to be explicitly represented, add them to the Mol
         # object
@@ -415,7 +436,7 @@ class Pickaxe:
             AllChem.Kekulize(mol, clearAromaticFlags=True)
         # Store coreactant in a coreactants dictionary with the Mol object
         # and hashed id as values (coreactant name as key)
-        self.coreactants[split_text[0]] = (mol, _id,)
+        self.coreactants[split_text[0]] = (mol, c_id,)
 
     def _load_operators(self, rule_path):
         """Loads all reaction rules from file_path into rxn_rule dict.
@@ -494,9 +515,9 @@ class Pickaxe:
             
             # If the result of comparison is false, compound is not expanded
             # Default value for a compound is True, so no need to specify expansion
+            # TODO: delete these compounds instead of just labeling as false?
             if not res[1]:
-                self.compounds[res[0]]['Expand'] = False            
-
+                self.compounds[res[0]]['Expand'] = False
             print_progress(i, len(compounds_to_check), 'Tanimoto filter progress:')
         return None
     
@@ -557,19 +578,19 @@ class Pickaxe:
 
     def _add_compound(self, cpd_id, smi, mol=None, cpd_type='Predicted'):
         """Adds a compound to the internal compound dictionary"""
-        _id = utils.compound_hash(smi, cpd_type)
-        self._raw_compounds[smi] = _id
+        c_id = utils.compound_hash(smi, cpd_type)
+        self._raw_compounds[smi] = c_id
         # We don't want to overwrite the same compound from a prior
         # generation so we check with hashed id from above
-        if _id not in self.compounds:
+        if c_id not in self.compounds:
             if not mol:
                 mol = AllChem.MolFromSmiles(smi)
-            i_key = AllChem.InchiToInchiKey(AllChem.MolToInchi(mol))
+            inchi_key = AllChem.InchiToInchiKey(AllChem.MolToInchi(mol))
             # expand only Predicted and Starting_compounds
             expand = True if cpd_type in ['Predicted', 'Starting Compound'] else False
-            self.compounds[_id] = {'ID': cpd_id, '_id': _id, 'SMILES': smi,
+            self.compounds[c_id] = {'ID': cpd_id, '_id': c_id, 'SMILES': smi,
                                    'Inchi': AllChem.MolToInchi(mol),
-                                   'Inchikey': i_key, 
+                                   'Inchikey': inchi_key, 
                                    'Type': cpd_type,
                                    'Generation': self.generation,
                                    'Formula': AllChem.CalcMolFormula(mol),
@@ -578,17 +599,13 @@ class Pickaxe:
                                    'Reactant_in': [], 'Product_of': [],
                                 #    'Sources': [],
                                    'Expand': expand}
-            if _id[0] =='X':
-                del(self.compounds[_id]['Reactant_in'])
-                del(self.compounds[_id]['Product_of'])
-            # KMS Uncomment if using sources
-            ## Don't track sources of coreactants
-            # if _id[0] == 'X':
-            #     del self.compounds[_id]['Sources']
-            # If we are building a mine and generating images, do so here
+            if c_id[0] =='X':
+                del(self.compounds[c_id]['Reactant_in'])
+                del(self.compounds[c_id]['Product_of'])
+            
             if self.image_dir and self.mine:
                 try:
-                    with open(os.path.join(self.image_dir, _id + '.svg'),
+                    with open(os.path.join(self.image_dir, c_id + '.svg'),
                               'w') as outfile:
                         nmol = rdMolDraw2D.PrepareMolForDrawing(mol)
                         d2d = rdMolDraw2D.MolDraw2DSVG(1000, 1000)
@@ -597,7 +614,7 @@ class Pickaxe:
                         outfile.write(d2d.GetDrawingText())
                 except OSError:
                     print(f"Unable to generate image for {smi}")
-        return _id
+        return c_id
 
     def _add_reaction(self, reactants, rule_name, stereo_prods):
         """Hashes and inserts reaction into reaction dictionary"""
@@ -646,7 +663,6 @@ class Pickaxe:
                 print(reactant_atoms, product_atoms)
         else:
             return True
-            
 
     def _get_atom_count(self, mol):
         """Takes a set of mol objects and returns a counter with each element
@@ -681,8 +697,8 @@ class Pickaxe:
                  for m, r in zip(mol_list, rules)]
         # count the number of atoms on a side
         atom_count = collections.Counter()
-        for x in comps:
-            atom_count += self.compounds[x[0]]['_atom_count']
+        for cpd in comps:
+            atom_count += self.compounds[cpd[0]]['_atom_count']
         # Remove duplicates from comps
         half_rxns = [collections.Counter(subrxn) for subrxn
                      in itertools.product(*comps)]
@@ -728,14 +744,11 @@ class Pickaxe:
             smiles = []
             for x in tups:
                 comp = self.compounds[x.c_id]
-                smiles.append(f"({x.stoich}) {comp['SMILES']}")
-                
+                smiles.append(f"({x.stoich}) {comp['SMILES']}")                
             return ' + '.join(smiles)
-
         r_s = get_blocks(reactants)
         p_s = get_blocks(products)
-        smiles_rxn = r_s + ' => ' + p_s
-        
+        smiles_rxn = r_s + ' => ' + p_s        
         return smiles_rxn
 
     def _calculate_rxn_hash_and_text(self, reactants, products):
@@ -812,8 +825,6 @@ class Pickaxe:
             rxn['ID'] = 'pkr' + str(i).zfill(7)
             i += 1
             self.reactions[rxn['_id']] = rxn
-
-    
 
     def prune_network(self, white_list):
         """
@@ -944,7 +955,7 @@ class Pickaxe:
         print(f'Saving results to {self.mine}')
         print(f'----------------------------------------\n')
         start = time.time()
-        db = MINE(self.mine, self.con_string)
+        db = MINE(self.mine, self.mongo_uri)
         # Lists of requests for bulk_write method
         core_cpd_requests = []
         core_update_mine_requests = []
@@ -1141,92 +1152,3 @@ def _racemization(compound, max_centers=3, carbon_only=True):
         # same object
         new_comps.append(deepcopy(compound))
     return new_comps
-
-
-if __name__ == '__main__':
-    # Get initial time to calculate execution time at end
-    t1 = time.time()  # pylint: disable=invalid-name
-    # Parse all command line arguments
-    parser = ArgumentParser()  # pylint: disable=invalid-name
-    parser.add_argument('-C', '--coreactant_list',
-                        default="tests/data/test_coreactants.tsv",
-                        help="Specify a list of coreactants as a "
-                             "tab-separated file")
-    parser.add_argument('-r', '--rule_list',
-                        default="tests/data/test_reaction_rules.tsv",
-                        help="Specify a list of reaction rules as a "
-                             "tab-separated file")
-    parser.add_argument('-c', '--compound_file',
-                        default="tests/data/test_compounds.tsv",
-                        help="Specify a list of starting compounds as a "
-                             "tab-separated file")
-    parser.add_argument('-p', '--pruning_whitelist', default=None,
-                        help="Specify a list of target compounds to prune "
-                             "reaction network down")
-    parser.add_argument('-s', '--smiles', default=None,
-                        help="Specify a starting compound as SMILES.")
-    parser.add_argument('-o', '--output_dir', default=".",
-                        help="The directory in which to place files")
-    parser.add_argument('-d', '--database', default=None,
-                        help="The name of the database in which to store "
-                             "output. If not specified, data is still written "
-                             "as tsv files")
-    parser.add_argument('-R', '--racemize', action='store_true', default=False,
-                        help="Enumerate the possible chiral "
-                        "forms for all unassigned stereocenters in compounds &"
-                        " reactions")
-    parser.add_argument('-v', '--verbose', action='store_true', default=False,
-                        help="Display RDKit errors & warnings")
-    parser.add_argument('--bnice', action='store_true', default=False,
-                        help="Set several options to enable compatibility "
-                             "with bnice operators.")
-    parser.add_argument('-m', '--max_workers', default=1, type=int,
-                        help="Set the nax number of processes to spawn to "
-                             "perform calculations.")
-    parser.add_argument('-g', '--generations', default=1, type=int,
-                        help="Set the numbers of time to apply the reaction "
-                             "rules to the compound set.")
-    parser.add_argument('-i', '--image_dir', default=None,
-                        help="Specify a directory to store images of all "
-                             "created compounds")
-    parser.add_argument('-q', '--quiet', action='store_true', default=False,
-                        help="Silence warnings about imbalenced reactions")
-    OPTIONS = parser.parse_args()
-    pk = Pickaxe(coreactant_list=OPTIONS.coreactant_list,
-                 rule_list=OPTIONS.rule_list, racemize=OPTIONS.racemize,
-                 errors=OPTIONS.verbose, explicit_h=OPTIONS.bnice,
-                 kekulize=OPTIONS.bnice, neutralise=OPTIONS.bnice,
-                 image_dir=OPTIONS.image_dir, database=OPTIONS.database,
-                 quiet=OPTIONS.quiet)
-    # Create a directory for image output file if it doesn't already exist
-    if OPTIONS.image_dir and not os.path.exists(OPTIONS.image_dir):
-        os.mkdir(OPTIONS.image_dir)
-    # If starting compound specified as SMILES string, then add it
-    if OPTIONS.smiles:
-        # pylint: disable=protected-access
-        pk._add_compound('Start', OPTIONS.smiles, cpd_type='Starting Compound')
-    else:
-        pk.load_compound_set(compound_file=OPTIONS.compound_file)
-    # Generate reaction network
-    pk.transform_all(max_generations=OPTIONS.generations,
-                     num_workers=OPTIONS.max_workers)
-    if OPTIONS.pruning_whitelist:
-        # pylint: disable=invalid-name,protected-access
-        mols = [pk._mol_from_dict(line) for line
-                in utils.file_to_dict_list(OPTIONS.pruning_whitelist)]
-        pk.prune_network([utils.compound_hash(x) for x in mols if x])
-    # Save to database (e.g. Mongo) if present, otherwise create output file
-    if OPTIONS.database:
-        print(f"Saving results to {OPTIONS.database}")
-        pk.save_to_mine(OPTIONS.database)
-    else:
-        pk.assign_ids()
-        pk.write_compound_output_file(OPTIONS.output_dir + '/compounds.tsv')
-        pk.write_reaction_output_file(OPTIONS.output_dir + '/reactions.tsv')
-
-    print(f"Execution took {time.time()-t1} seconds.")
-
-
-    # TODO: balance
-    # TODO: cpd in collection not same for single worker and max worker
-    # TODO: fragmented outputs

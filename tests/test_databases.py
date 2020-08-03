@@ -53,7 +53,7 @@ def test_db():
 
 @pytest.fixture()
 def cpd_dict():
-    cpd_dict = {'_id':'Xcb185ea62ba7ad3e1c440310cc8be8cba6c7ec50',
+    cpd_dict = {'_id':'Xtest',
                 'SMILES':'Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OS(=O)(=O)O)[C@@H](OP(=O)(O)O)[C@H]1O',
                 'Inchi':'InChI=1S/C10H15N5O13P2S/c11-8-5-9(13-2-12-8)15(3-14-5)10-6(16)7(27-29(17,18)19)4(26-10)1-25-30(20,21)28-31(22,23)24/h2-4,6-7,10,16H,1H2,(H,20,21)(H2,11,12,13)(H2,17,18,19)(H,22,23,24)/t4-,6-,7-,10-/m1/s1',
                 'Type':'Coreactant',
@@ -159,7 +159,6 @@ def test_insert_single_core_compound(test_db, cpd_dict):
         assert isinstance(entry['Mass'], float)
         assert entry['Inchi']
         assert entry['Inchikey']
-        assert entry['MINES'] == []
         assert entry["NP_likeness"]
         assert entry['logP']
     finally:
@@ -188,7 +187,6 @@ def test_insert_bulk_core_compound(test_db, cpd_dict):
             assert isinstance(entry['Mass'], float)
             assert entry['Inchi']
             assert entry['Inchikey']
-            assert entry['MINES'] == []
             assert entry["NP_likeness"]
             assert entry['logP']
     finally:
