@@ -44,7 +44,7 @@ max_workers = 2
 tani_filter = True
 # Prune results to only give expanded compounds/rxns
 # Currently also includes all of the last generation
-tani_prune = False
+tani_prune = True
 target_cpds = './example_data/target_list_many.csv'
 crit_tani = 0.8
 

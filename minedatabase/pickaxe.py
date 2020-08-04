@@ -892,6 +892,14 @@ class Pickaxe:
                     if tup.c_id[0] == 'C' and tup.c_id not in white_set:
                         white_list.append(tup.c_id)
                         white_set.add(tup.c_id)
+
+        # Save targets
+        # TODO: seperate targets
+        if self.tani_filter:
+           for c_id in self.compounds:
+               if c_id.startswith('T'):
+                   comp_set.add(c_id)
+
         return comp_set, rxn_set
 
     def write_compound_output_file(self, path, dialect='excel-tab'):
