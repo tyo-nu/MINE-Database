@@ -15,21 +15,21 @@ rule_list = './minedatabase/data/EnzymaticReactionRules.tsv'
 # Database to write results to
 write_db = True
 database_overwrite = True
-database = 'foo'
+database = 'test_no_prune-new'
 
-# creds = open('credentials.csv').readline().split(',')
-# creds = [cred.strip('\n') for cred in creds]
+creds = open('credentials.csv').readline().split(',')
+creds = [cred.strip('\n') for cred in creds]
 # mongo_uri is the login information for the mongodb. The default is localhost:27017
 # Connecting remotely requires the location of the database as well as username/password
 # if security is being used. Username/password are stored in credentials.csv
 # in the following format: username,password
 # Local MINE server
-mongo_uri = 'mongodb://localhost:27017'
+# mongo_uri = 'mongodb://localhost:27017'
 # Connecting to the northwestern MINE server
-# mongo_uri = f"mongodb://{creds[0]}:{creds[1]}@minedatabase.ci.northwestern.edu:27017/?authSource=admin"
+mongo_uri = f"mongodb://{creds[0]}:{creds[1]}@minedatabase.ci.northwestern.edu:27017/?authSource=admin"
 
 # Pickaxe Options
-generations = 1
+generations = 2
 racemize = False
 verbose = False
 explicit_h = True
@@ -38,15 +38,14 @@ neutralise = True
 image_dir = None
 quiet = True
 indexing = False
-max_workers = 1
-
+max_workers = 2
 
 # Tanimoto Filtering options
 tani_filter = True
 # Prune results to only give expanded compounds/rxns
 # Currently also includes all of the last generation
 tani_prune = False
-target_cpds = './example_data/target_list_single.csv'
+target_cpds = './example_data/target_list_many.csv'
 crit_tani = 0.8
 
 # Running pickaxe
@@ -71,7 +70,7 @@ pk.transform_all(max_generations=generations,
 # Write results
 if write_db:
     if tani_filter and tani_prune:
-        pk.remove_unexpanded()
+        pk.prune_network_to_targets()
     pk.save_to_mine(num_workers=max_workers, indexing=indexing)
     client = pymongo.MongoClient(mongo_uri)
     db = client[database]
@@ -82,4 +81,5 @@ if write_db:
                                     "Input compound file": f"{input_cpds}"}
                                     )
     db.meta_data.insert_one({"Timestamp": datetime.datetime.now(),
-                            "Message": "Testing out difference b/w pruning and no pruning."})
+                            "Message": ("Expansion for bioprivileged molecules."
+                                        "Targeting 1k molecules identified by XZ using original 250 rules.")})

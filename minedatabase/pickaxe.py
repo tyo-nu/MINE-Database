@@ -79,6 +79,7 @@ class Pickaxe:
         self.structure_field = None        
         # For tanimoto filtering
         self.target_fps = []
+        self.target_smiles = []
         self.crit_tani = None
         self.tani_filter = False
         # database info
@@ -156,7 +157,6 @@ class Pickaxe:
         self.structure_field = None
 
         # Load target compounds
-        target_smiles = []
         if target_compound_file:
             for line in utils.file_to_dict_list(target_compound_file):
                 mol = self._mol_from_dict(line, structure_field)
@@ -171,7 +171,7 @@ class Pickaxe:
                     AllChem.SanitizeMol(mol)
                     self._add_compound(c_id, smi, mol=mol,
                                        cpd_type='Target Compound')                    
-                    target_smiles.append(smi)                    
+                    self.target_smiles.append(smi)                    
                     # Generate fingerprints for tanimoto filtering
                     # TODO: is there a faster way of doing this?
                     fp = AllChem.RDKFingerprint(mol)
@@ -180,9 +180,9 @@ class Pickaxe:
             raise ValueError("No input file or database specified for "
                              "target compounds")
 
-        print(f"{len(target_smiles)} target compounds loaded")
+        print(f"{len(self.target_smiles)} target compounds loaded")
 
-        return target_smiles    
+        return self.target_smiles    
 
     def load_compound_set(self, compound_file=None, id_field='id'): 
             """If a compound file is provided, this function loads the compounds
@@ -836,23 +836,19 @@ class Pickaxe:
             i += 1
             self.reactions[rxn['_id']] = rxn
 
-    def remove_unexpanded(self):
+    def prune_network_to_targets(self):
         """
         Remove compounds that were unexpanded as well as reactions that ended terminally with them.
         """
-        compounds_to_remove = [cpd for cpd in self.compounds.values() 
-                                if cpd['Expand'] == False
-                                and cpd['Type'] not in ['Coreactant', 'Target Compound']]
-
-        rxn_to_remove = set()
-        for cpd_dict in compounds_to_remove:
-            # Find reactions compounds were made from
-            for rxn in cpd_dict['Product_of']:
-                rxn_to_remove.add(rxn)            
-            del(self.compounds[cpd_dict['_id']])
-        # delete reactions
-        for rxn in rxn_to_remove:
-            del(self.reactions[rxn])
+        white_list = []
+        for target_smi in self.target_smiles:
+            try:
+                # generate hash of predicted target compounds
+                white_list.append(utils.compound_hash(target_smi, 'Predicted'))
+            except:
+                pass
+        
+        self.prune_network(white_list)
 
     def prune_network(self, white_list):
         """
@@ -1018,7 +1014,7 @@ class Pickaxe:
 
         if mine_rxn_requests:            
             db.reactions.bulk_write(mine_rxn_requests, ordered=False)
-            print(f'Done with reactions--took {time.time() - rxn_start} seconds.')
+            print(f'Inserted {len(mine_rxn_requests)} reactions in {time.time() - rxn_start} seconds.')
             db.meta_data.insert_one({'Timestamp': datetime.datetime.now(),
                                         'Action': "Reactions Inserted"})
             del(mine_rxn_requests)
@@ -1055,85 +1051,80 @@ class Pickaxe:
                     db.update_core_compound_MINES(comp_dict, core_update_mine_requests)
                     db.insert_core_compound(comp_dict, core_cpd_requests)
 
-        print(f'Done with Compounds Prep--took {time.time() - cpd_start} seconds.')
+        print(f"Done with Compounds Prep--took {time.time() - cpd_start} seconds.")
         # Insert the three types of compounds
-        cpd_start = time.time()
-        db.core_compounds.bulk_write(core_cpd_requests, ordered=False)
-        del(core_cpd_requests)
-        print(f'Done with Core Compounds Insertion--took {time.time() - cpd_start} seconds.')
-        cpd_start = time.time()
-        db.core_compounds.bulk_write(core_update_mine_requests, ordered=False)
-        del(core_update_mine_requests)
-        print(f'Done with Updating Core Compounds MINE update--took {time.time() - cpd_start} seconds.')
-        db.meta_data.insert_one({'Timestamp': datetime.datetime.now(),
-                                'Action': "Core Compounds Inserted"})
-        cpd_start = time.time()
-        db.compounds.bulk_write(mine_cpd_requests, ordered=False)     
-        del(mine_cpd_requests)  
-        print(f'Done with MINE Insert--took {time.time() - cpd_start} seconds.')
-        db.meta_data.insert_one({'Timestamp': datetime.datetime.now(),
-                                'Action': "Compounds Inserted"})
-        print(f'----------------------------------------\n')
+        if core_cpd_requests:
+            cpd_start = time.time()
+            db.core_compounds.bulk_write(core_cpd_requests, ordered=False)            
+            print(f"Inserted {len(core_cpd_requests)} Core Compounds in {time.time() - cpd_start} seconds.")
+            del(core_cpd_requests)
+        else:
+            print("Inserted No Core Compounds")
+        
+        if core_update_mine_requests:
+            cpd_start = time.time()
+            db.core_compounds.bulk_write(core_update_mine_requests, ordered=False)            
+            print(f"Updated the Core Compounds Mine List in {time.time() - cpd_start} seconds.")
+            del(core_update_mine_requests)
+        else:
+            print("Updated No Core Compounds")
+        db.meta_data.insert_one({"Timestamp": datetime.datetime.now(),
+                                "Action": "Core Compounds Inserted"})
+        if mine_cpd_requests:
+            cpd_start = time.time()
+            db.compounds.bulk_write(mine_cpd_requests, ordered=False)     
+            print(f"Inserted {len(mine_cpd_requests)} Compounds to the MINE in {time.time() - cpd_start} seconds.")
+            del(mine_cpd_requests)
+        else:
+            print("Inserted No Compounds")
+            db.meta_data.insert_one({"Timestamp": datetime.datetime.now(),
+                                    "Action": "Compounds Inserted"})
+        print(f"----------------------------------------\n")
 
         # Insert target compounds
         target_start = time.time()
         # Write target compounds to target collection
         # Target compounds are written as mine compounds
         if self.tani_filter:
-            print('--------------- Targets ----------------')
-            db.meta_data.insert_one({'Tani Threshold' : self.crit_tani})    
-
+            print("--------------- Targets ----------------")
             # Insert target compounds
             target_start = time.time()
-            # get the number of targets
-            # if num_workers > 1:
-            #     # parallel insertion
-            #     chunk_size = max(
-            #         [round(len(self.target_fps) / (num_workers * 10)), 1])
-            #     print("Chunk Size for Target Writing:", chunk_size)
-
-            #     pool = multiprocessing.Pool(processes=num_workers)
-            #     for i, res in enumerate(pool.imap_unordered(
-            #             self._save_target_helper, self.compounds.values(), chunk_size)):
-            #         if res:
-            #             target_cpd_requests.append(res)  
-            #             print_progress(i, len(self.compounds), 'Targets')
-            # else:
-
-            # parallel insertion is taking a weirdly long time
             # non-parallel insertion
             for comp_dict in self.compounds.values():
                 if comp_dict['_id'].startswith('T'):
                     db.insert_mine_compound(comp_dict, target_cpd_requests)     
-            print(f'Done with Target Prep--took {time.time() - target_start} seconds.')    
-            target_start = time.time()
-            db.target_compounds.bulk_write(target_cpd_requests, ordered=False)
-            del(target_cpd_requests)
-            print(f'Done with Target Insert--took {time.time() - target_start} seconds.')
-            db.meta_data.insert_one({'Timestamp': datetime.datetime.now(),
-                                'Action': "Target Compounds Inserted"})
-            print(f'----------------------------------------\n')                   
+            print(f"Done with Target Prep--took {time.time() - target_start} seconds.")
+            if target_cpd_requests:
+                target_start = time.time()
+                db.target_compounds.bulk_write(target_cpd_requests, ordered=False)
+                print(f"Inserted {len(target_cpd_requests)} Target Compounds in {time.time() - target_start} seconds.")
+                del(target_cpd_requests)
+                db.meta_data.insert_one({"Timestamp": datetime.datetime.now(),
+                                    "Action": "Target Compounds Inserted"})
+            else:
+                print('No Target Compounds Inserted')
+            print(f"----------------------------------------\n")                   
 
         # Save operators  
         operator_start = time.time()
         if self.operators:
-            print('-------------- Operators ---------------')
+            print("-------------- Operators ---------------")
             db.operators.insert_many([op[1] for op in self.operators.values()])        
-            db.meta_data.insert_one({'Timestamp': datetime.datetime.now(),
-                                    'Action': "Operators Inserted"})  
-            print(f'Done with Operators Overall--took {time.time() - operator_start} seconds.')
-        print(f'----------------------------------------\n')
+            db.meta_data.insert_one({"Timestamp": datetime.datetime.now(),
+                                    "Action": "Operators Inserted"})  
+            print(f"Done with Operators Overall--took {time.time() - operator_start} seconds.")
+        print(f"----------------------------------------\n")
 
         if indexing:
-            print('-------------- Indices ---------------')
+            print("-------------- Indices ---------------")
             index_start = time.time()
             db.build_indexes()
-            print(f'Done with Indices--took {time.time() - index_start} seconds.')
-            print(f'----------------------------------------\n')
+            print(f"Done with Indices--took {time.time() - index_start} seconds.")
+            print(f"----------------------------------------\n")
 
-        print('-------------- Overall ---------------')
-        print(f'Finished uploading everything in {time.time() - start} sec')
-        print(f'----------------------------------------\n')
+        print("-------------- Overall ---------------")
+        print(f"Finished uploading everything in {time.time() - start} sec")
+        print(f"----------------------------------------\n")
 
 
 def _racemization(compound, max_centers=3, carbon_only=True):
