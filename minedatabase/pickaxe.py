@@ -1017,8 +1017,12 @@ class Pickaxe:
             # non-parallel insertions
             for rxn in self.reactions.values():
                 db.insert_reaction(rxn, requests=mine_rxn_requests)
-                for op in rxn['Operators']:
-                    self.operators[op][1]['Reactions_predicted'] += 1
+                # for op in rxn['Operators']:
+                #     self.operators[op][1]['Reactions_predicted'] += 1
+        
+        for rxn_dict in self.reactions.values():
+            for op in rxn_dict['Operators']:
+                self.operators[op][1]['Reactions_predicted'] += 1
 
         if mine_rxn_requests:            
             db.reactions.bulk_write(mine_rxn_requests, ordered=False)

@@ -4,7 +4,7 @@ import datetime
 
 # Where are the input rxns coming from and coreactants
 # Compounds that are going to be expanded
-input_cpds = './example_data/iML1515_ecoli_GEM.csv'
+input_cpds = './example_data/starting_cpds_ten.csv'
 
 # Cofactors and rules
 coreactant_list = './minedatabase/data/EnzymaticCoreactants.tsv'
@@ -15,18 +15,18 @@ rule_list = './minedatabase/data/EnzymaticReactionRules.tsv'
 # Database to write results to
 write_db = True
 database_overwrite = True
-database = 'test_no_prune-new'
+database = 'JRules'
 
-creds = open('credentials.csv').readline().split(',')
-creds = [cred.strip('\n') for cred in creds]
+# creds = open('credentials.csv').readline().split(',')
+# creds = [cred.strip('\n') for cred in creds]
 # mongo_uri is the login information for the mongodb. The default is localhost:27017
 # Connecting remotely requires the location of the database as well as username/password
 # if security is being used. Username/password are stored in credentials.csv
 # in the following format: username,password
 # Local MINE server
-# mongo_uri = 'mongodb://localhost:27017'
+mongo_uri = 'mongodb://localhost:27017'
 # Connecting to the northwestern MINE server
-mongo_uri = f"mongodb://{creds[0]}:{creds[1]}@minedatabase.ci.northwestern.edu:27017/?authSource=admin"
+# mongo_uri = f"mongodb://{creds[0]}:{creds[1]}@minedatabase.ci.northwestern.edu:27017/?authSource=admin"
 
 # Pickaxe Options
 generations = 2
@@ -41,7 +41,7 @@ indexing = False
 max_workers = 2
 
 # Tanimoto Filtering options
-tani_filter = True
+tani_filter = False
 # Prune results to only give expanded compounds/rxns
 # Currently also includes all of the last generation
 tani_prune = True
