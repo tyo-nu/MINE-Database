@@ -1,7 +1,9 @@
 from minedatabase.pickaxe import Pickaxe
 import pymongo
 import datetime
+import time
 
+start = time.time()
 # Where are the input rxns coming from and coreactants
 # Compounds that are going to be expanded
 input_cpds = './example_data/starting_cpds_ten.csv'
@@ -15,7 +17,7 @@ rule_list = './minedatabase/data/EnzymaticReactionRules.tsv'
 # Database to write results to
 write_db = True
 database_overwrite = True
-database = 'JRules'
+database = 'test'
 
 # creds = open('credentials.csv').readline().split(',')
 # creds = [cred.strip('\n') for cred in creds]
@@ -83,3 +85,6 @@ if write_db:
     db.meta_data.insert_one({"Timestamp": datetime.datetime.now(),
                             "Message": ("Expansion for bioprivileged molecules."
                                         "Targeting 1k molecules identified by XZ using original 250 rules.")})
+
+
+print(f'Overall run took {round(time.time() - start, 2)} seconds.')
