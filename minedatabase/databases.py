@@ -285,9 +285,6 @@ class MINE:
             del(core_dict['Product_of'])
         if 'Reactant_in' in core_dict:
             del(core_dict['Reactant_in'])
-
-        # if not self.core_compounds.find_one({'_id': cpd_id}):   
-                     
         # Store all different representations of the molecule (SMILES, Formula,
         #  InChI key, etc.) as well as its properties in a dictionary
         if not 'SMILES' in core_dict:
@@ -299,15 +296,6 @@ class MINE:
                 core_dict['Inchi'])
         core_dict['Mass'] = AllChem.CalcExactMolWt(mol_object)
         core_dict['Formula'] = AllChem.CalcMolFormula(mol_object)
-        # core_dict['Charge'] = AllChem.GetFormalCharge(mol_object)
-        # Get indices where bits are 1
-        # core_dict['MACCS'] = list(AllChem.GetMACCSKeysFingerprint(
-        #     mol_object).GetOnBits())
-        # core_dict['len_MACCS'] = len(core_dict['MACCS'])
-        # Get indices where bits are 1
-        # core_dict['RDKit'] = list(AllChem.RDKFingerprint(
-        #     mol_object).GetOnBits())
-        # core_dict['len_RDKit'] = len(core_dict['RDKit'])
         core_dict['logP'] = AllChem.CalcCrippenDescriptors(mol_object)[0]
         core_dict['NP_likeness'] = nps.scoreMol(mol_object, self.nps_model)
         core_dict['Spectra'] = {}
@@ -337,29 +325,16 @@ class MINE:
 
         return None
 
-    def insert_mine_compound(self, compound_dict=None, requests=None, 
-                        kegg_db='KEGG', pubchem_db='PubChem-8-28-2015',
-                        modelseed_db='ModelSEED'):
+    def insert_mine_compound(self, compound_dict=None, requests=None):
         """This method saves a RDKit Molecule as a compound entry in the MINE.
         Calculates necessary fields for API and includes additional
         information passed in the compound dict. Overwrites preexisting
         compounds in MINE on _id collision.
 
-        :param mol_object: The compound to be stored
-        :type mol_object: RDKit Mol object
-        :param compound_dict: Additional information about the compound to be
-            stored. Overwritten by calculated values.
+        :param compound_dict: Information of compound to insert to database
         :type compound_dict: dict
-        :param bulk: A pymongo bulk operation object. If None, reaction is
-         immediately inserted in the database
-        :param kegg_db: The ID of the KEGG Mongo database
-        :type kegg_db: str
-        :param pubchem_db: The ID of the PubChem Mongo database
-        :type pubchem_db: str
-        :param modelseed_db: The ID of the ModelSEED Mongo database
-        :type modelseed_db: str
-        :return: The hashed _id of the compound
-        :rtype: str
+        :param requests: A list of requests for pymongo bulk write
+        : type requests: list
         """
 
         if compound_dict is None:
@@ -390,49 +365,7 @@ class MINE:
             compound_dict['Product_of'] = ast.literal_eval(
                 compound_dict['Product_of'])
 
-        # # Store links to external databases where compound is present
-        # if compound_dict['Inchikey']:
-        #     if kegg_db:
-        #         compound_dict = self.link_to_external_database(
-        #             kegg_db, compound=compound_dict,
-        #             fields_to_copy=[('Pathways', 'Pathways'),
-        #                             ('Names', 'Names'),
-        #                             ('DB_links', 'DB_links'),
-        #                             ('Enzymes', 'Enzymes')])
-
-        #     if pubchem_db:
-        #         compound_dict = self.link_to_external_database(
-        #             pubchem_db, compound=compound_dict,
-        #             fields_to_copy=[('COMPOUND_CID', 'DB_links.PubChem')])
-
-        #     if modelseed_db:
-        #         compound_dict = self.link_to_external_database(
-        #             modelseed_db, compound=compound_dict,
-        #             fields_to_copy=[('DB_links', 'DB_links')])
-
-        # compound_dict = utils.convert_sets_to_lists(compound_dict)
-        # # Assign an id to the compound
-        # if self.id_db:
-        #     mine_comp = self.id_db.compounds.find_one(
-        #         {"Inchikey": compound_dict['Inchikey']},
-        #         {'MINE_id': 1, "Pos_CFM_spectra": 1, "Neg_CFM_spectra": 1})
-        #     # If compound already exists in MINE, store its MINE id in the dict
-        #     if mine_comp:
-        #         compound_dict['MINE_id'] = mine_comp['MINE_id']
-        #         if 'Pos_CFM_spectra' in mine_comp:
-        #             compound_dict['Pos_CFM_spectra'] = \
-        #                 mine_comp['Pos_CFM_spectra']
-        #         if 'Neg_CFM_spectra' in mine_comp:
-        #             compound_dict['Neg_CFM_spectra'] = \
-        #                 mine_comp['Neg_CFM_spectra']
-        #     # If compound does not exist, create new id based on number of
-        #     # current ids in the MINE
-        #     else:
-        #         compound_dict['MINE_id'] = self.id_db.compounds.count()
-        #         self.id_db.compounds.save(compound_dict)
-
         # If bulk insertion, upsert (insert and update) the database
-
         if requests != None:
             requests.append(pymongo.ReplaceOne({'_id':compound_dict['_id']}, compound_dict, upsert=True))
         else:
@@ -446,9 +379,7 @@ class MINE:
 
         :param reaction_dict: A dictionary containing 'Reactants' and
          'Products' lists of StoichTuples
-        :type reaction_dict: dict
-        :param bulk: A pymongo bulk operation object. If None, reaction is
-         immediately inserted in the database
+        :type reaction_dict: dict        
         :return: The hashed _id of the reaction
         :rtype: str
         """
@@ -519,24 +450,12 @@ def save_document(collection, doc):
 def insert_mine_compound(compound_dict=None):
         """This method saves a RDKit Molecule as a compound entry in the MINE.
         Calculates necessary fields for API and includes additional
-        information passed in the compound dict. Overwrites preexisting
-        compounds in MINE on _id collision.
+        information passed in the compound dict.
 
-        :param mol_object: The compound to be stored
-        :type mol_object: RDKit Mol object
-        :param compound_dict: Additional information about the compound to be
-            stored. Overwritten by calculated values.
+        :param compound_dict: Compound info to add to database
         :type compound_dict: dict
-        :param bulk: A pymongo bulk operation object. If None, reaction is
-         immediately inserted in the database
-        :param kegg_db: The ID of the KEGG Mongo database
-        :type kegg_db: str
-        :param pubchem_db: The ID of the PubChem Mongo database
-        :type pubchem_db: str
-        :param modelseed_db: The ID of the ModelSEED Mongo database
-        :type modelseed_db: str
-        :return: The hashed _id of the compound
-        :rtype: str
+        :return: The mongo request
+        :rtype: pymongo.InsertOne
         """
 
         # Store all different representations of the molecule (SMILES, Formula,
@@ -575,8 +494,8 @@ def insert_core_compound(compound_dict):
 
         :param compound_dict: Compound Dictionary
         :type compound_dict: dict
-        :param requests: List of requests for bulk insert
-        :type requests: None
+        :return requests: List of requests for bulk insert
+        :rtype requests: pymongo.UpdateOne
         """
         core_dict = copy(compound_dict)
         cpd_id = core_dict['_id']
@@ -592,8 +511,6 @@ def insert_core_compound(compound_dict):
             del(core_dict['Product_of'])
         if 'Reactant_in' in core_dict:
             del(core_dict['Reactant_in'])
-
-        # if not self.core_compounds.find_one({'_id': cpd_id}):   
                      
         # Store all different representations of the molecule (SMILES, Formula,
         #  InChI key, etc.) as well as its properties in a dictionary
@@ -606,25 +523,11 @@ def insert_core_compound(compound_dict):
                 core_dict['Inchi'])
         core_dict['Mass'] = AllChem.CalcExactMolWt(mol_object)
         core_dict['Formula'] = AllChem.CalcMolFormula(mol_object)
-        # core_dict['Charge'] = AllChem.GetFormalCharge(mol_object)
-        # Get indices where bits are 1
-        # core_dict['MACCS'] = list(AllChem.GetMACCSKeysFingerprint(
-        #     mol_object).GetOnBits())
-        # core_dict['len_MACCS'] = len(core_dict['MACCS'])
-        # Get indices where bits are 1
-        # core_dict['RDKit'] = list(AllChem.RDKFingerprint(
-        #     mol_object).GetOnBits())
-        # core_dict['len_RDKit'] = len(core_dict['RDKit'])
         core_dict['logP'] = AllChem.CalcCrippenDescriptors(mol_object)[0]
         core_dict['NP_likeness'] = nps.scoreMol(mol_object, nps_model)
         core_dict['Spectra'] = {}
         # Record which expansion it's coming from
-        core_dict['MINES'] = []
-
-        # if requests != None:
-        #     requests.append(pymongo.UpdateOne({'_id': cpd_id}, {'$setOnInsert': core_dict}, upsert=True))
-        # else:
-        #     self.core_compounds.update_one({'_id': cpd_id}, {'$setOnInsert': core_dict}, upsert=True)
+        core_dict['MINES'] = []   
         
         return pymongo.UpdateOne({'_id': cpd_id}, {'$setOnInsert': core_dict}, upsert=True)
 
@@ -633,8 +536,8 @@ def update_core_compound_MINES(compound_dict, MINE):
 
         :param compound_dict: RDKit object of the compound
         :type compound_dict: dict
-        :param requests: List of requests for bulk insert
-        :type requests: None
+        :return requests: Request for bulk insert
+        :rtype requests: pymongo.UpdateOne
         """
         cpd_id = compound_dict['_id']
         return pymongo.UpdateOne({'_id': cpd_id}, {'$addToSet': {'MINES': MINE}})
@@ -645,11 +548,9 @@ def insert_reaction(reaction_dict):
 
     :param reaction_dict: A dictionary containing 'Reactants' and
         'Products' lists of StoichTuples
-    :type reaction_dict: dict
-    :param bulk: A pymongo bulk operation object. If None, reaction is
-        immediately inserted in the database
-    :return: The hashed _id of the reaction
-    :rtype: str
+    :type reaction_dict: dict    
+    :return: Request for bulk insert
+    :rtype: pymongo.InsertOne
     """
     reaction_dict['_id'] = utils.rxn2hash(reaction_dict['Reactants'],
                                             reaction_dict['Products'])

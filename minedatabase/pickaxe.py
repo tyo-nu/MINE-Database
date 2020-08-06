@@ -281,6 +281,11 @@ class Pickaxe:
         if self.explicit_h:
             mol = AllChem.AddHs(mol)
 
+        # Remove unbalanced reactions
+        # TODO: rework _make_half_reaction to accomplish this
+        cpds_to_remove = set()
+        rxns_to_remove = set()
+        
         # Apply reaction rules to prepared compound
         for rule_name in rules:
             # Lookup rule in dictionary from rule name
@@ -320,10 +325,10 @@ class Pickaxe:
 
                         # text_rxn is None if reaction has already been inserted
                         if text_rxn:
-                            if not self.quiet:
-                                self._check_atom_balance(product_atoms,
-                                                        reactant_atoms, rule_name,
-                                                        text_rxn)
+                            if not self._is_atom_balanced(product_atoms, reactant_atoms):
+                                for prods in stereo_prods:
+                                    cpds_to_remove.update(prods.c_id)
+                                
 
                                 # check this and remove unbalanced reactions
                 except (ValueError, MemoryError) as e:
@@ -331,6 +336,13 @@ class Pickaxe:
                         print(e)
                         print("Error Processing Rule: " + rule_name)
                     continue
+                
+                for cpd in cpds_to_remove:
+                    for rxn in cpd['Product of']:
+                        if rxn in self.reactions:
+                            del(self.reactions[rxn])
+                    del(self.compounds[cpd])
+
         return self.compounds, self.reactions        
     
     def transform_all(self, num_workers=1, max_generations=1):
@@ -658,6 +670,15 @@ class Pickaxe:
                 self.compounds[reac_id]['Reactant_in'].append(rhash)      
 
         return text_rxn
+
+    def _is_atom_balanced(self, product_atoms, reactant_atoms):
+        """If the SMARTS rule is not atom balanced, this check detects the
+        accidental alchemy."""
+        if reactant_atoms - product_atoms \
+                or product_atoms - reactant_atoms:
+            return False
+        else:
+            return True
 
     def _check_atom_balance(self, product_atoms, reactant_atoms, rule_name,
                             text_rxn):
