@@ -378,6 +378,16 @@ class Pickaxe:
                     crit_tani = self.crit_tani
                 print(f"Filtering out tanimoto < {crit_tani}")
                 self._filter_by_tani(num_workers=num_workers)
+                n_filtered = 0
+                n_total = 0
+                # TODO better way to record this instead of looping again
+                for cpd_dict in self.compounds.values():
+                    if cpd_dict['Generation'] == self.generation:
+                        n_total += 1
+                        if cpd_dict['Expand'] == True:
+                            n_filtered += 1
+
+                print(f'{n_filtered} of {n_total} compounds remain after filter.\n\nExpanding.')
 
             self.generation += 1
             # Use to print out time per generation at end of loop
