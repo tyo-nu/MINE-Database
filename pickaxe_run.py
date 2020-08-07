@@ -9,10 +9,10 @@ start = time.time()
 input_cpds = './example_data/starting_cpds_ten.csv'
 
 # Cofactors and rules
-# coreactant_list = './minedatabase/data/EnzymaticCoreactants.tsv'
-# rule_list = './minedatabase/data/EnzymaticReactionRules.tsv'
-coreactant_list = './minedatabase/data/MetaCyc_Coreactants.tsv'
-rule_list = './minedatabase/data/metacyc_generalized_rules_500.tsv'
+coreactant_list = './minedatabase/data/EnzymaticCoreactants.tsv'
+rule_list = './minedatabase/data/EnzymaticReactionRules.tsv'
+# coreactant_list = './minedatabase/data/MetaCyc_Coreactants.tsv'
+# rule_list = './minedatabase/data/metacyc_generalized_rules_500.tsv'
 
 # Database to write results to
 write_db = True
@@ -31,24 +31,26 @@ mongo_uri = 'mongodb://localhost:27017'
 # mongo_uri = f"mongodb://{creds[0]}:{creds[1]}@minedatabase.ci.northwestern.edu:27017/?authSource=admin"
 
 # Pickaxe Options
-generations = 1
+generations = 2
 racemize = False
 verbose = False
-explicit_h = False
+explicit_h = True
 kekulize = True
 neutralise = True
 image_dir = None
 quiet = True
 indexing = False
-max_workers = 1
+max_workers = 2
 
 # Tanimoto Filtering options
-tani_filter = False
+tani_filter = True
 # Prune results to only give expanded compounds/rxns
 # Currently also includes all of the last generation
-tani_prune = True
+tani_prune = False
 target_cpds = './example_data/target_list_many.csv'
-crit_tani = 0.8
+# crit_tani is either a single number 
+# OR a list that is the length of the number of generations
+crit_tani = [0.5, 0.9]
 
 # Running pickaxe
 # Initialize the Pickaxe class instance

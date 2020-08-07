@@ -325,11 +325,11 @@ class Pickaxe:
 
                         # text_rxn is None if reaction has already been inserted
                         if text_rxn:
-                            if not self._is_atom_balanced(product_atoms, reactant_atoms):
+                            if (reactant_atoms - product_atoms or product_atoms - reactant_atoms):
                                 for prods in stereo_prods:
-                                    cpds_to_remove.update(prods.c_id)
+                                    if prods.c_id.startswith('C'):
+                                        cpds_to_remove.add(prods.c_id)                             
                                 
-
                                 # check this and remove unbalanced reactions
                 except (ValueError, MemoryError) as e:
                     if not self.quiet:
@@ -337,13 +337,16 @@ class Pickaxe:
                         print("Error Processing Rule: " + rule_name)
                     continue
                 
-                for cpd in cpds_to_remove:
-                    for rxn in cpd['Product of']:
-                        if rxn in self.reactions:
-                            del(self.reactions[rxn])
-                    del(self.compounds[cpd])
+                # for cpd in cpds_to_remove:
+                #     if cpd in self.compounds:
+                #         print('here')
+                #         for rxn in self.compounds[cpd]['Product_of']:
+                #             print('rxn')
+                #             if rxn in self.reactions:
+                #                 del(self.reactions[rxn])
+                #         del(self.compounds[cpd])
 
-        return self.compounds, self.reactions        
+        return self.compounds, self.reactions       
     
     def transform_all(self, num_workers=1, max_generations=1):
         """This function applies all of the reaction rules to all the compounds
@@ -369,6 +372,11 @@ class Pickaxe:
                     print(f'No targets to filter for. Terminating expansion.')
                     return None
                 # Flag compounds to be expanded
+                if type(self.crit_tani) == list:
+                    crit_tani = self.crit_tani[self.generation]
+                else:
+                    crit_tani = self.crit_tani
+                print(f"Filtering out tanimoto < {crit_tani}")
                 self._filter_by_tani(num_workers=num_workers)
 
             self.generation += 1
@@ -549,12 +557,18 @@ class Pickaxe:
         Works with _filter_by_tani
 
         Returns True if a the compound is similar enough to a target.
+        
         """
         # Generate the fingerprint of a compound and compare to the fingerprints of the targets
+        if type(self.crit_tani) == list:
+            crit_tani = self.crit_tani[self.generation]
+        else:
+            crit_tani = self.crit_tani
+
         try:
             fp1 = get_fp(cpd['SMILES'])
             for fp2 in self.target_fps:
-                if AllChem.DataStructs.FingerprintSimilarity(fp1, fp2) >= self.crit_tani:
+                if AllChem.DataStructs.FingerprintSimilarity(fp1, fp2) >= crit_tani:
                     return (cpd['_id'], True)
         except:
             pass
