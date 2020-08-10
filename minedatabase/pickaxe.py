@@ -613,15 +613,10 @@ class Pickaxe:
             # expand only Predicted and Starting_compounds
             expand = True if cpd_type in ['Predicted', 'Starting Compound'] else False
             self.compounds[c_id] = {'ID': cpd_id, '_id': c_id, 'SMILES': smi,
-                                   'Inchi': AllChem.MolToInchi(mol),
-                                   'Inchikey': inchi_key, 
                                    'Type': cpd_type,
                                    'Generation': self.generation,
-                                   'Formula': AllChem.CalcMolFormula(mol),
                                    '_atom_count': self._get_atom_count(mol),
-                                #    'Charge': AllChem.GetFormalCharge(mol),
                                    'Reactant_in': [], 'Product_of': [],
-                                #    'Sources': [],
                                    'Expand': expand}
             if c_id[0] =='X':
                 del(self.compounds[c_id]['Reactant_in'])
@@ -962,10 +957,42 @@ class Pickaxe:
                                               rxn['SMILES_rxn'], rxn['_id'],
                                               ';'.join(rxn['Operators'])])
                               + '\n')
+    
+    def _save_compounds(self, cpd_ids, db, num_workers=1):
+        # Function to save a given list of compound ids and then delete them from memory
+        core_cpd_requests = []
+        core_update_mine_requests = []
+        mine_cpd_requests = []
 
-    def _save_compound_helper(self, comp_dict):
+        if num_workers > 1:
+            # parallel insertion
+            chunk_size = max(
+                [round(len(cpd_ids) / (num_workers * 10)), 1])
+            pool = multiprocessing.Pool(processes=num_workers)
+            for i, res in enumerate(pool.imap_unordered(
+                    self._save_compound_helper, cpd_ids, chunk_size)):
+                if res:
+                    mine_cpd_requests.append(res[0])
+                    core_update_mine_requests.append(res[1])
+                    core_cpd_requests.append(res[2])    
+        else:
+            # non-parallel insertion
+            # Write generated compounds to MINE and core compounds to core
+            for cpd_id in cpd_ids:
+                comp_dict = self.compounds[cpd_id]
+                # Write everything except for targets
+                if not comp_dict['_id'].startswith('T'):
+                    # These functions are in the MINE class. The request list is
+                    # passed and appended in the MINE method.
+                    db.insert_mine_compound(comp_dict, mine_cpd_requests)
+                    db.update_core_compound_MINES(comp_dict, core_update_mine_requests)
+                    db.insert_core_compound(comp_dict, core_cpd_requests)
+        return core_cpd_requests, core_update_mine_requests, mine_cpd_requests
+    
+    def _save_compound_helper(self, cpd_id):
         # Helper function to aid parallelization of saving compounds in
         # save_to_mine
+        comp_dict = self.compounds[cpd_id]
         if not comp_dict['_id'].startswith('T'):
             # These functions are outside of the MINE class in order to
             # allow for parallelization. When in the MINE class it is not
@@ -977,6 +1004,30 @@ class Pickaxe:
             return [mine_req, core_up_req, core_in_req]
         else:
             return None
+    
+    def _save_reactions(self, rxn_ids, db, num_workers=1):
+        # Function to save a given list of compound ids and then delete them from memory
+        mine_rxn_requests = []
+        rxns_to_write = [self.reactions[rxn_id] for rxn_id in rxn_ids]
+
+        if num_workers:
+            # parallel insertion
+            chunk_size = max(
+                [round(len(rxn_ids) / (num_workers * 10)), 1])
+            pool = multiprocessing.Pool(processes=num_workers)
+            for i, res in enumerate(pool.imap_unordered(
+                    databases.insert_reaction, rxns_to_write, chunk_size)):
+                if res:
+                    mine_rxn_requests.append(res)
+
+        else:
+            # non-parallel insertion
+            # Write generated compounds to MINE and core compounds to core
+            for rxn_id in rxn_ids:
+                rxn = self.reactions[rxn_id]
+                db.insert_reaction(rxn, requests=mine_rxn_requests)
+        
+        return mine_rxn_requests
 
     def _save_target_helper(self, comp_dict):
         # Helper function to aid parallelization of saving targets in
@@ -990,7 +1041,7 @@ class Pickaxe:
             return target_req
         else:
             return None
-
+    
     def save_to_mine(self, num_workers=1, indexing=True):
         """Save compounds to a MINE database.
 
@@ -1004,123 +1055,70 @@ class Pickaxe:
             print_on = max(round(.05 * total), 1)
             if not (done % print_on):
                 print(f"{section} {round(done / total * 100)} percent complete")
+
+        def chunks(lst, n):
+            """Yield successive n-sized chunks from lst."""
+            n = max(n, 1)           
+            for i in range(0, len(lst), n):
+                yield lst[i:i + n]
             
-        # Initialize variables for saving to mongodb
         print(f'----------------------------------------')
         print(f'Saving results to {self.mine}')
         print(f'----------------------------------------\n')
         start = time.time()
-        db = MINE(self.mine, self.mongo_uri)
-        # Lists of requests for bulk_write method
-        core_cpd_requests = []
-        core_update_mine_requests = []
-        mine_cpd_requests = []
-        mine_rxn_requests = []        
-        target_cpd_requests = []
+        db = MINE(self.mine, self.mongo_uri)    
 
-        
+        # Insert Reactions    
         print('--------------- Reactions ---------------')
-        # Insert Reactions
         rxn_start = time.time()
-        if num_workers > 1:
-            # parallel insertions
-            chunk_size = max(
-                [round(len(self.reactions) / (num_workers * 10)), 1])
-            print("Chunk Size for writing Reactions:", chunk_size)
-            pool = multiprocessing.Pool(processes=num_workers)
-            n = 0
-            # Call insert_reaction in parallel and append results to the mine_rxn_requests
-            for i, res in enumerate(pool.imap_unordered(
-                    databases.insert_reaction, self.reactions.values(), chunk_size)):
-                if res:
-                    mine_rxn_requests.append(res)
-                    if i % (round(chunk_size)) == 0:
-                        print_progress(i, len(self.reactions), 'Reaction')
-        else:
-            # non-parallel insertions
-            for rxn in self.reactions.values():
-                db.insert_reaction(rxn, requests=mine_rxn_requests)
-                # for op in rxn['Operators']:
-                #     self.operators[op][1]['Reactions_predicted'] += 1
-        
-        for rxn_dict in self.reactions.values():
-            for op in rxn_dict['Operators']:
-                self.operators[op][1]['Reactions_predicted'] += 1
-
-        if mine_rxn_requests:            
-            db.reactions.bulk_write(mine_rxn_requests, ordered=False)
-            print(f'Inserted {len(mine_rxn_requests)} reactions in {time.time() - rxn_start} seconds.')
-            db.meta_data.insert_one({'Timestamp': datetime.datetime.now(),
-                                        'Action': "Reactions Inserted"})
-            del(mine_rxn_requests)
-        else:
-            print('No reactions inserted')
+        # Due to memory concerns, compounds are chunked
+        # and processed that way. Each batch is calculated
+        # in parallel.
+        n_rxns = len(self.reactions)
+        chunk_size = max(int(n_rxns/100), 100)        
+        for rxn_id_chunk in chunks(list(self.reactions.keys()), chunk_size):
+            mine_rxn_requests = self._save_reactions(rxn_id_chunk, db, num_workers)
+            if mine_rxn_requests:
+                db.reactions.bulk_write(mine_rxn_requests, ordered=False)
+        print(f'Finished Inserting Reactions in {time.time() - rxn_start} seconds.')
         print(f'----------------------------------------\n')
 
         print('--------------- Compounds --------------')
-        # Insert Compoundsd
         cpd_start = time.time()
-        if num_workers > 1:
-            # parallel insertion
-            chunk_size = max(
-                [round(len(self.compounds) / (num_workers * 10)), 1])
-            print("Chunk Size Compound Writing:", chunk_size)
-
-            pool = multiprocessing.Pool(processes=num_workers)
-            for i, res in enumerate(pool.imap_unordered(
-                    self._save_compound_helper, self.compounds.values(), chunk_size)):
-                if res:
-                    mine_cpd_requests.append(res[0])
-                    core_update_mine_requests.append(res[1])
-                    core_cpd_requests.append(res[2])    
-                    print_progress(i, len(self.compounds), 'Compounds')
-        else:
-            # non-parallel insertion
-            # Write generated compounds to MINE and core compounds to core
-            for comp_dict in self.compounds.values():
-                # Write everything except for targets
-                if not comp_dict['_id'].startswith('T'):
-                    # These functions are in the MINE class. The request list is
-                    # passed and appended in the MINE method.
-                    db.insert_mine_compound(comp_dict, mine_cpd_requests)
-                    db.update_core_compound_MINES(comp_dict, core_update_mine_requests)
-                    db.insert_core_compound(comp_dict, core_cpd_requests)
-
-        print(f"Done with Compounds Prep--took {time.time() - cpd_start} seconds.")
-        # Insert the three types of compounds
-        if core_cpd_requests:
-            cpd_start = time.time()
-            db.core_compounds.bulk_write(core_cpd_requests, ordered=False)            
-            print(f"Inserted {len(core_cpd_requests)} Core Compounds in {time.time() - cpd_start} seconds.")
-            del(core_cpd_requests)
-        else:
-            print("Inserted No Core Compounds")
-        
-        if core_update_mine_requests:
-            cpd_start = time.time()
-            db.core_compounds.bulk_write(core_update_mine_requests, ordered=False)            
-            print(f"Updated the Core Compounds Mine List in {time.time() - cpd_start} seconds.")
-            del(core_update_mine_requests)
-        else:
-            print("Updated No Core Compounds")
+        # Due to memory concerns, compounds are chunked
+        # and processed that way. Each batch is calculated
+        # in parallel.
+        n_cpds = len(self.compounds)
+        chunk_size = max(int(n_cpds/100), 1000)
+        n_loop = 1
+        for cpd_id_chunk in chunks(list(self.compounds.keys()), chunk_size):
+            # Insert the three types of compounds
+            print(f"Writing Compound Chunk {n_loop} of {round(n_cpds/chunk_size)+1}")
+            n_loop += 1
+            core_cpd_requests, core_update_mine_requests, mine_cpd_requests = self._save_compounds(cpd_id_chunk, db, num_workers)            
+            if core_cpd_requests:
+                db.core_compounds.bulk_write(core_cpd_requests, ordered=False)            
+                del(core_cpd_requests)            
+            if core_update_mine_requests:
+                db.core_compounds.bulk_write(core_update_mine_requests, ordered=False)            
+                del(core_update_mine_requests)
+            if mine_cpd_requests:
+                db.compounds.bulk_write(mine_cpd_requests, ordered=False)                     
+                del(mine_cpd_requests) 
+        print(f" Finished insertin Compounds to the MINE in {time.time() - cpd_start} seconds.")
         db.meta_data.insert_one({"Timestamp": datetime.datetime.now(),
-                                "Action": "Core Compounds Inserted"})
-        if mine_cpd_requests:
-            cpd_start = time.time()
-            db.compounds.bulk_write(mine_cpd_requests, ordered=False)     
-            print(f"Inserted {len(mine_cpd_requests)} Compounds to the MINE in {time.time() - cpd_start} seconds.")
-            del(mine_cpd_requests)
-        else:
-            print("Inserted No Compounds")
-            db.meta_data.insert_one({"Timestamp": datetime.datetime.now(),
-                                    "Action": "Compounds Inserted"})
+                        "Action": "Core Compounds Inserted"})
+        db.meta_data.insert_one({"Timestamp": datetime.datetime.now(),
+            "Action": "Mine Compounds Inserted"})
         print(f"----------------------------------------\n")
 
         # Insert target compounds
-        target_start = time.time()
-        # Write target compounds to target collection
-        # Target compounds are written as mine compounds
+        
         if self.tani_filter:
+            target_start = time.time()
+            target_cpd_requests = []
+            # Write target compounds to target collection
+            # Target compounds are written as mine compounds
             print("--------------- Targets ----------------")
             # Insert target compounds
             target_start = time.time()
@@ -1144,6 +1142,10 @@ class Pickaxe:
         operator_start = time.time()
         if self.operators:
             print("-------------- Operators ---------------")
+            # update operator rxn count
+            for rxn_dict in self.reactions.values():
+                for op in rxn_dict['Operators']:
+                    self.operators[op][1]['Reactions_predicted'] += 1
             db.operators.insert_many([op[1] for op in self.operators.values()])        
             db.meta_data.insert_one({"Timestamp": datetime.datetime.now(),
                                     "Action": "Operators Inserted"})  
@@ -1160,6 +1162,176 @@ class Pickaxe:
         print("-------------- Overall ---------------")
         print(f"Finished uploading everything in {time.time() - start} sec")
         print(f"----------------------------------------\n")
+
+    # def save_to_mine(self, num_workers=1, indexing=True):
+    #     """Save compounds to a MINE database.
+
+    #     :param db_id: The name of the target database
+    #     :type db_id: basestring
+    #     """        
+    #     def print_progress(done, total, section):
+    #         # Use print_on to print % completion roughly every 5 percent
+    #         # Include max to print no more than once per compound (e.g. if
+    #         # less than 20 compounds)
+    #         print_on = max(round(.05 * total), 1)
+    #         if not (done % print_on):
+    #             print(f"{section} {round(done / total * 100)} percent complete")
+            
+    #     # Initialize variables for saving to mongodb
+    #     print(f'----------------------------------------')
+    #     print(f'Saving results to {self.mine}')
+    #     print(f'----------------------------------------\n')
+    #     start = time.time()
+    #     db = MINE(self.mine, self.mongo_uri)
+    #     # Lists of requests for bulk_write method
+    #     core_cpd_requests = []
+    #     core_update_mine_requests = []
+    #     mine_cpd_requests = []
+    #     mine_rxn_requests = []        
+    #     target_cpd_requests = []
+
+        
+    #     print('--------------- Reactions ---------------')
+    #     # Insert Reactions
+    #     rxn_start = time.time()
+    #     if num_workers > 1:
+    #         # parallel insertions
+    #         chunk_size = max(
+    #             [round(len(self.reactions) / (num_workers * 10)), 1])
+    #         print("Chunk Size for writing Reactions:", chunk_size)
+    #         pool = multiprocessing.Pool(processes=num_workers)
+    #         n = 0
+    #         # Call insert_reaction in parallel and append results to the mine_rxn_requests
+    #         for i, res in enumerate(pool.imap_unordered(
+    #                 databases.insert_reaction, self.reactions.values(), chunk_size)):
+    #             if res:
+    #                 mine_rxn_requests.append(res)
+    #                 if i % (round(chunk_size)) == 0:
+    #                     print_progress(i, len(self.reactions), 'Reaction')
+    #     else:
+    #         # non-parallel insertions
+    #         for rxn in self.reactions.values():
+    #             db.insert_reaction(rxn, requests=mine_rxn_requests)
+    #             # for op in rxn['Operators']:
+    #             #     self.operators[op][1]['Reactions_predicted'] += 1
+        
+    #     for rxn_dict in self.reactions.values():
+    #         for op in rxn_dict['Operators']:
+    #             self.operators[op][1]['Reactions_predicted'] += 1
+
+    #     if mine_rxn_requests:            
+    #         db.reactions.bulk_write(mine_rxn_requests, ordered=False)
+    #         print(f'Inserted {len(mine_rxn_requests)} reactions in {time.time() - rxn_start} seconds.')
+    #         db.meta_data.insert_one({'Timestamp': datetime.datetime.now(),
+    #                                     'Action': "Reactions Inserted"})
+    #         del(mine_rxn_requests)
+    #     else:
+    #         print('No reactions inserted')
+    #     print(f'----------------------------------------\n')
+
+    #     print('--------------- Compounds --------------')
+    #     # Insert Compoundsd
+    #     cpd_start = time.time()
+    #     if num_workers > 1:
+    #         # parallel insertion
+    #         chunk_size = max(
+    #             [round(len(self.compounds) / (num_workers * 10)), 1])
+    #         print("Chunk Size Compound Writing:", chunk_size)
+
+    #         pool = multiprocessing.Pool(processes=num_workers)
+    #         for i, res in enumerate(pool.imap_unordered(
+    #                 self._save_compound_helper, self.compounds.values(), chunk_size)):
+    #             if res:
+    #                 mine_cpd_requests.append(res[0])
+    #                 core_update_mine_requests.append(res[1])
+    #                 core_cpd_requests.append(res[2])    
+    #                 print_progress(i, len(self.compounds), 'Compounds')
+    #     else:
+    #         # non-parallel insertion
+    #         # Write generated compounds to MINE and core compounds to core
+    #         for comp_dict in self.compounds.values():
+    #             # Write everything except for targets
+    #             if not comp_dict['_id'].startswith('T'):
+    #                 # These functions are in the MINE class. The request list is
+    #                 # passed and appended in the MINE method.
+    #                 db.insert_mine_compound(comp_dict, mine_cpd_requests)
+    #                 db.update_core_compound_MINES(comp_dict, core_update_mine_requests)
+    #                 db.insert_core_compound(comp_dict, core_cpd_requests)
+
+    #     print(f"Done with Compounds Prep--took {time.time() - cpd_start} seconds.")
+    #     # Insert the three types of compounds
+    #     if core_cpd_requests:
+    #         cpd_start = time.time()
+    #         db.core_compounds.bulk_write(core_cpd_requests, ordered=False)            
+    #         print(f"Inserted {len(core_cpd_requests)} Core Compounds in {time.time() - cpd_start} seconds.")
+    #         del(core_cpd_requests)
+    #     else:
+    #         print("Inserted No Core Compounds")
+        
+    #     if core_update_mine_requests:
+    #         cpd_start = time.time()
+    #         db.core_compounds.bulk_write(core_update_mine_requests, ordered=False)            
+    #         print(f"Updated the Core Compounds Mine List in {time.time() - cpd_start} seconds.")
+    #         del(core_update_mine_requests)
+    #     else:
+    #         print("Updated No Core Compounds")
+    #     db.meta_data.insert_one({"Timestamp": datetime.datetime.now(),
+    #                             "Action": "Core Compounds Inserted"})
+    #     if mine_cpd_requests:
+    #         cpd_start = time.time()
+    #         db.compounds.bulk_write(mine_cpd_requests, ordered=False)     
+    #         print(f"Inserted {len(mine_cpd_requests)} Compounds to the MINE in {time.time() - cpd_start} seconds.")
+    #         del(mine_cpd_requests)
+    #     else:
+    #         print("Inserted No Compounds")
+    #         db.meta_data.insert_one({"Timestamp": datetime.datetime.now(),
+    #                                 "Action": "Compounds Inserted"})
+    #     print(f"----------------------------------------\n")
+
+    #     # Insert target compounds
+    #     target_start = time.time()
+    #     # Write target compounds to target collection
+    #     # Target compounds are written as mine compounds
+    #     if self.tani_filter:
+    #         print("--------------- Targets ----------------")
+    #         # Insert target compounds
+    #         target_start = time.time()
+    #         # non-parallel insertion
+    #         for comp_dict in self.compounds.values():
+    #             if comp_dict['_id'].startswith('T'):
+    #                 db.insert_mine_compound(comp_dict, target_cpd_requests)     
+    #         print(f"Done with Target Prep--took {time.time() - target_start} seconds.")
+    #         if target_cpd_requests:
+    #             target_start = time.time()
+    #             db.target_compounds.bulk_write(target_cpd_requests, ordered=False)
+    #             print(f"Inserted {len(target_cpd_requests)} Target Compounds in {time.time() - target_start} seconds.")
+    #             del(target_cpd_requests)
+    #             db.meta_data.insert_one({"Timestamp": datetime.datetime.now(),
+    #                                 "Action": "Target Compounds Inserted"})
+    #         else:
+    #             print('No Target Compounds Inserted')
+    #         print(f"----------------------------------------\n")                   
+
+    #     # Save operators  
+    #     operator_start = time.time()
+    #     if self.operators:
+    #         print("-------------- Operators ---------------")
+    #         db.operators.insert_many([op[1] for op in self.operators.values()])        
+    #         db.meta_data.insert_one({"Timestamp": datetime.datetime.now(),
+    #                                 "Action": "Operators Inserted"})  
+    #         print(f"Done with Operators Overall--took {time.time() - operator_start} seconds.")
+    #     print(f"----------------------------------------\n")
+
+    #     if indexing:
+    #         print("-------------- Indices ---------------")
+    #         index_start = time.time()
+    #         db.build_indexes()
+    #         print(f"Done with Indices--took {time.time() - index_start} seconds.")
+    #         print(f"----------------------------------------\n")
+
+    #     print("-------------- Overall ---------------")
+    #     print(f"Finished uploading everything in {time.time() - start} sec")
+    #     print(f"----------------------------------------\n")
 
 
 def _racemization(compound, max_centers=3, carbon_only=True):
