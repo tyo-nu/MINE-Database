@@ -40,7 +40,7 @@ neutralise = True
 image_dir = None
 quiet = True
 indexing = False
-max_workers = 2
+max_workers = 1
 
 # Tanimoto Filtering options
 tani_filter = True

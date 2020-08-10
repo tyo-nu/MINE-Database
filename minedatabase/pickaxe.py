@@ -280,11 +280,6 @@ class Pickaxe:
             AllChem.Kekulize(mol, clearAromaticFlags=True)
         if self.explicit_h:
             mol = AllChem.AddHs(mol)
-
-        # Remove unbalanced reactions
-        # TODO: rework _make_half_reaction to accomplish this
-        cpds_to_remove = set()
-        rxns_to_remove = set()
         
         # Apply reaction rules to prepared compound
         for rule_name in rules:
@@ -321,30 +316,13 @@ class Pickaxe:
                         stereo_prods.sort()
                         # Get reaction text (e.g. A + B <==> C + D)
                         text_rxn = self._add_reaction(reactants, rule_name,
-                                                      stereo_prods)
-
-                        # text_rxn is None if reaction has already been inserted
-                        if text_rxn:
-                            if (reactant_atoms - product_atoms or product_atoms - reactant_atoms):
-                                for prods in stereo_prods:
-                                    if prods.c_id.startswith('C'):
-                                        cpds_to_remove.add(prods.c_id)                             
+                                                      stereo_prods)                          
                                 
-                                # check this and remove unbalanced reactions
                 except (ValueError, MemoryError) as e:
                     if not self.quiet:
                         print(e)
                         print("Error Processing Rule: " + rule_name)
-                    continue
-                
-                # for cpd in cpds_to_remove:
-                #     if cpd in self.compounds:
-                #         print('here')
-                #         for rxn in self.compounds[cpd]['Product_of']:
-                #             print('rxn')
-                #             if rxn in self.reactions:
-                #                 del(self.reactions[rxn])
-                #         del(self.compounds[cpd])
+                    continue    
 
         return self.compounds, self.reactions       
     
