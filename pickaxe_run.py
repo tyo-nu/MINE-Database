@@ -32,7 +32,6 @@ mongo_uri = 'mongodb://localhost:27017'
 
 # Pickaxe Options
 generations = 2
-racemize = False
 verbose = False
 explicit_h = True
 kekulize = True
@@ -40,7 +39,7 @@ neutralise = True
 image_dir = None
 quiet = True
 indexing = False
-max_workers = 2
+max_workers = 1
 
 # Tanimoto Filtering options
 tani_filter = True
@@ -55,7 +54,7 @@ crit_tani = [0.5, 0.9]
 # Running pickaxe
 # Initialize the Pickaxe class instance
 pk = Pickaxe(coreactant_list=coreactant_list,
-            rule_list=rule_list, racemize=racemize,
+            rule_list=rule_list,
             errors=verbose, explicit_h=explicit_h,
             kekulize=kekulize, neutralise=neutralise,
             image_dir=image_dir, database=database,

@@ -218,9 +218,12 @@ def rxn2hash(reactants, products, return_text=False):
         return ['(%s) %s' % (x[0], x[1]) if (len(x) == 2
                                              and not isinstance(x, str))
                 else '(1) %s' % x for x in sorted(half_rxn)]
-
-    text_rxn = ' + '.join(to_str(reactants)) + ' => ' + \
-               ' + '.join(to_str(products))
+    reactant_ids = [reactant[1]['_id'] for reactant in reactants]
+    product_ids = [product[1]['_id'] for product in products]
+    reactant_ids.sort()
+    product_ids.sort()
+    text_rxn = ' + '.join(to_str(reactant_ids)) + ' => ' + \
+               ' + '.join(to_str(product_ids))
     # Hash text reaction
     rhash = 'R' + hashlib.sha256(text_rxn.encode()).hexdigest()
     if return_text:

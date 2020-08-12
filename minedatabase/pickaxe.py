@@ -169,8 +169,7 @@ class Pickaxe:
                 # Do not operate on inorganic compounds
                 if 'C' in smi or 'c' in smi:
                     AllChem.SanitizeMol(mol)
-                    self._add_compound(c_id, smi, mol=mol,
-                                       cpd_type='Target Compound')                    
+                    self._add_compound(c_id, smi, 'Target Compound', mol)
                     self.target_smiles.append(smi)                    
                     # Generate fingerprints for tanimoto filtering
                     # TODO: is there a faster way of doing this?
@@ -218,8 +217,8 @@ class Pickaxe:
                     # Do not operate on inorganic compounds
                     if 'C' in smi or 'c' in smi:
                         AllChem.SanitizeMol(mol)
-                        self._add_compound(c_id, smi, mol=mol,
-                                        cpd_type='Starting Compound')
+                        self._add_compound(c_id, smi,
+                                           cpd_type='Starting Compound', mol=mol)
                         compound_smiles.append(smi)
 
             # TODO: If a MINE database is being used instead, search for compounds
@@ -280,7 +279,7 @@ class Pickaxe:
             AllChem.Kekulize(mol, clearAromaticFlags=True)
         if self.explicit_h:
             mol = AllChem.AddHs(mol)
-        
+
         # Apply reaction rules to prepared compound
         for rule_name in rules:
             # Lookup rule in dictionary from rule name
@@ -301,23 +300,27 @@ class Pickaxe:
                 continue
             # No enumeration for reactant stereoisomers. _make_half_rxn
             # returns a generator, the first element of which is the reactants.
-            reactants, reactant_atoms = next(
-                self._make_half_rxn(reactant_mols, rule[1]['Reactants']))
+            reactants, reactant_atoms = self._make_half_rxn_dev(reactant_mols, rule[1]['Reactants'])
             # By sorting the reactant (and later products) we ensure that
             # compound order is fixed.
-            reactants.sort()
+            # reactants.sort()
             # TODO: check for balanced rxn and remove
             # Only an issue with Joseph's rules
             for product_mols in product_sets:
                 try:
-                    for stereo_prods, product_atoms in self._make_half_rxn(
-                            product_mols, rule[1]['Products'], self.racemize):
+                    # for stereo_prods, product_atoms in self._make_half_rxn(
+                    #         product_mols, rule[1]['Products'], self.racemize):
                         # Update predicted compounds list
-                        stereo_prods.sort()
+                    products, product_atoms = self._make_half_rxn_dev(product_mols, rule[1]['Products'])
+                    if self._is_atom_balanced(product_atoms, reactant_atoms):
+                        # products.sort()
+                        for _, cpd_dict in products:
+                            if cpd_dict['_id'].startswith('C') and cpd_dict['_id'] not in self.compounds:
+                                self.compounds[cpd_dict['_id']] = cpd_dict                        
                         # Get reaction text (e.g. A + B <==> C + D)
-                        text_rxn = self._add_reaction(reactants, rule_name,
-                                                      stereo_prods)                          
-                                
+                        text_rxn = self._add_reaction_dev(reactants, rule_name,
+                                                        products)                          
+            
                 except (ValueError, MemoryError) as e:
                     if not self.quiet:
                         print(e)
@@ -432,8 +435,7 @@ class Pickaxe:
             smi = AllChem.MolToSmiles(mol)
         except (IndexError, ValueError):
             raise ValueError(f"Unable to load coreactant: {coreactant_text}")
-        c_id = self._add_compound(split_text[0], smi, mol=mol,
-                                 cpd_type='Coreactant')
+        c_id = self._add_compound(split_text[0], smi, 'Coreactant', mol)
         # If hydrogens are to be explicitly represented, add them to the Mol
         # object
         if self.explicit_h:
@@ -600,8 +602,9 @@ class Pickaxe:
             mol = utils.neutralise_charges(mol)
         return mol
 
-    def _add_compound(self, cpd_id, smi, mol=None, cpd_type='Predicted'):
-        """Adds a compound to the internal compound dictionary"""
+    def _gen_compound(self, cpd_id, smi, cpd_type, mol=None):
+        """Generates a compound"""
+        cpd_dict = {}
         c_id = utils.compound_hash(smi, cpd_type)
         self._raw_compounds[smi] = c_id
         # We don't want to overwrite the same compound from a prior
@@ -612,27 +615,45 @@ class Pickaxe:
             inchi_key = AllChem.InchiToInchiKey(AllChem.MolToInchi(mol))
             # expand only Predicted and Starting_compounds
             expand = True if cpd_type in ['Predicted', 'Starting Compound'] else False
-            self.compounds[c_id] = {'ID': cpd_id, '_id': c_id, 'SMILES': smi,
+            cpd_dict = {'ID': cpd_id, '_id': c_id, 'SMILES': smi,
                                    'Type': cpd_type,
                                    'Generation': self.generation,
-                                   '_atom_count': self._get_atom_count(mol),
+                                   'atom_count': self._getatom_count(mol),
                                    'Reactant_in': [], 'Product_of': [],
                                    'Expand': expand}
             if c_id[0] =='X':
-                del(self.compounds[c_id]['Reactant_in'])
-                del(self.compounds[c_id]['Product_of'])
-            
-            if self.image_dir and self.mine:
-                try:
-                    with open(os.path.join(self.image_dir, c_id + '.svg'),
-                              'w') as outfile:
-                        nmol = rdMolDraw2D.PrepareMolForDrawing(mol)
-                        d2d = rdMolDraw2D.MolDraw2DSVG(1000, 1000)
-                        d2d.DrawMolecule(nmol)
-                        d2d.FinishDrawing()
-                        outfile.write(d2d.GetDrawingText())
-                except OSError:
-                    print(f"Unable to generate image for {smi}")
+                del(cpd_dict['Reactant_in'])
+                del(cpd_dict['Product_of'])
+        else:
+            cpd_dict = self.compounds[c_id]
+        
+        return c_id, cpd_dict
+    
+    def _insert_compound(self, cpd_dict):
+        """Inserts a compound into the dictionary"""        
+        self.compounds[cpd_dict['_id']] = cpd_dict
+        # if self.image_dir and self.mine:
+        #         try:
+        #             with open(os.path.join(self.image_dir, c_id + '.svg'),
+        #                     'w') as outfile:
+        #                 nmol = rdMolDraw2D.PrepareMolForDrawing(mol)
+        #                 d2d = rdMolDraw2D.MolDraw2DSVG(1000, 1000)
+        #                 d2d.DrawMolecule(nmol)
+        #                 d2d.FinishDrawing()
+        #                 outfile.write(d2d.GetDrawingText())
+        #         except OSError:
+        #             print(f"Unable to generate image for {smi}")
+
+    def _add_compound(self, cpd_id, smi, cpd_type, mol=None):
+        """Adds a compound to the internal compound dictionary"""
+        c_id = utils.compound_hash(smi, cpd_type)
+        self._raw_compounds[smi] = c_id
+        # We don't want to overwrite the same compound from a prior
+        # generation so we check with hashed id from above
+        if c_id not in self.compounds:
+            _, cpd_dict = self._gen_compound(cpd_id, smi, cpd_type, mol)
+            self._insert_compound(cpd_dict)
+        
         return c_id
 
     def _add_reaction(self, reactants, rule_name, stereo_prods):
@@ -668,6 +689,39 @@ class Pickaxe:
 
         return text_rxn
 
+    def _add_reaction_dev(self, reactants, rule_name, products):
+        """Hashes and inserts reaction into reaction dictionary"""
+        # Hash reaction text
+        rhash = rxn2hash(reactants, products)
+        # Generate unique hash from InChI keys of reactants and products
+        # inchi_rxn_hash, text_rxn = \
+        #     self._calculate_rxn_hash_and_text(reactants, stereo_prods)
+        # STOPPING HERE
+        text_rxn = self._calculate_rxn_text(reactants, products)
+        # Add reaction to reactions dictionary if not already there
+        if rhash not in self.reactions:
+            self.reactions[rhash] = {'_id': rhash,
+                                     'Reactants': reactants,
+                                     'Products': products,
+                                    #  'InChI_hash': inchi_rxn_hash,
+                                     'Operators': {rule_name},                                    
+                                     'SMILES_rxn': text_rxn}
+
+        # Otherwise, update the operators
+        else:
+            self.reactions[rhash]['Operators'].add(rule_name)
+
+        # Update compound tracking
+        for prod_id in [cpd_dict['_id'] for _, cpd_dict in products if cpd_dict['_id'].startswith('C')]:
+            if rhash not in self.compounds[prod_id]['Product_of']:
+                self.compounds[prod_id]['Product_of'].append(rhash)
+        
+        for reac_id in [cpd_dict['_id'] for _, cpd_dict in reactants if cpd_dict['_id'].startswith('C')]:
+            if rhash not in self.compounds[reac_id]['Reactant_in']:
+                self.compounds[reac_id]['Reactant_in'].append(rhash)      
+
+        return text_rxn
+
     def _is_atom_balanced(self, product_atoms, reactant_atoms):
         """If the SMARTS rule is not atom balanced, this check detects the
         accidental alchemy."""
@@ -692,7 +746,7 @@ class Pickaxe:
         else:
             return True
 
-    def _get_atom_count(self, mol):
+    def _getatom_count(self, mol):
         """Takes a set of mol objects and returns a counter with each element
         type in the set"""
         atoms = collections.Counter()
@@ -726,13 +780,40 @@ class Pickaxe:
         # count the number of atoms on a side
         atom_count = collections.Counter()
         for cpd in comps:
-            atom_count += self.compounds[cpd[0]]['_atom_count']
+            atom_count += self.compounds[cpd[0]]['atom_count']
         # Remove duplicates from comps
         half_rxns = [collections.Counter(subrxn) for subrxn
                      in itertools.product(*comps)]
         # Yield generator with stoichiometry tuples (of form stoichiometry, id)
         for rxn in half_rxns:
             yield [StoichTuple(y, x) for x, y in rxn.items()], atom_count
+
+    def _make_half_rxn_dev(self, mol_list, rules):
+        """Takes a list of mol objects for a half reaction, combines like
+        compounds and returns a generator for stoich tuples"""
+        # Get compound ids from Mol objects, except for coreactants, in which
+        #  case we look them up in the coreactant dictionary
+        cpds = {}
+        cpd_counter = collections.Counter()
+
+        for mol, rule in zip(mol_list, rules):
+            if rule == 'Any':
+                cpd_id, cpd_dict = self._calculate_compound_information_dev(mol)
+            else:
+                cpd_id = self.coreactants[rule][1]
+                cpd_dict = self.compounds[cpd_id]
+
+            cpds[cpd_id] = cpd_dict
+            cpd_counter.update({cpd_id : 1})
+
+        # count the number of atoms on a side
+        atom_counts = collections.Counter()
+        for cpd_id, cpd_dict in cpds.items():
+            # atom_count += cpd_dict['atom_count']*cpd_counter[cpd_id]        
+            for atom_id, atom_count in cpd_dict['atom_count'].items():
+                atom_counts[atom_id] += atom_count*cpd_counter[cpd_id]
+
+        return [(stoich, cpds[cpd_id]) for cpd_id, stoich in cpd_counter.items()], atom_counts
 
     def _calculate_compound_information(self, mol_obj, split_stereoisomers):
         """Calculate the standard data for a compound & return a tuple with
@@ -758,22 +839,53 @@ class Pickaxe:
             # Get list of SMILES string(s) from Mol object(s)
             smiles = [AllChem.MolToSmiles(m, True) for m in processed_mols]
             # Add compound(s) to internal dictionary
-            self._raw_compounds[raw] = tuple([self._add_compound(None, s,
+            self._raw_compounds[raw] = tuple([self._add_compound(None, s, 'Predicted',
                                                                  mol=m)
                                               for s, m in zip(smiles,
                                                               processed_mols)])
         return self._raw_compounds[raw] if isinstance(
             self._raw_compounds[raw], tuple) else (self._raw_compounds[raw],)
 
+    def _calculate_compound_information_dev(self, mol_obj):
+        """Calculate the standard data for a compound & return a tuple with
+        compound_ids. Memoized with _raw_compound dict"""
+        # This is the raw SMILES which may have explicit hydrogen
+        raw = AllChem.MolToSmiles(mol_obj, True)
+        if raw not in self._raw_compounds:
+            try:
+                # Remove hydrogens if explicit (this step slows down the
+                # process quite a bit)
+                if self.explicit_h:
+                    mol_obj = AllChem.RemoveHs(mol_obj)
+                AllChem.SanitizeMol(mol_obj)
+            except ValueError:
+                if not self.quiet:
+                    print("Product ERROR!: " + raw)
+                raise ValueError
+            # In case we want to have separate entries for stereoisomers
+            
+            # Get the molecule smiles
+            smiles = AllChem.MolToSmiles(mol_obj, True)
+            cpd_id, cpd_dict = self._gen_compound(None, smiles, 'Predicted', mol_obj)
+            self._raw_compounds[raw] = cpd_id
+        else:
+            cpd_id = self._raw_compounds[raw]
+            cpd_dict = self.compounds[cpd_id]
+            
+
+        return cpd_id, cpd_dict
+
     def _calculate_rxn_text(self, reactants, products):
         """Calculates a unique reaction hash using inchikeys. First block is
         connectivity only, second block is stereo only"""
-        def get_blocks(tups):
+        def get_blocks(cpds):
+            cpd_tups = [(stoich, cpd_dict['_id'], cpd_dict['SMILES']) for stoich, cpd_dict in cpds]
+            cpd_tups.sort(key=lambda x: x[1])
             smiles = []
-            for x in tups:
-                comp = self.compounds[x.c_id]
-                smiles.append(f"({x.stoich}) {comp['SMILES']}")                
+            for cpd in cpd_tups:
+                smiles.append(f"({cpd[0]}) {cpd[2]}")                
             return ' + '.join(smiles)
+
         r_s = get_blocks(reactants)
         p_s = get_blocks(products)
         smiles_rxn = r_s + ' => ' + p_s        
@@ -1075,8 +1187,12 @@ class Pickaxe:
         # and processed that way. Each batch is calculated
         # in parallel.
         n_rxns = len(self.reactions)
-        chunk_size = max(int(n_rxns/100), 100)        
+        chunk_size = max(int(n_rxns/100), 10000)     
+        print(f"Reaction chunk size writing: {chunk_size}")   
+        n_loop = 1
         for rxn_id_chunk in chunks(list(self.reactions.keys()), chunk_size):
+            print(f"Writing Reaction Chunk {n_loop} of {round(n_rxns/chunk_size)+1}")
+            n_loop += 1
             mine_rxn_requests = self._save_reactions(rxn_id_chunk, db, num_workers)
             if mine_rxn_requests:
                 db.reactions.bulk_write(mine_rxn_requests, ordered=False)
@@ -1090,6 +1206,7 @@ class Pickaxe:
         # in parallel.
         n_cpds = len(self.compounds)
         chunk_size = max(int(n_cpds/100), 1000)
+        print(f"Compound chunk size writing: {chunk_size}")  
         n_loop = 1
         for cpd_id_chunk in chunks(list(self.compounds.keys()), chunk_size):
             # Insert the three types of compounds
