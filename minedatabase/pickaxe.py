@@ -301,6 +301,8 @@ class Pickaxe:
             # No enumeration for reactant stereoisomers. _make_half_rxn
             # returns a generator, the first element of which is the reactants.
             reactants, reactant_atoms = self._make_half_rxn_dev(reactant_mols, rule[1]['Reactants'])
+            if not reactants:
+                continue
             # By sorting the reactant (and later products) we ensure that
             # compound order is fixed.
             # reactants.sort()
@@ -311,14 +313,20 @@ class Pickaxe:
                     # for stereo_prods, product_atoms in self._make_half_rxn(
                     #         product_mols, rule[1]['Products'], self.racemize):
                         # Update predicted compounds list
-                    products, product_atoms = self._make_half_rxn_dev(product_mols, rule[1]['Products'])
+                    try:
+                        products, product_atoms = self._make_half_rxn_dev(product_mols, rule[1]['Products'])
+                        if not products:
+                            continue
+                    except:
+                        continue
+
                     if self._is_atom_balanced(product_atoms, reactant_atoms):
                         # products.sort()
                         for _, cpd_dict in products:
                             if cpd_dict['_id'].startswith('C') and cpd_dict['_id'] not in self.compounds:
                                 self.compounds[cpd_dict['_id']] = cpd_dict                        
                         # Get reaction text (e.g. A + B <==> C + D)
-                        text_rxn = self._add_reaction_dev(reactants, rule_name,
+                        self._add_reaction_dev(reactants, rule_name,
                                                         products)                          
             
                 except (ValueError, MemoryError) as e:
@@ -799,6 +807,9 @@ class Pickaxe:
         for mol, rule in zip(mol_list, rules):
             if rule == 'Any':
                 cpd_id, cpd_dict = self._calculate_compound_information_dev(mol)
+                if cpd_id == None:
+                    # failed to make rxn
+                    return None, None
             else:
                 cpd_id = self.coreactants[rule][1]
                 cpd_dict = self.compounds[cpd_id]
@@ -858,10 +869,8 @@ class Pickaxe:
                 if self.explicit_h:
                     mol_obj = AllChem.RemoveHs(mol_obj)
                 AllChem.SanitizeMol(mol_obj)
-            except ValueError:
-                if not self.quiet:
-                    print("Product ERROR!: " + raw)
-                raise ValueError
+            except:
+                return None, None
             # In case we want to have separate entries for stereoisomers
             
             # Get the molecule smiles

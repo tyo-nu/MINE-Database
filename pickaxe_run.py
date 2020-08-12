@@ -9,10 +9,10 @@ start = time.time()
 input_cpds = './example_data/starting_cpds_ten.csv'
 
 # Cofactors and rules
-coreactant_list = './minedatabase/data/EnzymaticCoreactants.tsv'
-rule_list = './minedatabase/data/EnzymaticReactionRules.tsv'
-# coreactant_list = './minedatabase/data/MetaCyc_Coreactants.tsv'
-# rule_list = './minedatabase/data/metacyc_generalized_rules_500.tsv'
+# coreactant_list = './minedatabase/data/EnzymaticCoreactants.tsv'
+# rule_list = './minedatabase/data/EnzymaticReactionRules.tsv'
+coreactant_list = './minedatabase/data/MetaCyc_Coreactants.tsv'
+rule_list = './minedatabase/data/metacyc_generalized_rules_500.tsv'
 
 # Database to write results to
 write_db = True
@@ -31,9 +31,9 @@ mongo_uri = 'mongodb://localhost:27017'
 # mongo_uri = f"mongodb://{creds[0]}:{creds[1]}@minedatabase.ci.northwestern.edu:27017/?authSource=admin"
 
 # Pickaxe Options
-generations = 2
+generations = 1
 verbose = False
-explicit_h = True
+explicit_h = False
 kekulize = True
 neutralise = True
 image_dir = None
@@ -42,7 +42,7 @@ indexing = False
 max_workers = 1
 
 # Tanimoto Filtering options
-tani_filter = True
+tani_filter = False
 # Prune results to only give expanded compounds/rxns
 # Currently also includes all of the last generation
 tani_prune = False
