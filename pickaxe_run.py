@@ -9,15 +9,15 @@ start = time.time()
 input_cpds = './example_data/starting_cpds_ten.csv'
 
 # Cofactors and rules
-# coreactant_list = './minedatabase/data/EnzymaticCoreactants.tsv'
-# rule_list = './minedatabase/data/EnzymaticReactionRules.tsv'
-coreactant_list = './minedatabase/data/MetaCyc_Coreactants.tsv'
-rule_list = './minedatabase/data/metacyc_generalized_rules_500.tsv'
+coreactant_list = './minedatabase/data/EnzymaticCoreactants.tsv'
+rule_list = './minedatabase/data/EnzymaticReactionRules.tsv'
+# coreactant_list = './minedatabase/data/MetaCyc_Coreactants.tsv'
+# rule_list = './minedatabase/data/metacyc_generalized_rules_500.tsv'
 
 # Database to write results to
 write_db = True
 database_overwrite = True
-database = 'test'
+database = 'test_dev_mod'
 
 # creds = open('credentials.csv').readline().split(',')
 # creds = [cred.strip('\n') for cred in creds]
@@ -33,7 +33,7 @@ mongo_uri = 'mongodb://localhost:27017'
 # Pickaxe Options
 generations = 1
 verbose = False
-explicit_h = False
+explicit_h = True
 kekulize = True
 neutralise = True
 image_dir = None
@@ -63,14 +63,15 @@ pk = Pickaxe(coreactant_list=coreactant_list,
 
 # Load compounds
 pk.load_compound_set(compound_file=input_cpds)
-if tani_filter:
-    pk.load_target_compounds(target_compound_file=target_cpds, crit_tani=crit_tani)
+pk.transform()
+# if tani_filter:
+#     pk.load_target_compounds(target_compound_file=target_cpds, crit_tani=crit_tani)
 
-# Transform based on reaction rules
-pk.transform_all(max_generations=generations,
-                     num_workers=max_workers)
+# # Transform based on reaction rules
+# pk.transform_all(max_generations=generations,
+#                      num_workers=max_workers)
 
-# Write results
+# # Write results
 if write_db:
     if tani_filter and tani_prune:
         pk.prune_network_to_targets()
@@ -88,4 +89,4 @@ if write_db:
                                         "Targeting 1k molecules identified by XZ using original 250 rules.")})
 
 
-print(f'Overall run took {round(time.time() - start, 2)} seconds.')
+# print(f'Overall run took {round(time.time() - start, 2)} seconds.')

@@ -383,16 +383,14 @@ class MINE:
         :return: The hashed _id of the reaction
         :rtype: str
         """
-        reaction_dict['_id'] = utils.rxn2hash(reaction_dict['Reactants'],
-                                              reaction_dict['Products'])
 
         # By converting to a dict, mongo stores the data as objects not
         # arrays allowing for queries by compound hash
-        if isinstance(reaction_dict['Reactants'][0], utils.StoichTuple):
-            reaction_dict['Reactants'] = [x._asdict() for x
-                                          in reaction_dict['Reactants']]
-            reaction_dict['Products'] = [x._asdict() for x
-                                         in reaction_dict['Products']]
+        # if isinstance(reaction_dict['Reactants'][0], utils.StoichTuple):
+        #     reaction_dict['Reactants'] = [x._asdict() for x
+        #                                   in reaction_dict['Reactants']]
+        #     reaction_dict['Products'] = [x._asdict() for x
+        #                                  in reaction_dict['Products']]
 
         reaction_dict = utils.convert_sets_to_lists(reaction_dict)
         # If bulk insertion, upsert (insert and update) the database
