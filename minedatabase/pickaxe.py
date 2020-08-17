@@ -1,27 +1,26 @@
 """Pickaxe.py: This module generates new compounds from user-specified starting
    compounds using a set of SMARTS-based reaction rules."""
+import multiprocessing
 import collections
-import csv
+import itertools
 import datetime
 import hashlib
-import itertools
-import multiprocessing
+import time
+import csv
 import os
 import re
-import time
-from sys import exit
-from argparse import ArgumentParser
+
+from functools import partial
 from copy import deepcopy
+from sys import exit
 
-from rdkit import RDLogger
-from rdkit.Chem import AllChem
-from rdkit.Chem.Draw import MolToFile, rdMolDraw2D
-
-from minedatabase import utils
-from minedatabase.databases import MINE
 import minedatabase.databases as databases
-from minedatabase.utils import rxn2hash, StoichTuple, get_fp
+from minedatabase.databases import MINE
+from minedatabase import utils
 
+from rdkit.Chem.Draw import MolToFile, rdMolDraw2D
+from rdkit.Chem import AllChem
+from rdkit import RDLogger
 
 class Pickaxe:
     """This class generates new compounds from user-specified starting
@@ -337,7 +336,7 @@ class Pickaxe:
 
         return self.compounds, self.reactions       
     
-    def transform_compound_par(self, cpd_id):
+
         """Perform transformations to a compound returning the products and the
         predicted reactions
 
@@ -428,26 +427,6 @@ class Pickaxe:
 
         return self.compounds, self.reactions
 
-    def transform_chunk(self, cpd_id_chunk):
-        """This function takes in a chunyuk of compound ids and applies transformations to them,
-        storing the new compounds and reactions in a local dictionary to be passed back to,
-        the main transform_all function.
-        """
-        gen_cpds = {}
-        gen_rxns = {}
-
-        for cpd_id in cpd_id_chunk:
-            cpd_gen_cpds, cpd_gen_rxns = self.transform_compound_par(cpd_id)
-            """new_cpds and new_rxns are going to be returned as
-            {cpd_id: cpd_dict}
-            {rxn_id: rxn_dict}
-            Product of will be added later
-            """
-            gen_cpds.update(cpd_gen_cpds)
-            gen_rxns.update(cpd_gen_rxns)
-        
-        return gen_cpds, gen_rxns
-
     def transform_all(self, num_workers=1, max_generations=1):
         """This function applies all of the reaction rules to all the compounds
         until the generation cap is reached.
@@ -467,6 +446,8 @@ class Pickaxe:
                 print(f"Generation {self.generation}: {round(done / total * 100)} percent complete")
 
         while self.generation < max_generations:
+            # Time for tani filtering
+            time_tani = time.time()
             if self.tani_filter == True:
                 if not self.target_fps:
                     print(f'No targets to filter for. Terminating expansion.')
@@ -479,53 +460,32 @@ class Pickaxe:
                 print(f"Filtering out tanimoto < {crit_tani}")
                 self._filter_by_tani(num_workers=num_workers)
                 n_filtered = 0
-                n_total = 0
-                # TODO better way to record this instead of looping again
+                n_total = 0                
                 for cpd_dict in self.compounds.values():
                     if cpd_dict['Generation'] == self.generation:
                         n_total += 1
                         if cpd_dict['Expand'] == True:
                             n_filtered += 1
+                print(f'{n_filtered} of {n_total} compounds remain after filter--took {time.now() - time_tani}s.\n\nExpanding.')
 
-                print(f'{n_filtered} of {n_total} compounds remain after filter.\n\nExpanding.')
-
-            self.generation += 1
-            # Use to print out time per generation at end of loop
+            # Time for expansion
             time_init = time.time()
+            self.generation += 1
+            
             n_comps = len(self.compounds)
             n_rxns = len(self.reactions)
-            # Get all SMILES strings for compounds
+            # Get SMILES to be expanded
             compound_smiles = [cpd['SMILES'] for cpd in self.compounds.values()
                             if cpd['Generation'] == self.generation - 1
                             and cpd['Type'] not in ['Coreactant', 'Target Compound']
-                            and cpd['Expand'] == True]
-
+                            and cpd['Expand'] == True]                            
+            # Didn't find anything to expand. Exit expansion
             if not compound_smiles:
-                continue
-            if num_workers > 1:
-                chunk_size = max(
-                    [round(len(compound_smiles) / (num_workers * 10)), 1])
-                print(f"Chunk Size for generation {self.generation}:", chunk_size)
-                new_comps = deepcopy(self.compounds)
-                new_rxns = deepcopy(self.reactions)
-                pool = multiprocessing.Pool(processes=num_workers)
-                for i, res in enumerate(pool.imap_unordered(
-                        self.transform_compound, compound_smiles, chunk_size)):
-                    new_comps.update(res[0])
-                    new_rxns.update(res[1])
-                    print_progress((i + 1), len(compound_smiles))
-                self.compounds = new_comps
-                self.reactions = new_rxns
-            else:
-                for i, smi in enumerate(compound_smiles):
-                    # Perform possible reactions on compound
-                    try:
-                        self.transform_compound(smi)
-                        print_progress(i, len(compound_smiles))
-                    except:
-                        # TODO what error
-                        continue
+                print(f'No compounds to expand in generation {self.generation}. Finished expanding.')
+                return None
 
+            self._transform_helper(compound_smiles, num_workers)
+            
             print(f"Generation {self.generation} took {time.time()-time_init} sec and produced:")
             print(f"\t\t{len(self.compounds) - n_comps} new compounds")
             print(f"\t\t{len(self.reactions) - n_rxns} new reactions")
@@ -675,7 +635,7 @@ class Pickaxe:
             crit_tani = self.crit_tani
 
         try:
-            fp1 = get_fp(cpd['SMILES'])
+            fp1 = utils.get_fp(cpd['SMILES'])
             for fp2 in self.target_fps:
                 if AllChem.DataStructs.FingerprintSimilarity(fp1, fp2) >= crit_tani:
                     return (cpd['_id'], True)
@@ -777,7 +737,7 @@ class Pickaxe:
     def _add_reaction(self, reactants, rule_name, stereo_prods):
         """Hashes and inserts reaction into reaction dictionary"""
         # Hash reaction text
-        rhash = rxn2hash(reactants, stereo_prods)
+        rhash = utils.rxn2hash(reactants, stereo_prods)
         # Generate unique hash from InChI keys of reactants and products
         # inchi_rxn_hash, text_rxn = \
         #     self._calculate_rxn_hash_and_text(reactants, stereo_prods)
@@ -810,7 +770,7 @@ class Pickaxe:
     def _add_reaction_dev(self, reactants, rule_name, products):
         """Hashes and inserts reaction into reaction dictionary"""
         # Hash reaction text
-        rhash = rxn2hash(reactants, products)
+        rhash = utils.rxn2hash(reactants, products)
         # Generate unique hash from InChI keys of reactants and products
         # inchi_rxn_hash, text_rxn = \
         #     self._calculate_rxn_hash_and_text(reactants, stereo_prods)
@@ -843,7 +803,7 @@ class Pickaxe:
     def _add_reaction_par(self, reactants, rule_name, products):
         """Hashes and returns rxn dicts"""
         # Hash reaction text
-        rhash = rxn2hash(reactants, products)
+        rhash = utils.rxn2hash(reactants, products)
         text_rxn = self._calculate_rxn_text(reactants, products)
         # Add reaction to reactions dictionary if not already there
         if rhash not in self.reactions:
@@ -1340,36 +1300,48 @@ class Pickaxe:
         print(f"Finished uploading everything in {time.time() - start} sec")
         print(f"----------------------------------------\n")
 
-    def transform(self):
-
+    def _transform_helper(self, compound_smiles, num_workers):
+        """Transforms compounds externally of class"""
         def chunks(lst, n):
-            """Yield successive n-sized chunks from lst."""
+            """Function to yield n-sized chunks from a given list"""
             n = max(n, 1)           
             for i in range(0, len(lst), n):
                 yield lst[i:i + n]
+    
+        # to pass coreactants externally
+        coreactant_dict = {co_key: self.compounds[co_key] for _, co_key in self.coreactants.values()}
 
+        # Sets to record generated compounds to be added to overall
         new_cpds = dict()
         new_rxns = dict()
-        compound_smiles = [cpd['SMILES'] for cpd in self.compounds.values()
-                            if cpd['Generation'] == self.generation
-                            and cpd['Type'] not in ['Coreactant', 'Target Compound']
-                            and cpd['Expand'] == True]
 
-        coreactant_dict = {co_key: self.compounds[co_key] for _, co_key in self.coreactants.values()}
-        
-        self.generation += 1
-        for cpd_chunk in chunks(compound_smiles, 3):
-            new_cpds_chunk, new_rxns_chunk = _transform_all_helper(cpd_chunk, self.coreactants, coreactant_dict, 
-                self.operators, self.generation, self.explicit_h)
+        # Parallel computing
+        if num_workers > 1:
+            # Determine the chunk size
+            # This chunk size is the number of compounds to send out
+            # to be processed in a parallel manner. James used this,
+            # not sure where the metric came from... figure out.
+            chunk_size = max(
+                [round(len(compound_smiles) / (num_workers * 10)), 1])
+            print(f"Chunk Size for generation {self.generation}:", chunk_size)
 
-            new_cpds.update(new_cpds_chunk)
-            for rxn, rxn_dict in new_rxns_chunk.items():
+        else:
+            chunk_size = len(compound_smiles)       
+
+        # send out chunks for processing and record results into sets for later processing
+        for cpd_chunk in chunks(compound_smiles, chunk_size):
+            new_cpds_from_chunk, new_rxns_from_chunk = _transform_compounds_external(cpd_chunk, self.coreactants, 
+                                coreactant_dict, self.operators, self.generation, self.explicit_h, num_workers)
+
+            new_cpds.update(new_cpds_from_chunk)
+            for rxn, rxn_dict in new_rxns_from_chunk.items():
                 if rxn in new_rxns:
                     new_rxns[rxn]['Operators'].update(new_rxns[rxn]['Operators'])
                 else:
                     new_rxns.update({rxn:rxn_dict})
 
-        # update self.compounds / self.reactions here
+        # Save results to self.compounds / self.reactions 
+        # ensuring there are no collisions and updating information if there are
         for cpd_id, cpd_dict in new_cpds.items():
             if cpd_id not in self.compounds:
                 self.compounds[cpd_id] = cpd_dict
@@ -1389,7 +1361,6 @@ class Pickaxe:
             for reac_id in [cpd_id for _, cpd_id in rxn_dict['Reactants'] if cpd_id.startswith('C')]:
                 if rxn_id not in self.compounds[reac_id]['Reactant_in']:
                     self.compounds[reac_id]['Reactant_in'].append(rxn_id)
-
 
 def _racemization(compound, max_centers=3, carbon_only=True):
     """Enumerates all possible stereoisomers for unassigned chiral centers.
@@ -1436,7 +1407,7 @@ def _racemization(compound, max_centers=3, carbon_only=True):
         new_comps.append(deepcopy(compound))
     return new_comps
 
-def _transform_compound(cpd_smiles, coreactant_mols, coreactant_dict, operators, generation, explicit_h):
+def _transform_compound_external(coreactant_mols, coreactant_dict, operators, generation, explicit_h, cpd_smiles):
     # kekulize
 
     def _make_half_rxn(mol_list, rules):
@@ -1485,25 +1456,17 @@ def _transform_compound(cpd_smiles, coreactant_mols, coreactant_dict, operators,
     
         return cpd_dict
 
-    
-
     local_cpds = {}
     local_rxns = {}
 
     mol = AllChem.MolFromSmiles(cpd_smiles)
     mol = AllChem.RemoveHs(mol)
-
-    if not mol:
-        if self.errors:
-            raise ValueError(f"Unable to parse: {compound_smiles}")
-        else:
-            print(f"Unable to parse: {compound_smiles}")
-            return
-    # if self.kekulize:
-    #         AllChem.Kekulize(mol, clearAromaticFlags=True)
-    # if self.explicit_h:
-    #     mol = AllChem.AddHs(mol)
-
+    if not mol:        
+        print(f"Unable to parse: {compound_smiles}")
+        return None
+    AllChem.Kekulize(mol, clearAromaticFlags=True)
+    if explicit_h:
+        mol = AllChem.AddHs(mol)
     # Apply reaction rules to prepared compound
 
     for rule_name, rule in operators.items():
@@ -1521,8 +1484,7 @@ def _transform_compound(cpd_smiles, coreactant_mols, coreactant_dict, operators,
             print("Runtime ERROR!" + rule_name)
             print(compound_smiles)
             continue
-        
-        #FIX
+
         reactants, reactant_atoms = _make_half_rxn(reactant_mols, rule[1]['Reactants'])      
              
         if not reactants:
@@ -1530,12 +1492,8 @@ def _transform_compound(cpd_smiles, coreactant_mols, coreactant_dict, operators,
 
         for product_mols in product_sets:
                 try:
-                    try:
-                        #FIX
-                        products, product_atoms = _make_half_rxn(product_mols, rule[1]['Products'])
-                        if not products:
-                            continue
-                    except:
+                    products, product_atoms = _make_half_rxn(product_mols, rule[1]['Products'])
+                    if not products:
                         continue
                     
                     if (reactant_atoms - product_atoms or product_atoms - reactant_atoms):
@@ -1547,9 +1505,8 @@ def _transform_compound(cpd_smiles, coreactant_mols, coreactant_dict, operators,
                         for _, cpd_dict in products:
                             if cpd_dict['_id'].startswith('C'):
                                 local_cpds.update({cpd_dict['_id']:cpd_dict})
-                        #FIX
-                        #add reaction here
-                        rhash, rxn_text = rxn2hash(reactants, products)
+
+                        rhash, rxn_text = utils.rxn2hash(reactants, products)
                         if rhash not in local_rxns:
                             local_rxns[rhash] = {'_id': rhash,
                                                  # give stoich and id of reactants/products
@@ -1565,7 +1522,8 @@ def _transform_compound(cpd_smiles, coreactant_mols, coreactant_dict, operators,
     
     return local_cpds,local_rxns
 
-def _transform_all_helper(cpd_list, coreactants, coreactant_dict, operators, generation, explicit_h, **kwargs):
+def _transform_compounds_external(cpd_list, coreactants, coreactant_dict, operators, generation, explicit_h,
+                                    num_workers, **kwargs):
     """
     This function is made to reduce the memory load of parallelization.
     Currently it is believed that the in pickaxe class parallelization will generation
@@ -1580,19 +1538,38 @@ def _transform_all_helper(cpd_list, coreactants, coreactant_dict, operators, gen
 
     new_cpds_master = {}
     new_rxns_master = {}
+
+    transform_compound_partial = partial(_transform_compound_external, coreactants, coreactant_dict, operators, generation, explicit_h)
     # par loop
-    for cpd_smiles in cpd_list:
-        new_cpds, new_rxns = _transform_compound(cpd_smiles, coreactants, 
-            coreactant_dict, operators, generation, explicit_h)
-        # new_cpds as cpd_id:cpd_dict
-        # new_rxns as rxn_id:rxn_dict
-        new_cpds_master.update(new_cpds)
-        # Need to check if reactions already exist to update operators list
-        for rxn, rxn_dict in new_rxns.items():
-            if rxn in new_rxns_master:
-                new_rxns_master[rxn]['Operators'].union(rxn_dict['Operators'])
-            else:
-                new_rxns_master.update({rxn:rxn_dict})
+    if num_workers > 1:
+        # TODO chunk size?
+        chunk_size = max(
+                [round(len(compound_smiles) / (num_workers * 10)), 1])
+        pool = multiprocessing.Pool(processes=num_workers)
+        for i, res in enumerate(pool.imap_unordered(
+                            transform_compound_partial, compound_smiles, chunk_size)):
+                new_cpds, new_rxns = res
+                new_cpds_master.update(new_cpds)
+                
+                # Need to check if reactions already exist to update operators list
+                for rxn, rxn_dict in new_rxns.items():
+                    if rxn in new_rxns_master:
+                        new_rxns_master[rxn]['Operators'].union(rxn_dict['Operators'])
+                    else:
+                        new_rxns_master.update({rxn:rxn_dict})
+
+    else:
+        for cpd_smiles in cpd_list:
+            new_cpds, new_rxns = transform_compound_partial(cpd_smiles)
+            # new_cpds as cpd_id:cpd_dict
+            # new_rxns as rxn_id:rxn_dict
+            new_cpds_master.update(new_cpds)
+            # Need to check if reactions already exist to update operators list
+            for rxn, rxn_dict in new_rxns.items():
+                if rxn in new_rxns_master:
+                    new_rxns_master[rxn]['Operators'].union(rxn_dict['Operators'])
+                else:
+                    new_rxns_master.update({rxn:rxn_dict})
 
 
     return new_cpds_master, new_rxns_master
