@@ -17,7 +17,7 @@ rule_list = './minedatabase/data/metacyc_generalized_rules_500.tsv'
 # Database to write results to
 write_db = True
 database_overwrite = True
-database = 'test_dev_mod_par1'
+database = 'KMS_devJ_single'
 
 # creds = open('credentials.csv').readline().split(',')
 # creds = [cred.strip('\n') for cred in creds]
@@ -39,7 +39,7 @@ neutralise = True
 image_dir = None
 quiet = True
 indexing = False
-max_workers = 2
+num_workers = 1
 
 # Tanimoto Filtering options
 tani_filter = False
@@ -63,7 +63,7 @@ pk = Pickaxe(coreactant_list=coreactant_list,
 
 # Load compounds
 pk.load_compound_set(compound_file=input_cpds)
-pk.transform_all()
+pk.transform_all(num_workers, generations)
 # if tani_filter:
 #     pk.load_target_compounds(target_compound_file=target_cpds, crit_tani=crit_tani)
 
@@ -75,7 +75,7 @@ pk.transform_all()
 if write_db:
     if tani_filter and tani_prune:
         pk.prune_network_to_targets()
-    pk.save_to_mine(num_workers=max_workers, indexing=indexing)
+    pk.save_to_mine(num_workers=num_workers, indexing=indexing)
     client = pymongo.MongoClient(mongo_uri)
     db = client[database]
     db.meta_data.insert_one({"Timestamp": datetime.datetime.now(),

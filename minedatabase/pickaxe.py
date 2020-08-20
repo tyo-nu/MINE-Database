@@ -485,6 +485,7 @@ class Pickaxe:
                 return None
 
             self._transform_helper(compound_smiles, num_workers)
+
             
             print(f"Generation {self.generation} took {time.time()-time_init} sec and produced:")
             print(f"\t\t{len(self.compounds) - n_comps} new compounds")
@@ -1226,11 +1227,11 @@ class Pickaxe:
         # in parallel.
         n_cpds = len(self.compounds)
         chunk_size = max(int(n_cpds/100), 1000)
-        print(f"Compound chunk size writing: {chunk_size}")  
+        print(f"Compound chunk size: {chunk_size}")  
         n_loop = 1
         for cpd_id_chunk in chunks(list(self.compounds.keys()), chunk_size):
             # Insert the three types of compounds
-            print(f"Writing Compound Chunk {n_loop} of {round(n_cpds/chunk_size)+1}")
+            print(f"Writing Compound Chunk {n_loop} of {round(n_cpds/chunk_size)}")
             n_loop += 1
             core_cpd_requests, core_update_mine_requests, mine_cpd_requests = self._save_compounds(cpd_id_chunk, db, num_workers)            
             if core_cpd_requests:
@@ -1242,7 +1243,7 @@ class Pickaxe:
             if mine_cpd_requests:
                 db.compounds.bulk_write(mine_cpd_requests, ordered=False)                     
                 del(mine_cpd_requests) 
-        print(f" Finished insertin Compounds to the MINE in {time.time() - cpd_start} seconds.")
+        print(f"Finished inserting Compounds to the MINE in {time.time() - cpd_start} seconds.")
         db.meta_data.insert_one({"Timestamp": datetime.datetime.now(),
                         "Action": "Core Compounds Inserted"})
         db.meta_data.insert_one({"Timestamp": datetime.datetime.now(),
@@ -1308,6 +1309,14 @@ class Pickaxe:
             for i in range(0, len(lst), n):
                 yield lst[i:i + n]
     
+        def print_progress(done, total):
+            # Use print_on to print % completion roughly every 5 percent
+            # Include max to print no more than once per compound (e.g. if
+            # less than 20 compounds)
+            print_on = max(round(.05 * total), 1)
+            if not done % print_on:
+                print(f"Generation {self.generation}: {round(done / total * 100)} percent complete")
+
         # to pass coreactants externally
         coreactant_dict = {co_key: self.compounds[co_key] for _, co_key in self.coreactants.values()}
 
@@ -1322,24 +1331,24 @@ class Pickaxe:
             # to be processed in a parallel manner. James used this,
             # not sure where the metric came from... figure out.
             chunk_size = max(
-                [round(len(compound_smiles) / (num_workers * 10)), 1])
+                [round(len(compound_smiles) / (num_workers)), 1])
             print(f"Chunk Size for generation {self.generation}:", chunk_size)
 
         else:
             chunk_size = len(compound_smiles)       
 
         # send out chunks for processing and record results into sets for later processing
-        for cpd_chunk in chunks(compound_smiles, chunk_size):
+        for i, cpd_chunk in enumerate(chunks(compound_smiles, chunk_size)):
             new_cpds_from_chunk, new_rxns_from_chunk = _transform_compounds_external(cpd_chunk, self.coreactants, 
                                 coreactant_dict, self.operators, self.generation, self.explicit_h, num_workers)
-
+            
             new_cpds.update(new_cpds_from_chunk)
             for rxn, rxn_dict in new_rxns_from_chunk.items():
                 if rxn in new_rxns:
                     new_rxns[rxn]['Operators'].update(new_rxns[rxn]['Operators'])
                 else:
                     new_rxns.update({rxn:rxn_dict})
-
+            print_progress((i+1)*chunk_size, len(compound_smiles))
         # Save results to self.compounds / self.reactions 
         # ensuring there are no collisions and updating information if there are
         for cpd_id, cpd_dict in new_cpds.items():
@@ -1406,7 +1415,6 @@ def _racemization(compound, max_centers=3, carbon_only=True):
         # same object
         new_comps.append(deepcopy(compound))
     return new_comps
-
 def _transform_compound_external(coreactant_mols, coreactant_dict, operators, generation, explicit_h, cpd_smiles):
     # kekulize
 
@@ -1442,7 +1450,10 @@ def _transform_compound_external(coreactant_mols, coreactant_dict, operators, ge
         except:
             return None
 
-        mol_smiles = AllChem.MolToSmiles(mol, True)            
+        mol_smiles = AllChem.MolToSmiles(mol, True)     
+        if '.' in mol_smiles:
+            return None
+                   
         c_id = utils.compound_hash(mol_smiles, 'Predicted')
         if c_id not in local_cpds:
             cpd_dict = {'ID': None, '_id': c_id, 'SMILES': mol_smiles,
@@ -1522,7 +1533,7 @@ def _transform_compound_external(coreactant_mols, coreactant_dict, operators, ge
     
     return local_cpds,local_rxns
 
-def _transform_compounds_external(cpd_list, coreactants, coreactant_dict, operators, generation, explicit_h,
+def _transform_compounds_external(compound_smiles, coreactants, coreactant_dict, operators, generation, explicit_h,
                                     num_workers, **kwargs):
     """
     This function is made to reduce the memory load of parallelization.
@@ -1544,7 +1555,7 @@ def _transform_compounds_external(cpd_list, coreactants, coreactant_dict, operat
     if num_workers > 1:
         # TODO chunk size?
         chunk_size = max(
-                [round(len(compound_smiles) / (num_workers * 10)), 1])
+                [round(len(compound_smiles) / (num_workers)), 1])
         pool = multiprocessing.Pool(processes=num_workers)
         for i, res in enumerate(pool.imap_unordered(
                             transform_compound_partial, compound_smiles, chunk_size)):
@@ -1559,8 +1570,8 @@ def _transform_compounds_external(cpd_list, coreactants, coreactant_dict, operat
                         new_rxns_master.update({rxn:rxn_dict})
 
     else:
-        for cpd_smiles in cpd_list:
-            new_cpds, new_rxns = transform_compound_partial(cpd_smiles)
+        for smiles in compound_smiles:
+            new_cpds, new_rxns = transform_compound_partial(smiles)
             # new_cpds as cpd_id:cpd_dict
             # new_rxns as rxn_id:rxn_dict
             new_cpds_master.update(new_cpds)
