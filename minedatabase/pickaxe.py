@@ -446,6 +446,8 @@ class Pickaxe:
                 print(f"Generation {self.generation}: {round(done / total * 100)} percent complete")
 
         while self.generation < max_generations:
+            print('----------------------------------------')
+            print(f'Expanding Generation {self.generation}')
             # Time for tani filtering
             time_tani = time.time()
             if self.tani_filter == True:
@@ -1542,10 +1544,10 @@ def _transform_compounds_external(compound_smiles, coreactants, coreactant_dict,
     This function accepts in a list of cpds (cpd_list) and runs the transformation in parallel of these.
     """
     def print_progress(done, total):
-            # Use print_on to print % completion roughly every 5 percent
+            # Use print_on to print % completion roughly every 2.5 percent
             # Include max to print no more than once per compound (e.g. if
             # less than 20 compounds)
-            print_on = max(round(.05 * total), 1)
+            print_on = max(round(.025 * total), 1)
             if not done % print_on:
                 print(f"Generation {generation}: {round(done / total * 100)} percent complete")
 
@@ -1571,7 +1573,6 @@ def _transform_compounds_external(compound_smiles, coreactants, coreactant_dict,
                     new_rxns_master[rxn]['Operators'].union(rxn_dict['Operators'])
                 else:
                     new_rxns_master.update({rxn:rxn_dict})
-            print(f'{generation}:{i}')
             print_progress(i, len(compound_smiles))
 
     else:
@@ -1586,9 +1587,7 @@ def _transform_compounds_external(compound_smiles, coreactants, coreactant_dict,
                 if rxn in new_rxns_master:
                     new_rxns_master[rxn]['Operators'].union(rxn_dict['Operators'])
                 else:
-                    new_rxns_master.update({rxn:rxn_dict})
-            
+                    new_rxns_master.update({rxn:rxn_dict})            
             print_progress(i, len(compound_smiles))
-
 
     return new_cpds_master, new_rxns_master
