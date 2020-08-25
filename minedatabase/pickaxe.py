@@ -1546,7 +1546,7 @@ def _transform_compounds_external(compound_smiles, coreactants, coreactant_dict,
     This function accepts in a list of cpds (cpd_list) and runs the transformation in parallel of these.
     """
     # process kwargs
-
+    print('here')
     new_cpds_master = {}
     new_rxns_master = {}
 
@@ -1557,6 +1557,7 @@ def _transform_compounds_external(compound_smiles, coreactants, coreactant_dict,
         chunk_size = max(
                 [round(len(compound_smiles) / (num_workers)), 1])
         pool = multiprocessing.Pool(processes=num_workers)
+        print(chunk_size)
         for i, res in enumerate(pool.imap_unordered(
                             transform_compound_partial, compound_smiles, chunk_size)):
                 new_cpds, new_rxns = res
