@@ -1303,52 +1303,48 @@ class Pickaxe:
 
     def _transform_helper(self, compound_smiles, num_workers):
         """Transforms compounds externally of class"""
-        def chunks(lst, n):
-            """Function to yield n-sized chunks from a given list"""
-            n = max(n, 1)           
-            for i in range(0, len(lst), n):
-                yield lst[i:i + n]
-    
-        def print_progress(done, total):
-            # Use print_on to print % completion roughly every 5 percent
-            # Include max to print no more than once per compound (e.g. if
-            # less than 20 compounds)
-            print_on = max(round(.05 * total), 1)
-            if not done % print_on:
-                print(f"Generation {self.generation}: {round(done / total * 100)} percent complete")
+        # def chunks(lst, n):
+        #     """Function to yield n-sized chunks from a given list"""
+        #     n = max(n, 1)           
+        #     for i in range(0, len(lst), n):
+        #         yield lst[i:i + n]
 
         # to pass coreactants externally
         coreactant_dict = {co_key: self.compounds[co_key] for _, co_key in self.coreactants.values()}
 
         # Sets to record generated compounds to be added to overall
-        new_cpds = dict()
-        new_rxns = dict()
+        # new_cpds = dict()
+        # new_rxns = dict()
 
         # Parallel computing
-        if num_workers > 1:
-            # Determine the chunk size
-            # This chunk size is the number of compounds to send out
-            # to be processed in a parallel manner. James used this,
-            # not sure where the metric came from... figure out.
-            chunk_size = max(
-                [round(len(compound_smiles) / (num_workers)), 1])
-            print(f"Chunk Size for generation {self.generation}:", chunk_size)
+        # if num_workers > 1:
+        #     # Determine the chunk size
+        #     # This chunk size is the number of compounds to send out
+        #     # to be processed in a parallel manner. James used this,
+        #     # not sure where the metric came from... figure out.
+        #     chunk_size = max(
+        #         [round(len(compound_smiles) / (num_workers)), 1])
+        #     print(f"Chunk Size for generation {self.generation}:", chunk_size)
 
-        else:
-            chunk_size = len(compound_smiles)       
+        # else:
+        #     chunk_size = len(compound_smiles)       
 
         # send out chunks for processing and record results into sets for later processing
-        for i, cpd_chunk in enumerate(chunks(compound_smiles, chunk_size)):
-            new_cpds_from_chunk, new_rxns_from_chunk = _transform_compounds_external(cpd_chunk, self.coreactants, 
-                                coreactant_dict, self.operators, self.generation, self.explicit_h, num_workers)
+        # for i, cpd_chunk in enumerate(chunks(compound_smiles, chunk_size)):
+        #     new_cpds_from_chunk, new_rxns_from_chunk = _transform_compounds_external(cpd_chunk, self.coreactants, 
+        #                         coreactant_dict, self.operators, self.generation, self.explicit_h, num_workers)
             
-            new_cpds.update(new_cpds_from_chunk)
-            for rxn, rxn_dict in new_rxns_from_chunk.items():
-                if rxn in new_rxns:
-                    new_rxns[rxn]['Operators'].update(new_rxns[rxn]['Operators'])
-                else:
-                    new_rxns.update({rxn:rxn_dict})
-            print_progress((i+1)*chunk_size, len(compound_smiles))
+        #     new_cpds.update(new_cpds_from_chunk)
+        #     for rxn, rxn_dict in new_rxns_from_chunk.items():
+        #         if rxn in new_rxns:
+        #             new_rxns[rxn]['Operators'].update(new_rxns[rxn]['Operators'])
+        #         else:
+        #             new_rxns.update({rxn:rxn_dict})
+        #     print_progress((i+1)*chunk_size, len(compound_smiles))
+
+        new_cpds, new_rxns = _transform_compounds_external(compound_smiles, self.coreactants, 
+                                coreactant_dict, self.operators, self.generation, self.explicit_h, num_workers)
+
         # Save results to self.compounds / self.reactions 
         # ensuring there are no collisions and updating information if there are
         for cpd_id, cpd_dict in new_cpds.items():
@@ -1534,7 +1530,7 @@ def _transform_compound_external(coreactant_mols, coreactant_dict, operators, ge
     return local_cpds,local_rxns
 
 def _transform_compounds_external(compound_smiles, coreactants, coreactant_dict, operators, generation, explicit_h,
-                                    num_workers, **kwargs):
+                                    num_workers):
     """
     This function is made to reduce the memory load of parallelization.
     Currently it is believed that the in pickaxe class parallelization will generation
@@ -1545,8 +1541,14 @@ def _transform_compounds_external(compound_smiles, coreactants, coreactant_dict,
 
     This function accepts in a list of cpds (cpd_list) and runs the transformation in parallel of these.
     """
-    # process kwargs
-    print('here')
+    def print_progress(done, total):
+            # Use print_on to print % completion roughly every 5 percent
+            # Include max to print no more than once per compound (e.g. if
+            # less than 20 compounds)
+            print_on = max(round(.05 * total), 1)
+            if not done % print_on:
+                print(f"Generation {generation}: {round(done / total * 100)} percent complete")
+
     new_cpds_master = {}
     new_rxns_master = {}
 
@@ -1556,22 +1558,25 @@ def _transform_compounds_external(compound_smiles, coreactants, coreactant_dict,
         # TODO chunk size?
         chunk_size = max(
                 [round(len(compound_smiles) / (num_workers)), 1])
+        print(f'Chunk size = {chunk_size}')
         pool = multiprocessing.Pool(processes=num_workers)
-        print(chunk_size)
         for i, res in enumerate(pool.imap_unordered(
                             transform_compound_partial, compound_smiles, chunk_size)):
-                new_cpds, new_rxns = res
-                new_cpds_master.update(new_cpds)
-                
-                # Need to check if reactions already exist to update operators list
-                for rxn, rxn_dict in new_rxns.items():
-                    if rxn in new_rxns_master:
-                        new_rxns_master[rxn]['Operators'].union(rxn_dict['Operators'])
-                    else:
-                        new_rxns_master.update({rxn:rxn_dict})
+            new_cpds, new_rxns = res
+            new_cpds_master.update(new_cpds)
+            
+            # Need to check if reactions already exist to update operators list
+            for rxn, rxn_dict in new_rxns.items():
+                if rxn in new_rxns_master:
+                    new_rxns_master[rxn]['Operators'].union(rxn_dict['Operators'])
+                else:
+                    new_rxns_master.update({rxn:rxn_dict})
+            print(f'{generation}:{i}')
+            print_progress(i, len(compound_smiles))
 
     else:
-        for smiles in compound_smiles:
+        for i, smiles in enumerate(compound_smiles):
+            print(i)
             new_cpds, new_rxns = transform_compound_partial(smiles)
             # new_cpds as cpd_id:cpd_dict
             # new_rxns as rxn_id:rxn_dict
@@ -1582,6 +1587,8 @@ def _transform_compounds_external(compound_smiles, coreactants, coreactant_dict,
                     new_rxns_master[rxn]['Operators'].union(rxn_dict['Operators'])
                 else:
                     new_rxns_master.update({rxn:rxn_dict})
+            
+            print_progress(i, len(compound_smiles))
 
 
     return new_cpds_master, new_rxns_master
