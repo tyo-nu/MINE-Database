@@ -993,6 +993,8 @@ class Pickaxe:
         """
         Remove compounds that were unexpanded as well as reactions that ended terminally with them.
         """
+        print('Pruning to target compounds')
+        prune_start = time.time()
         white_list = []
         for target_smi in self.target_smiles:
             try:
@@ -1002,6 +1004,7 @@ class Pickaxe:
                 pass
         
         self.prune_network(white_list)
+        print(f"Pruning took {time.time() - prune_start}s")
 
     def prune_network(self, white_list):
         """
@@ -1013,6 +1016,7 @@ class Pickaxe:
         """
         n_white = len(white_list)
         comp_set, rxn_set = self.find_minimal_set(white_list)
+        print(f"Pruning network to {len(white_list)} white list compounds")
         print(f"Pruned network to {len(comp_set)} compounds and {len(rxn_set)} reactions based on \
                 {n_white} whitelisted compounds")
         self.compounds = dict([(k, v) for k, v in self.compounds.items()
@@ -1228,7 +1232,7 @@ class Pickaxe:
         # and processed that way. Each batch is calculated
         # in parallel.
         n_cpds = len(self.compounds)
-        chunk_size = max(int(n_cpds/100), 1000)
+        chunk_size = max(int(n_cpds/100), 10000)
         print(f"Compound chunk size: {chunk_size}")  
         n_loop = 1
         for cpd_id_chunk in chunks(list(self.compounds.keys()), chunk_size):
