@@ -21,10 +21,10 @@ database_overwrite = True
 database = 'glucose_2'
 
 # Cofactors and rules
-# coreactant_list = './minedatabase/data/EnzymaticCoreactants.tsv'
-# rule_list = './minedatabase/data/EnzymaticReactionRules.tsv'
-coreactant_list = './minedatabase/data/MetaCyc_Coreactants.tsv'
-rule_list = './minedatabase/data/metacyc_generalized_rules_500.tsv'
+coreactant_list = './minedatabase/data/EnzymaticCoreactants.tsv'
+rule_list = './minedatabase/data/EnzymaticReactionRules.tsv'
+# coreactant_list = './minedatabase/data/MetaCyc_Coreactants.tsv'
+# rule_list = './minedatabase/data/metacyc_generalized_rules_500.tsv'
 
 # Where are the input rxns coming from and coreactants
 # Compounds that are going to be expanded
@@ -33,7 +33,7 @@ input_cpds = './example_data/starting_cpds_ten.csv'
 # Pickaxe Options
 generations = 2
 verbose = False
-explicit_h = False
+explicit_h = True
 kekulize = True
 neutralise = True
 image_dir = None

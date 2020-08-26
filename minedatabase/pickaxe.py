@@ -995,14 +995,14 @@ class Pickaxe:
         """
         print('Pruning to target compounds')
         prune_start = time.time()
-        white_list = []
+        white_list = set()
         for target_smi in self.target_smiles:
             try:
                 # generate hash of predicted target compounds
-                white_list.append(utils.compound_hash(target_smi, 'Predicted'))
+                white_list.add(utils.compound_hash(target_smi, 'Predicted'))
             except:
                 pass
-        
+        print(f"Identified {len(white_list)} target compounds to filter for.")
         self.prune_network(white_list)
         print(f"Pruning took {time.time() - prune_start}s")
 
@@ -1014,17 +1014,17 @@ class Pickaxe:
         :type white_list: list
         :return: None
         """
+        white_list = set(white_list)
         n_white = len(white_list)
         comp_set, rxn_set = self.find_minimal_set(white_list)
-        print(f"Pruning network to {len(white_list)} white list compounds")
-        print(f"Pruned network to {len(comp_set)} compounds and {len(rxn_set)} reactions based on \
-                {n_white} whitelisted compounds")
         self.compounds = dict([(k, v) for k, v in self.compounds.items()
                                if k in comp_set])
         self.reactions = dict([(k, v) for k, v in self.reactions.items()
                                if k in rxn_set])
+        print(f"""Pruned network to {len(comp_set)} compounds and {len(rxn_set)} reactions based on
+                {n_white} whitelisted compounds""")
 
-    def find_minimal_set(self, white_list):
+    def find_minimal_set(self, white_set):
         """
         Given a whitelist this function finds the minimal set of compound and
         reactions ids that comprise the set
@@ -1033,7 +1033,7 @@ class Pickaxe:
         :return: compound and reaction id sets
         :rtype: tuple(set, set)
         """
-        white_set = set(white_list)
+        white_list = list(white_set)
         comp_set = set()
         rxn_set = set()
         for c_id in white_list:
@@ -1041,17 +1041,16 @@ class Pickaxe:
                 continue
             for r_id in self.compounds[c_id]['Product_of']:
                 rxn_set.add(r_id)
-                comp_set.update([x.c_id for x
+                comp_set.update([x[1] for x
                                  in self.reactions[r_id]['Products']])
-                for tup in self.reactions[r_id]['Reactants']:
-                    comp_set.add(tup.c_id)
+                for reactant in self.reactions[r_id]['Reactants']:
+                    comp_set.add(reactant[1])
                     # do not want duplicates or cofactors in the whitelist
-                    if tup.c_id[0] == 'C' and tup.c_id not in white_set:
-                        white_list.append(tup.c_id)
-                        white_set.add(tup.c_id)
+                    if reactant[1].startswith('C') and reactant[1] not in white_set:
+                        white_list.append(reactant[1])
+                        white_set.add(reactant[1])
 
         # Save targets
-        # TODO: seperate targets
         if self.tani_filter:
            for c_id in self.compounds:
                if c_id.startswith('T'):
