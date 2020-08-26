@@ -468,7 +468,7 @@ class Pickaxe:
                         n_total += 1
                         if cpd_dict['Expand'] == True:
                             n_filtered += 1
-                print(f'{n_filtered} of {n_total} compounds remain after filter--took {time.now() - time_tani}s.\n\nExpanding.')
+                print(f'{n_filtered} of {n_total} compounds remain after filter--took {time.time() - time_tani}s.\n\nExpanding.')
 
             # Time for expansion
             time_init = time.time()
