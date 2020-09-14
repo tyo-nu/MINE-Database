@@ -489,7 +489,7 @@ class Pickaxe:
             fp1 = utils.get_fp(cpd['SMILES'])
             for fp2 in self.target_fps:
                 if AllChem.DataStructs.FingerprintSimilarity(fp1, fp2) >= crit_tani:
-                    return (cpd['_id'], False)
+                    return (cpd['_id'], True)
         except:
             pass
 
