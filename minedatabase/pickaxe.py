@@ -1207,7 +1207,6 @@ def _transform_compounds_external(compound_smiles, coreactants, coreactant_dict,
 
     else:
         for i, smiles in enumerate(compound_smiles):
-            print(i)
             new_cpds, new_rxns = transform_compound_partial(smiles)
             # new_cpds as cpd_id:cpd_dict
             # new_rxns as rxn_id:rxn_dict

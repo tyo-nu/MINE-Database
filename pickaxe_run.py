@@ -11,9 +11,9 @@ start = time.time()
 creds = open('credentials.csv').readline().split(',')
 creds = [cred.strip('\n') for cred in creds]
 # Local MINE server
-# mongo_uri = 'mongodb://localhost:27017'
+mongo_uri = 'mongodb://localhost:27017'
 # Connecting to the northwestern MINE server
-mongo_uri = f"mongodb://{creds[0]}:{creds[1]}@minedatabase.ci.northwestern.edu:27017/?authSource=admin"
+# mongo_uri = f"mongodb://{creds[0]}:{creds[1]}@minedatabase.ci.northwestern.edu:27017/?authSource=admin"
 
 # Database to write results to
 write_db = True
@@ -28,7 +28,7 @@ rule_list = './minedatabase/data/metacyc_generalized_rules_500.tsv'
 
 # Where are the input rxns coming from and coreactants
 # Compounds that are going to be expanded
-input_cpds = './example_data/glucose.csv'
+input_cpds = './example_data/starting_cpds_single.csv'
 
 # Pickaxe Options
 generations = 1
@@ -86,5 +86,6 @@ if write_db:
                             "Message": ("Expansion for bioprivileged molecules."
                                         "Targeting 1k molecules identified by XZ using original 250 rules.")})
 
-print('--------------------------------------------------')
+print(f'----------------------------------------')
 print(f'Overall run took {round(time.time() - start, 2)} seconds.')
+print(f'----------------------------------------')
