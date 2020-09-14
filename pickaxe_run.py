@@ -28,7 +28,7 @@ rule_list = './minedatabase/data/metacyc_generalized_rules_500.tsv'
 
 # Where are the input rxns coming from and coreactants
 # Compounds that are going to be expanded
-input_cpds = './example_data/starting_cpds_single.csv'
+input_cpds = './local_data/ecoliGEM.csv'
 
 # Pickaxe Options
 generations = 1
@@ -43,7 +43,7 @@ num_workers = 1
 
 # Tanimoto Filtering options
 target_cpds = './example_data/target_list_many.csv'
-tani_filter = False
+tani_filter = True
 # Prune results to only give expanded compounds/rxns
 # Currently also includes all of the last generation
 tani_prune = True

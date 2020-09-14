@@ -165,7 +165,7 @@ class Pickaxe:
         # Load target compounds
         if target_compound_file:
             for target_dict in utils.file_to_dict_list(target_compound_file):
-                mol = self._mol_from_dict(line, structure_field)
+                mol = self._mol_from_dict(target_dict, structure_field)
                 if not mol:
                     continue
                 # Add compound to internal dictionary as a target
@@ -274,7 +274,7 @@ class Pickaxe:
                 n_filtered = 0
                 n_total = 0                
                 for cpd_dict in self.compounds.values():
-                    if cpd_dict['Generation'] == self.generation:
+                    if cpd_dict['Generation'] == self.generation and cpd_dict['_id'].startswith('C'):
                         n_total += 1
                         if cpd_dict['Expand'] == True:
                             n_filtered += 1
@@ -469,9 +469,8 @@ class Pickaxe:
             cpd_to_compare = [cpd for cpd in compounds_to_check 
                         if cpd['Generation'] == self.generation]
             for i, cpd in enumerate(cpd_to_compare):
-                res = self._compare_to_targets(cpd)
-                if not res[1]:
-                    self.compounds[res[0]]['Expand'] = False
+                if not self._compare_to_targets(cpd):
+                    self.compounds[cpd['_id']]['Expand'] = False
                 print_progress(i, len(compounds_to_check), 'Tanimoto filter progress:')            
             
         return None
@@ -494,11 +493,11 @@ class Pickaxe:
             fp1 = utils.get_fp(cpd['SMILES'])
             for fp2 in self.target_fps:
                 if AllChem.DataStructs.FingerprintSimilarity(fp1, fp2) >= crit_tani:
-                    return (cpd['_id'], True)
+                    return True
         except:
             pass
 
-        return (cpd['_id'], False)
+        return False
 
     def _mol_from_dict(self, input_dict, structure_field=None):
         # detect structure field as needed
