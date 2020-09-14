@@ -17,7 +17,7 @@ from rdkit.Chem import AllChem
 # from minedatabase.NP_Score import npscorer as nps
 
 from minedatabse import utils
-from NP_Score import npscorer as nps
+from minedatabase.NP_Score import npscorer as nps
 
 nps_model = nps.readNPModel()
 
