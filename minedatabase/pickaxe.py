@@ -15,15 +15,10 @@ from functools import partial
 from copy import deepcopy
 from sys import exit
 
-# import minedatabase.databases as databases
+import minedatabase.databases as databases
 
-# from databases import MINE
-# from minedatabase import utils
-
-import databases as databases
-
-from databases import MINE
-import utils
+from minedatabase.databases import MINE
+from minedatabase import utils
 
 from rdkit.Chem.rdMolDescriptors import CalcMolFormula
 from rdkit.Chem.Draw import MolToFile, rdMolDraw2D
