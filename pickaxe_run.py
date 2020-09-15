@@ -18,7 +18,7 @@ mongo_uri = 'mongodb://localhost:27017'
 # Database to write results to
 write_db = True
 database_overwrite = True
-database = 'glucose_check'
+database = 'filter_check_prune_up'
 
 # Cofactors and rules
 # coreactant_list = './minedatabase/data/EnzymaticCoreactants.tsv'
@@ -31,7 +31,7 @@ rule_list = './minedatabase/data/metacyc_generalized_rules_500.tsv'
 input_cpds = './local_data/ecoliGEM.csv'
 
 # Pickaxe Options
-generations = 1
+generations = 2
 verbose = False
 explicit_h = False
 kekulize = True
@@ -39,7 +39,7 @@ neutralise = True
 image_dir = None
 quiet = True
 indexing = False
-num_workers = 1
+num_workers = 2
 
 # Tanimoto Filtering options
 target_cpds = './example_data/target_list_many.csv'
@@ -49,7 +49,7 @@ tani_filter = True
 tani_prune = True
 # crit_tani is either a single number 
 # OR a list that is the length of the number of generations
-crit_tani = 0.5
+crit_tani = 0.9
 
 # Running pickaxe
 # Initialize the Pickaxe class instance

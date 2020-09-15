@@ -657,6 +657,23 @@ class Pickaxe:
                 pass
         print(f"Identified {len(white_list)} target compounds to filter for.")
         self.prune_network(white_list)
+        cpd_to_del = set()
+        # Filter out upstream non-targets
+        for i in reversed(range(self.generation+1)):
+            for cpd_dict in self.compounds.values():
+                if cpd_dict['_id'].startswith('C'):
+                    if (cpd_dict['Generation'] == i and
+                            not cpd_dict['Reactant_in'] and
+                            cpd_dict['_id'] not in white_list):
+                        # remove reactions
+                        for rxn_id in cpd_dict['Product_of']:
+                            if rxn_id in self.reactions:
+                                del(self.reactions[rxn_id])
+                        # remove compound
+                        cpd_to_del.add(cpd_dict['_id'])
+        for cpd in cpd_to_del:
+            del(self.compounds[cpd])
+
         print(f"Pruning took {time.time() - prune_start}s")
 
     def prune_network(self, white_list):
