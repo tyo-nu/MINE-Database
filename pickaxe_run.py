@@ -18,7 +18,7 @@ mongo_uri = 'mongodb://localhost:27017'
 # Database to write results to
 write_db = True
 database_overwrite = True
-database = 'filter_check_prune_up'
+database = 'rework_rxn_mod_biredundant'
 
 # Cofactors and rules
 # coreactant_list = './minedatabase/data/EnzymaticCoreactants.tsv'
@@ -28,10 +28,10 @@ rule_list = './minedatabase/data/metacyc_generalized_rules_500.tsv'
 
 # Where are the input rxns coming from and coreactants
 # Compounds that are going to be expanded
-input_cpds = './local_data/ecoliGEM.csv'
+input_cpds = './example_data/starting_cpds_ten.csv'
 
 # Pickaxe Options
-generations = 2
+generations = 1
 verbose = False
 explicit_h = False
 kekulize = True
@@ -39,14 +39,14 @@ neutralise = True
 image_dir = None
 quiet = True
 indexing = False
-num_workers = 2
+num_workers = 1
 
 # Tanimoto Filtering options
 target_cpds = './example_data/target_list_many.csv'
-tani_filter = True
+tani_filter = False
 # Prune results to only give expanded compounds/rxns
 # Currently also includes all of the last generation
-tani_prune = True
+tani_prune = False
 # crit_tani is either a single number 
 # OR a list that is the length of the number of generations
 crit_tani = 0.9
@@ -63,13 +63,16 @@ pk = Pickaxe(coreactant_list=coreactant_list,
 
 # Load compounds
 pk.load_compound_set(compound_file=input_cpds)
+pk.load_partial_operators('./local_data/J_examples copy.tsv')
+
 
 if tani_filter:
     pk.load_target_set(target_compound_file=target_cpds, crit_tani=crit_tani)
 pk.transform_all(num_workers, generations)
-pk._check_rxn_for_cofactors()
 
-# # Write results
+# pk.remove_cofactor_redundancy()
+
+# Write results
 if write_db:
     if tani_filter and tani_prune:
         pk.prune_network_to_targets()
@@ -80,7 +83,8 @@ if write_db:
                                     "Generations": f"{generations}",
                                     "Operator file": f"{rule_list}",
                                     "Coreactant file": f"{coreactant_list}",
-                                    "Input compound file": f"{input_cpds}"}
+                                    "Input compound file": f"{input_cpds}",
+                                    "Tanimoto filter": f"{crit_tani}"}
                                     )
     db.meta_data.insert_one({"Timestamp": datetime.datetime.now(),
                             "Message": ("Expansion for bioprivileged molecules."
