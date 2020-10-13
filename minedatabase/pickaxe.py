@@ -444,8 +444,8 @@ class Pickaxe:
             # less than 20 compounds)
             print_on = max(round(.05 * total), 1)
             if not done % print_on:
-                print((f"Generation {self.generation}: {round(done/total*100)}"
-                        ," percent complete"))
+                print(f"Generation {self.generation}: {round(done/total*100)}"
+                        ," percent complete")
 
         while self.generation < max_generations:
             print('----------------------------------------')
@@ -464,8 +464,8 @@ class Pickaxe:
                 else:
                     crit_tani = self.crit_tani
 
-                print(("Filtering out compounds with maximum tanimoto match ",
-                      f"< {crit_tani}"))
+                print("Filtering out compounds with maximum tanimoto match "
+                      f"< {crit_tani}")
                 self._filter_by_tani(num_workers=num_workers)
                 n_filtered = 0
                 n_total = 0                
@@ -476,9 +476,9 @@ class Pickaxe:
                         if cpd_dict['Expand'] == True:
                             n_filtered += 1
 
-                print((f"{n_filtered} of {n_total} compounds remain after",
-                       f"filtering generation {self.generation}--took",
-                       f"{time.time() - time_tani}s.\n\nExpanding."))
+                print(f"{n_filtered} of {n_total} compounds remain after "
+                       f"filtering generation {self.generation}--took "
+                       f"{time.time() - time_tani}s.\n\nExpanding.")
 
             # Starting time for expansion
             time_init = time.time()
@@ -495,14 +495,14 @@ class Pickaxe:
                             and cpd['Expand'] == True]
             # No compounds found 
             if not compound_smiles:
-                print((f"No compounds to expand in generation",
-                       f"{self.generation}. Finished expanding."))
+                print(f"No compounds to expand in generation"
+                       f"{self.generation}. Finished expanding.")
                 return None
 
             self._transform_helper(compound_smiles, num_workers)
             
-            print((f"Generation {self.generation} took {time.time()-time_init}"
-                   ,"sec and produced:"))
+            print(f"Generation {self.generation} took {time.time()-time_init}"
+                   "sec and produced:")
             print(f"\t\t{len(self.compounds) - n_comps} new compounds")
             print(f"\t\t{len(self.reactions) - n_rxns} new reactions")
             print(f'----------------------------------------\n')
@@ -767,8 +767,12 @@ class Pickaxe:
         """
         path = utils.prevent_overwrite(path)
 
-        columns = ('ID', 'Type', 'Generation', 'Formula', 'Inchikey',
+        columns = ('ID', 'Type', 'Generation', 'Formula', 'InChiKey',
                    'SMILES')
+        for _id, val in self.compounds.items():
+            inchi_key = AllChem.MolToInchiKey(AllChem.MolFromSmiles(val['SMILES']))
+            self.compounds[_id]['InChiKey'] = inchi_key
+
         with open(path, 'w') as outfile:
             writer = csv.DictWriter(outfile, columns, dialect=dialect,
                                     extrasaction='ignore', lineterminator='\n')
