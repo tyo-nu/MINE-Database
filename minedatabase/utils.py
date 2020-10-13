@@ -5,6 +5,7 @@ import csv
 import hashlib
 import json
 from os import path
+import re
 
 from rdkit.Chem import AllChem
 
@@ -23,29 +24,40 @@ def file_to_dict_list(filepath):
         raise ValueError('Unrecognized input file type')
     return list(reader)
 
+def get_fp( smi):
+    mol = AllChem.MolFromSmiles(smi)
+    fp = AllChem.RDKFingerprint(mol)
+    return fp
 
-def compound_hash(compound, cofactor=False):
+def compound_hash(smi, cpd_type='Predicted'):
     """Creates hash string for given compound
 
-    :param compound: The compound to be hashed
-    :type compound: str or Mol Object
+    :param smi: The smiles of the to-be-hashed compound
+    :type compound: str
     :param cofactor: is the compound a cofactor
     :type cofactor: bool
     :return: A hashed compound _id
     :rtype: str
     """
-    # Check to see if compound is a Mol object. If true, convert that Mol
-    # object to a SMILES string
-    if isinstance(compound, AllChem.Mol):
-        compound = AllChem.MolToSmiles(compound, True)
+
+    # The ID is generated from a hash of either the InChI key (partial) or SMILES
+    # The InChI key is used if the SMILES does not contain '*'
+    if '*' not in smi:
+        compound = AllChem.MolFromSmiles(smi)
+        # Take the first part of the InChIKey as it contains structural information only
+        compound = ''.join(AllChem.MolToInchiKey(compound).split('-')[0])
+    else:
+        compound = smi
+
     # Create hash string using hashlib module
     chash = hashlib.sha1(compound.encode('utf-8')).hexdigest()
-    # Mark cofactors with an X at the beginning, all else with a C
-    if cofactor:
+    # Mark cofactors with an X at the beginning, targets with a T, all else with a C
+    if cpd_type == 'Coreactant':
         return "X" + chash
+    elif cpd_type == 'Target Compound':
+        return "T" + chash
     else:
-        return "C" + chash
-
+        return "C" + chash 
 
 def convert_sets_to_lists(obj):
     """Recursively converts dictionaries that contain sets to lists"""
@@ -200,22 +212,40 @@ def dict_merge(finaldict, sourcedict):
             dict_merge(finaldict[key], val)
 
 
-def rxn2hash(reactants, products, return_text=False):
+def rxn2hash(reactants, products):
     """Hashes reactant and product lists"""
     # Get text reaction to be hashed
+    # this is a combination of two functions
+    # TODO: cleanup
     def to_str(half_rxn):
         return ['(%s) %s' % (x[0], x[1]) if (len(x) == 2
                                              and not isinstance(x, str))
                 else '(1) %s' % x for x in sorted(half_rxn)]
 
-    text_rxn = ' + '.join(to_str(reactants)) + ' => ' + \
-               ' + '.join(to_str(products))
+    def get_smiles(cpds):
+            cpd_tups = [(stoich, cpd_dict['_id'], cpd_dict['SMILES']) for stoich, cpd_dict in cpds]
+            cpd_tups.sort(key=lambda x: x[1])
+            smiles = []
+            for cpd in cpd_tups:
+                smiles.append(f"({cpd[0]}) {cpd[2]}")                
+            return ' + '.join(smiles)
+    
+    reactant_ids = [reactant[1]['_id'] for reactant in reactants]
+    product_ids = [product[1]['_id'] for product in products]
+    reactant_ids.sort()
+    product_ids.sort()
+    text_ids_rxn = ' + '.join(to_str(reactant_ids)) + ' => ' + \
+               ' + '.join(to_str(product_ids))
     # Hash text reaction
-    rhash = hashlib.sha256(text_rxn.encode()).hexdigest()
-    if return_text:
-        return rhash, text_rxn
-    else:
-        return rhash
+    rhash = 'R' + hashlib.sha256(text_ids_rxn.encode()).hexdigest()
+
+    # smiles
+    reactant_smiles = get_smiles(reactants)
+    product_smiles = get_smiles(products)
+    
+    text_smiles_rxn = reactant_smiles + ' => ' + product_smiles
+
+    return rhash, text_smiles_rxn
 
 
 def _calculate_rxn_hash(db, reactants, products):
@@ -242,7 +272,7 @@ def _calculate_rxn_hash(db, reactants, products):
     p_1, p_2 = __get_blocks(products)
     first_block = r_1 + '<==>' + p_1
     second_block = r_2 + '<==>' + p_2
-    return hashlib.sha256(first_block.encode()).hexdigest() + "-" + \
+    return 'R' + hashlib.sha256(first_block.encode()).hexdigest() + "-" + \
         hashlib.md5(second_block.encode()).hexdigest()
 
 
@@ -384,3 +414,42 @@ def get_smiles_from_mol_string(mol_string):
     smiles = AllChem.MolToSmiles(mol)
 
     return smiles
+
+def calculate_rxn_text(self, reactants, products):
+        """Calculates a unique reaction hash using inchikeys. First block is
+        connectivity only, second block is stereo only"""
+        def get_blocks(cpds):
+            cpd_tups = [(stoich, cpd_dict['_id'], cpd_dict['SMILES']) for stoich, cpd_dict in cpds]
+            cpd_tups.sort(key=lambda x: x[1])
+            smiles = []
+            for cpd in cpd_tups:
+                smiles.append(f"({cpd[0]}) {cpd[2]}")                
+            return ' + '.join(smiles)
+
+        r_s = get_blocks(reactants)
+        p_s = get_blocks(products)
+        smiles_rxn = r_s + ' => ' + p_s        
+        return smiles_rxn
+
+def _getatom_count(mol, radical_check=False):
+        """Takes a set of mol objects and returns a counter with each element
+        type in the set"""
+        atoms = collections.Counter()
+        # Find all strings of the form A# in the molecular formula where A
+        # is the element (e.g. C) and # is the number of atoms of that
+        # element in the molecule. Pair is of form [A, #]
+        for pair in re.findall(r'([A-Z][a-z]*)(\d*)',
+                               AllChem.CalcMolFormula(mol)):
+            # Add # to atom count, unless there is no # (in which case
+            # there is just one of that element, as ones are implicit in
+            # chemical formulas)
+            if pair[1]:
+                atoms[pair[0]] += int(pair[1])
+            else:
+                atoms[pair[0]] += 1
+        if radical_check:
+            radical = any([atom.GetNumRadicalElectrons()
+                           for atom in mol.GetAtoms()])
+            if radical:
+                atoms['*'] += 1
+        return atoms  

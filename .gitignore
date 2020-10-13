@@ -72,3 +72,17 @@ Scripts/kegg/*
 # CFM_ID scripts and data
 Scripts/cfm_id/data/*
 Scripts/cfm_id/esi_msms_models/*
+
+# ipynbs
+*ipynb
+
+# Models
+Models/
+
+# mongod credentials
+credentials.csv
+
+# misc
+local_data/
+.vscode/
+.DS_Store

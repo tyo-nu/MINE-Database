@@ -34,6 +34,11 @@ Valid formats are:
 - sdf: Structured Data File (concatenated mol files)
 - tsv: FOR EXPORT ONLY, a tab separated file compatible with ModelSEED
 
+### Running Pickaxe through a python file
+An example file, pickaxe_run.py, provides a framework for running pickaxe through a python file.
+The starting compounds, rules and cofactors, optional database information, and Pickaxe run options are specified.
+After running the results are stored in a specified database or written to .tsv files.
+
 ### Pickaxe command-line usage
 Pickaxe.py can be called independently to generate predictions with or 
 without database storage. To list all options call `python pickaxe.py -h`. 
