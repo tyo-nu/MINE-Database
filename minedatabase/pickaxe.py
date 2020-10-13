@@ -97,15 +97,19 @@ class Pickaxe:
             db = MINE(database, self.mongo_uri)
             if database in db.client.list_database_names():
                 if database_overwrite:
-                    # If db exists, remove db from all of core compounds and drop db
+                    # Remove db from core compounds and drop db
                     print(f"Database {database} already exists. ",
-                            "Deleting database and removing from core compound mines.")
-                    db.core_compounds.update_many({}, {'$pull' : {'MINES' : database}})
+                            "Deleting database and removing from ",
+                            "core compound mines.")
+                    db.core_compounds.update_many({},
+                        {'$pull' : {'MINES' : database}}
+                    )
                     db.client.drop_database(database)
                     self.mine = database
                 else:
                     print(f"Warning! Database {database} already exists."
-                            "Specify database_overwrite as true to delete old database and write new.")
+                            "Specify database_overwrite as true to delete",
+                            " old database and write new.")
                     exit("Exiting due to database name collision.")
                     self.mine = None
             else:
@@ -136,8 +140,8 @@ class Pickaxe:
     def load_target_set(self, target_compound_file=None, crit_tani=0, 
                                 structure_field=None, id_field='id'):
         """
-        Loads the target list into an list of fingerprints to later compare to compounds to determine 
-        if those compounds should be expanded.
+        Loads the target list into an list of fingerprints to later compare
+        to compounds to determine if those compounds should be expanded.
 
         :param target_compound_file: Path to a file containing compounds as tsv
         :type target_compound_file: basestring
@@ -187,8 +191,8 @@ class Pickaxe:
         return self.target_smiles    
 
     def load_compound_set(self, compound_file=None, id_field='id'): 
-            """If a compound file is provided, this function loads the compounds
-            into its internal dictionary. 
+            """If a compound file is provided, this function loads the 
+            compounds into its internal dictionary. 
 
             :param compound_file: Path to a file containing compounds as tsv
             :type compound_file: basestring            
@@ -221,7 +225,8 @@ class Pickaxe:
                     if 'C' in smi or 'c' in smi:
                         AllChem.SanitizeMol(mol)
                         self._add_compound(cpd_name, smi,
-                                           cpd_type='Starting Compound', mol=mol)
+                            cpd_type='Starting Compound', mol=mol
+                        )
                         compound_smiles.append(smi)
 
             # TODO: Add Support for MINE    
@@ -291,7 +296,9 @@ class Pickaxe:
                     for coreactant_name in all_rules:
                         if ((coreactant_name not in self.coreactants
                              and coreactant_name != 'Any')):
-                            raise ValueError(f"Undefined coreactant:{coreactant_name}")
+                            raise ValueError(
+                                "Undefined coreactant:{coreactant_name}"
+                            )
                     # Create ChemicalReaction object from SMARTS string
                     rxn = AllChem.ReactionFromSmarts(rule['SMARTS'])
                     rule.update({'_id': rule['Name'],
@@ -311,7 +318,8 @@ class Pickaxe:
                     # Update reaction rules dictionary
                     self.operators[rule['Name']] = (rxn, rule)
                 except Exception as e:
-                    raise ValueError(str(e) + f"\nFailed to parse {rule['Name']}")
+                    raise ValueError(str(e) 
+                        + f"\nFailed to parse {rule['Name']}")
         if skipped:
             print("WARNING: {skipped} rules skipped")  
 
@@ -363,12 +371,18 @@ class Pickaxe:
             if not mol:
                 mol = AllChem.MolFromSmiles(smi)
             # expand only Predicted and Starting_compounds
-            expand = True if cpd_type in ['Predicted', 'Starting Compound'] else False
+            if cpd_type in ['Predicted', 'Starting Compound']:
+                expand = True
+            else:
+                expand = False
+
             cpd_dict = {'ID': cpd_name, '_id': cpd_id, 'SMILES': smi,
                                    'Type': cpd_type,
                                    'Generation': self.generation,
-                                   'atom_count': utils._getatom_count(mol, self.radical_check),
-                                   'Reactant_in': [], 'Product_of': [],
+                                   'atom_count': utils._getatom_count(mol, 
+                                                           self.radical_check),
+                                   'Reactant_in': [], 
+                                   'Product_of': [],
                                    'Expand': expand,
                                    'Formula':CalcMolFormula(mol)}
             if cpd_id.startswith('X'):
@@ -433,7 +447,8 @@ class Pickaxe:
             # less than 20 compounds)
             print_on = max(round(.05 * total), 1)
             if not done % print_on:
-                print(f"Generation {self.generation}: {round(done / total * 100)} percent complete")
+                print((f"Generation {self.generation}: {round(done/total*100)}"
+                        ," percent complete"))
 
         while self.generation < max_generations:
             print('----------------------------------------')
@@ -452,16 +467,21 @@ class Pickaxe:
                 else:
                     crit_tani = self.crit_tani
 
-                print(f"Filtering out compounds with maximum tanimoto match < {crit_tani}")
+                print(("Filtering out compounds with maximum tanimoto match ",
+                      f"< {crit_tani}"))
                 self._filter_by_tani(num_workers=num_workers)
                 n_filtered = 0
                 n_total = 0                
                 for cpd_dict in self.compounds.values():
-                    if cpd_dict['Generation'] == self.generation and cpd_dict['_id'].startswith('C'):
+                    if cpd_dict['Generation'] == (self.generation and 
+                                                  cpd_dict['_id'].startswith('C')):
                         n_total += 1
                         if cpd_dict['Expand'] == True:
                             n_filtered += 1
-                print(f'{n_filtered} of {n_total} compounds remain after filtering generation {self.generation}--took {time.time() - time_tani}s.\n\nExpanding.')
+
+                print((f"{n_filtered} of {n_total} compounds remain after",
+                       f"filtering generation {self.generation}--took",
+                       f"{time.time() - time_tani}s.\n\nExpanding."))
 
             # Starting time for expansion
             time_init = time.time()
@@ -478,12 +498,14 @@ class Pickaxe:
                             and cpd['Expand'] == True]
             # No compounds found 
             if not compound_smiles:
-                print(f'No compounds to expand in generation {self.generation}. Finished expanding.')
+                print((f"No compounds to expand in generation",
+                       f"{self.generation}. Finished expanding."))
                 return None
 
             self._transform_helper(compound_smiles, num_workers)
             
-            print(f"Generation {self.generation} took {time.time()-time_init} sec and produced:")
+            print((f"Generation {self.generation} took {time.time()-time_init}"
+                   ,"sec and produced:"))
             print(f"\t\t{len(self.compounds) - n_comps} new compounds")
             print(f"\t\t{len(self.reactions) - n_rxns} new reactions")
             print(f'----------------------------------------\n')
@@ -494,8 +516,7 @@ class Pickaxe:
             for line in f.readlines():
                 # Grab info from current mapped reaction
                 rule, source, smiles, _ = line.strip('\n').split('\t')
-                # There should be 2 or more reactants derived from the mapping code
-                # The mapped code doesn't include cofactors, so 2 or more means any;any*
+
                 exact_reactants = smiles.split('>>')[0].split('.')
                 base_rule = rule.split('_')[0]
 
@@ -1439,8 +1460,10 @@ def _transform_all_compounds_with_partial(compound_smiles, coreactants, coreacta
     new_cpds_master = {}
     new_rxns_master = {}
 
-    transform_compound_partial = partial(_transform_ind_compound_with_partial, coreactants, 
-                                            coreactant_dict, operators, generation, explicit_h, partial_rules)
+    transform_compound_partial = partial(
+        _transform_ind_compound_with_partial, coreactants, coreactant_dict, 
+        operators, generation, explicit_h, partial_rules
+    )
     # par loop
     if num_workers > 1:
         # TODO chunk size?
