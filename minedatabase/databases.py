@@ -13,6 +13,9 @@ import pymongo
 from pymongo.errors import ServerSelectionTimeoutError
 from rdkit.Chem import AllChem
 
+# from minedatabase import utils
+# from minedatabase.NP_Score import npscorer as nps
+
 from minedatabase import utils
 from minedatabase.NP_Score import npscorer as nps
 
@@ -383,16 +386,6 @@ class MINE:
         :return: The hashed _id of the reaction
         :rtype: str
         """
-        reaction_dict['_id'] = utils.rxn2hash(reaction_dict['Reactants'],
-                                              reaction_dict['Products'])
-
-        # By converting to a dict, mongo stores the data as objects not
-        # arrays allowing for queries by compound hash
-        if isinstance(reaction_dict['Reactants'][0], utils.StoichTuple):
-            reaction_dict['Reactants'] = [x._asdict() for x
-                                          in reaction_dict['Reactants']]
-            reaction_dict['Products'] = [x._asdict() for x
-                                         in reaction_dict['Products']]
 
         reaction_dict = utils.convert_sets_to_lists(reaction_dict)
         # If bulk insertion, upsert (insert and update) the database
@@ -447,7 +440,7 @@ def save_document(collection, doc):
     else:
         collection.insert_one(doc)
 
-def insert_mine_compound(compound_dict=None):
+def insert_mine_compound(compound_dict):
         """This method saves a RDKit Molecule as a compound entry in the MINE.
         Calculates necessary fields for API and includes additional
         information passed in the compound dict.
@@ -460,14 +453,13 @@ def insert_mine_compound(compound_dict=None):
 
         # Store all different representations of the molecule (SMILES, Formula,
         #  InChI key, etc.) as well as its properties in a dictionary
-        if '_atom_count' in compound_dict:
-            del compound_dict['_atom_count']
-
+        if 'atom_count' in compound_dict:
+            del compound_dict['atom_count']
         if 'Inchikey' in compound_dict:
             del compound_dict['Inchikey']
-
         if 'ID' in compound_dict:
             del compound_dict['ID']
+
         # If the compound is a reactant, then make sure the reactant name is
         # in a correct format.
         if 'Reactant_in' in compound_dict and isinstance(
@@ -511,6 +503,7 @@ def insert_core_compound(compound_dict):
             del(core_dict['Product_of'])
         if 'Reactant_in' in core_dict:
             del(core_dict['Reactant_in'])
+        
                      
         # Store all different representations of the molecule (SMILES, Formula,
         #  InChI key, etc.) as well as its properties in a dictionary
@@ -544,7 +537,7 @@ def update_core_compound_MINES(compound_dict, MINE):
 
 def insert_reaction(reaction_dict):
     """Inserts a reaction into the MINE database and returns _id of the
-        reaction in the mine database.
+        reaction in the mine database. 
 
     :param reaction_dict: A dictionary containing 'Reactants' and
         'Products' lists of StoichTuples
@@ -552,17 +545,7 @@ def insert_reaction(reaction_dict):
     :return: Request for bulk insert
     :rtype: pymongo.InsertOne
     """
-    reaction_dict['_id'] = utils.rxn2hash(reaction_dict['Reactants'],
-                                            reaction_dict['Products'])
-
-    # By converting to a dict, mongo stores the data as objects not
-    # arrays allowing for queries by compound hash
-    if isinstance(reaction_dict['Reactants'][0], utils.StoichTuple):
-        reaction_dict['Reactants'] = [x._asdict() for x
-                                        in reaction_dict['Reactants']]
-        reaction_dict['Products'] = [x._asdict() for x
-                                        in reaction_dict['Products']]
-
+    
     reaction_dict = utils.convert_sets_to_lists(reaction_dict)
 
     return pymongo.InsertOne(reaction_dict)

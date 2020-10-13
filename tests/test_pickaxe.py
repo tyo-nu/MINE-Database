@@ -86,7 +86,7 @@ def multiprocess(pk, smiles_dict, coreactant_dict):
     """Convert FADH into other compounds in parallel."""
     pk._load_coreactant(coreactant_dict['ATP'])
     pk._load_coreactant(coreactant_dict['ADP'])
-    pk._add_compound(smiles_dict['FADH'], smiles_dict['FADH'],
+    pk._add_compound('FADH', smiles_dict['FADH'],
                      cpd_type='Starting Compound')
     pk.transform_all(max_generations=2, num_workers=2)
     return pk
@@ -134,20 +134,20 @@ def test_compound_loading(pk):
         compound_file=DATA_DIR + '/test_compounds.tsv')
     assert len(compound_smiles) == 14
 
-
-def test_transform_compounds_implicit(smiles_dict):
-    """
-    GIVEN a compound (meh in this case)
-    WHEN that compound is transformed into another compound via pickaxe
-    THEN make sure that the transformation is successful and recorded
-    """
-    pk = pickaxe.Pickaxe(explicit_h=False, kekulize=False,
-                         coreactant_list=DATA_DIR + '/test_coreactants.tsv',
-                         rule_list=DATA_DIR + '/test_cd_rxn_rule.tsv')
-    pk._add_compound("Start", smi=smiles_dict['meh'])
-    pk.transform_compound(smiles_dict['meh'])
-    assert len(pk.compounds) == 38
-    assert len(pk.reactions) == 1
+# TODO : Do we allow single compound expansions?
+# def test_transform_compounds_implicit(smiles_dict):
+#     """
+#     GIVEN a compound (meh in this case)
+#     WHEN that compound is transformed into another compound via pickaxe
+#     THEN make sure that the transformation is successful and recorded
+#     """
+#     pk = pickaxe.Pickaxe(explicit_h=False, kekulize=False,
+#                          coreactant_list=DATA_DIR + '/test_coreactants.tsv',
+#                          rule_list=DATA_DIR + '/test_cd_rxn_rule.tsv')
+#     pk._add_compound("Start", smi=smiles_dict['meh'], cpd_type='Starting Compound')
+#     pk.transform_compound(smiles_dict['meh'])
+#     assert len(pk.compounds) == 38
+#     assert len(pk.reactions) == 1
 
 def test_compound_output_writing(pk_transformed):
     """
@@ -364,3 +364,18 @@ def test_save_no_rxn_mine():
         assert mine_db.reactions.estimated_document_count() == 0
     finally:
        delete_database('MINE_test')
+
+
+def test_cli():
+    """
+    GIVEN the pickaxe CLI
+    WHEN pickaxe is run from the command line
+    THEN make sure it exits with exit code 0 (no errors)
+    """
+    os.chdir(DATA_DIR + "/../..")
+    rc = subprocess.call(
+        'python minedatabase/pickaxe.py -o tests -r '
+        'tests/data/test_cd_rxn_rule.tsv',
+        shell=True)
+    assert not rc
+    purge('tests/', r".*\.tsv$")
