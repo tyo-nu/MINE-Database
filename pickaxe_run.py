@@ -81,9 +81,6 @@ pk = Pickaxe(coreactant_list=coreactant_list,
 # Load compounds
 pk.load_compound_set(compound_file=input_cpds)
 
-# Load partial operators
-pk.load_partial_operators('./local_data/J_examples copy.tsv')
-
 # Initialize tanimoto filter
 if tani_filter:
     pk.load_target_set(target_compound_file=target_cpds, crit_tani=crit_tani)
@@ -92,7 +89,7 @@ if tani_filter:
 pk.transform_all(num_workers, generations)
 
 # Remove cofactor redundancies 
-# pk.remove_cofactor_redundancy()
+pk.remove_cofactor_redundancy()
 
 # Write results to database
 if write_db:
@@ -109,7 +106,7 @@ if write_db:
                                     "Tanimoto filter": f"{crit_tani}"}
                                     )
     db.meta_data.insert_one({"Timestamp": datetime.datetime.now(),
-                            "Message": ("Expansion for bioprivileged molecules.")})
+                            "Message": ("")})
 
 print(f'----------------------------------------')
 print(f'Overall run took {round(time.time() - start, 2)} seconds.')
