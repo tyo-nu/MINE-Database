@@ -30,9 +30,13 @@ mongo_uri = 'mongodb://localhost:27017'
 # mongo_uri = f"mongodb://{creds[0]}:{creds[1]}@minedatabase.ci.northwestern.edu:27017/?authSource=admin"
 
 # Database to write results to
-write_db = True
+write_db = False
 database_overwrite = False
 database = 'test_db'
+
+# Local writing
+write_local = True
+output_dir = '.'
 
 # Cofactors and rules
 # Original rules derived from BNICE
@@ -70,6 +74,9 @@ crit_tani = 0.9
 ################################################################################
 ##### Running pickaxe
 # Initialize the Pickaxe class instance
+if write_db == False:
+    database = None
+
 pk = Pickaxe(coreactant_list=coreactant_list,
             rule_list=rule_list,
             errors=verbose, explicit_h=explicit_h,
@@ -107,6 +114,11 @@ if write_db:
                                     )
     db.meta_data.insert_one({"Timestamp": datetime.datetime.now(),
                             "Message": ("")})
+
+if write_local:
+    pk.assign_ids()
+    pk.write_compound_output_file(output_dir + '/compounds.tsv')
+    pk.write_reaction_output_file(output_dir + '/reactions.tsv')
 
 print(f'----------------------------------------')
 print(f'Overall run took {round(time.time() - start, 2)} seconds.')
