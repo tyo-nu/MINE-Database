@@ -767,8 +767,12 @@ class Pickaxe:
         """
         path = utils.prevent_overwrite(path)
 
-        columns = ('ID', 'Type', 'Generation', 'Formula', 'Inchikey',
+        columns = ('ID', 'Type', 'Generation', 'Formula', 'InChiKey',
                    'SMILES')
+        for _id, val in self.compounds.items():
+            inchi_key = AllChem.MolToInchiKey(AllChem.MolFromSmiles(val['SMILES']))
+            self.compounds[_id]['InChiKey'] = inchi_key
+
         with open(path, 'w') as outfile:
             writer = csv.DictWriter(outfile, columns, dialect=dialect,
                                     extrasaction='ignore', lineterminator='\n')

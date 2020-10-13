@@ -66,11 +66,11 @@ def default_rule(pk):
 def pk_transformed(default_rule, smiles_dict, coreactant_dict):
     """Create Pickaxe object with a few predicted reactions."""
     pk_transformed = pickaxe.Pickaxe()
-    pk_transformed._add_compound("Start", smi=smiles_dict['FADH'])
+    pk_transformed._add_compound("Start", smi=smiles_dict['FADH'], cpd_type='Starting Compound')
     pk_transformed._load_coreactant(coreactant_dict['ATP'])
     pk_transformed._load_coreactant(coreactant_dict['ADP'])
     pk_transformed.operators['2.7.1.a'] = default_rule
-    pk_transformed.transform_compound(smiles_dict['FADH'])
+    pk_transformed.transform_all()
     pk_transformed.assign_ids()
     return pk_transformed
 
@@ -149,42 +149,42 @@ def test_compound_loading(pk):
 #     assert len(pk.compounds) == 38
 #     assert len(pk.reactions) == 1
 
-# def test_compound_output_writing(pk_transformed):
-#     """
-#     GIVEN a Pickaxe object with predicted transformations
-#     WHEN all compounds (including predicted) are written to an output file
-#     THEN make sure they are correctly written, and that they are all present
-#     """
-#     with open(DATA_DIR + '/testcompoundsout.tsv', 'rb') as infile:
-#         expected = hashlib.sha256(infile.read()).hexdigest()
-#     pk_transformed.write_compound_output_file(DATA_DIR
-#                                               + '/testcompoundsout.tsv')
-#     assert os.path.exists(DATA_DIR + '/testcompoundsout_new.tsv')
-#     try:
-#         with open(DATA_DIR + '/testcompoundsout_new.tsv', 'rb') as infile:
-#             output_compounds = hashlib.sha256(infile.read()).hexdigest()
-#         assert expected == output_compounds
-#     finally:
-#         os.remove(DATA_DIR + '/testcompoundsout_new.tsv')
+def test_compound_output_writing(pk_transformed):
+    """
+    GIVEN a Pickaxe object with predicted transformations
+    WHEN all compounds (including predicted) are written to an output file
+    THEN make sure they are correctly written, and that they are all present
+    """
+    with open(DATA_DIR + '/testcompoundsout.tsv', 'rb') as infile:
+        expected = hashlib.sha256(infile.read()).hexdigest()
+    pk_transformed.write_compound_output_file(DATA_DIR
+                                              + '/testcompoundsout.tsv')
+    assert os.path.exists(DATA_DIR + '/testcompoundsout_new.tsv')
+    try:
+        with open(DATA_DIR + '/testcompoundsout_new.tsv', 'rb') as infile:
+            output_compounds = hashlib.sha256(infile.read()).hexdigest()
+        assert expected == output_compounds
+    finally:
+        os.remove(DATA_DIR + '/testcompoundsout_new.tsv')
 
 
-# def test_reaction_output_writing(pk_transformed):
-#     """
-#     GIVEN a Pickaxe object with predicted transformations
-#     WHEN all reactions (including predicted) are written to an output file
-#     THEN make sure they are correctly written, and that they are all present
-#     """
-#     with open(DATA_DIR + '/testreactionsout.tsv', 'rb') as infile:
-#         expected = hashlib.sha256(infile.read()).hexdigest()
-#     pk_transformed.write_reaction_output_file(DATA_DIR
-#                                               + '/testreactionsout.tsv')
-#     assert os.path.exists(DATA_DIR + '/testreactionsout_new.tsv')
-#     try:
-#         with open(DATA_DIR + '/testreactionsout_new.tsv', 'rb') as infile:
-#             output_compounds = hashlib.sha256(infile.read()).hexdigest()
-#         assert expected == output_compounds
-#     finally:
-#         os.remove(DATA_DIR + '/testreactionsout_new.tsv')
+def test_reaction_output_writing(pk_transformed):
+    """
+    GIVEN a Pickaxe object with predicted transformations
+    WHEN all reactions (including predicted) are written to an output file
+    THEN make sure they are correctly written, and that they are all present
+    """
+    with open(DATA_DIR + '/testreactionsout.tsv', 'rb') as infile:
+        expected = hashlib.sha256(infile.read()).hexdigest()
+    pk_transformed.write_reaction_output_file(DATA_DIR
+                                              + '/testreactionsout.tsv')
+    assert os.path.exists(DATA_DIR + '/testreactionsout_new.tsv')
+    try:
+        with open(DATA_DIR + '/testreactionsout_new.tsv', 'rb') as infile:
+            output_compounds = hashlib.sha256(infile.read()).hexdigest()
+        assert expected == output_compounds
+    finally:
+        os.remove(DATA_DIR + '/testreactionsout_new.tsv')
 
 
 def test_transform_all(default_rule, smiles_dict, coreactant_dict):
@@ -239,11 +239,9 @@ def test_pruning(default_rule, smiles_dict, coreactant_dict):
     assert os.path.exists(DATA_DIR + '/pruned_rxns_new')
     try:
         assert cmp(DATA_DIR + '/pruned_comps', DATA_DIR + '/pruned_comps_new')
-    finally:
-        os.remove(DATA_DIR + '/pruned_comps_new')
-    try:
         assert cmp(DATA_DIR + '/pruned_rxns', DATA_DIR + '/pruned_rxns_new')
     finally:
+        os.remove(DATA_DIR + '/pruned_comps_new')
         os.remove(DATA_DIR + '/pruned_rxns_new')
 
 def test_save_as_mine(default_rule, smiles_dict, coreactant_dict):
