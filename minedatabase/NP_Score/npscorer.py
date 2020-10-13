@@ -24,9 +24,9 @@ import os.path
 
 
 def readNPModel(filename=os.path.join(os.path.dirname(__file__), 'publicnp.model.gz')):
-    sys.stderr.write("reading NP model ...\n")
+    # sys.stderr.write("reading NP model ...\n")
     fscore = pickle.load(gzip.open(filename))
-    sys.stderr.write("model in\n")
+    # sys.stderr.write("model in\n")
     return fscore
 
 

@@ -199,19 +199,17 @@ def test_insert_reaction(test_db):
     WHEN that reaction is inserted into a MINE database
     THEN check that it is present and that the stoichiometry is correct
     """
+    # TODO: update test to new format of prod/react
     rxn = {'Equation': 'A + B = C + D'}
     rxn['Reactants'], rxn['Products'] = utils.parse_text_rxn(rxn['Equation'],
                                                              ' = ', ' + ')
+    rxn['_id'] = 'R_testrxn'
     test_db.insert_reaction(rxn)
-    entry = test_db.reactions.find_one({"_id": "R4542c96f4bca04bfe2db15bc71e9"
-                                               "eaee38bee5b87ad8a6752a5c4718"
-                                               "ba1974c1"})
+    entry = test_db.reactions.find_one({"_id": "R_testrxn"})
     assert entry
     assert isinstance(entry['_id'], str) and (len(entry['_id']) > 0)
-    assert entry['Reactants'] == [{"stoich": 1, "c_id": "A"},
-                                  {"stoich": 1, "c_id": "B"}]
-    assert entry['Products'] == [{"stoich": 1, "c_id": "C"},
-                                 {"stoich": 1, "c_id": "D"}]
+    assert entry['Reactants'] == [[1, "A"], [1, "B"]]
+    assert entry['Products'] == [[1, "C"], [1, "D"]]
 
 
 def test_init(test_db):
