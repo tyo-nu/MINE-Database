@@ -66,11 +66,11 @@ def default_rule(pk):
 def pk_transformed(default_rule, smiles_dict, coreactant_dict):
     """Create Pickaxe object with a few predicted reactions."""
     pk_transformed = pickaxe.Pickaxe()
-    pk_transformed._add_compound("Start", smi=smiles_dict['FADH'])
+    pk_transformed._add_compound("Start", smi=smiles_dict['FADH'], cpd_type='Starting Compound')
     pk_transformed._load_coreactant(coreactant_dict['ATP'])
     pk_transformed._load_coreactant(coreactant_dict['ADP'])
     pk_transformed.operators['2.7.1.a'] = default_rule
-    pk_transformed.transform_compound(smiles_dict['FADH'])
+    pk_transformed.transform_all()
     pk_transformed.assign_ids()
     return pk_transformed
 
