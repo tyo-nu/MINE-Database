@@ -31,8 +31,12 @@ mongo_uri = 'mongodb://localhost:27017'
 
 # Database to write results to
 write_db = True
-database_overwrite = False
+database_overwrite = True
 database = 'test_db'
+
+# Local writing
+write_local = True
+output_dir = '.'
 
 # Cofactors and rules
 # Original rules derived from BNICE
@@ -69,7 +73,10 @@ crit_tani = 0.9
 
 ################################################################################
 ##### Running pickaxe
-# Initialize the Pickaxe class instance
+# Initialize the Pickaxe class 
+if write_db == False:
+    database = None
+
 pk = Pickaxe(coreactant_list=coreactant_list,
             rule_list=rule_list,
             errors=verbose, explicit_h=explicit_h,
@@ -80,6 +87,9 @@ pk = Pickaxe(coreactant_list=coreactant_list,
 
 # Load compounds
 pk.load_compound_set(compound_file=input_cpds)
+
+# Load partial operators
+pk.load_partial_operators('./local_data/J_examples copy.tsv')
 
 # Initialize tanimoto filter
 if tani_filter:
@@ -107,6 +117,11 @@ if write_db:
                                     )
     db.meta_data.insert_one({"Timestamp": datetime.datetime.now(),
                             "Message": ("")})
+
+if write_local:
+    pk.assign_ids()
+    pk.write_compound_output_file(output_dir + '/compounds.tsv')
+    pk.write_reaction_output_file(output_dir + '/reactions.tsv')
 
 print(f'----------------------------------------')
 print(f'Overall run took {round(time.time() - start, 2)} seconds.')
