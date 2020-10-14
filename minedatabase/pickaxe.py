@@ -490,41 +490,45 @@ class Pickaxe:
 
     def load_partial_operators(self, mapped_reactions):
         # generate partial operators as done in ipynb
-        with open(mapped_reactions) as f:
-            for line in f.readlines():
-                # Grab info from current mapped reaction
-                rule, source, smiles, _ = line.strip('\n').split('\t')
-                # There should be 2 or more reactants derived from the mapping code
-                # The mapped code doesn't include cofactors, so 2 or more means any;any*
-                exact_reactants = smiles.split('>>')[0].split('.')
-                base_rule = rule.split('_')[0]
+        if not self.operators:
+            print("Load reaction rules before loading partial operators")
+        else:
+            with open(mapped_reactions) as f:
+                for line in f.readlines():
+                    # Grab info from current mapped reaction
+                    rule, source, smiles, _ = line.strip('\n').split('\t')
+                    # There should be 2 or more reactants derived from the mapping code
+                    # The mapped code doesn't include cofactors, so 2 or more means any;any*
+                    exact_reactants = smiles.split('>>')[0].replace(';','.').split('.')
+                    base_rule = rule.split('_')[0]
+                    # base rule must be loaded for partial operator to be useful
+                    if base_rule in self.operators:
+                        op_reactants = self.operators[base_rule][1]['Reactants']
+                        if op_reactants.count('Any') >= 2:
+                            mapped_reactants = []
+                            for i, r in enumerate(op_reactants):
+                                if r == 'Any':
+                                    mapped_reactants.append(exact_reactants.pop(0))
+                                else:
+                                    mapped_reactants.append(r)
 
-                op_reactants = self.operators[base_rule][1]['Reactants']
-                if op_reactants.count('Any') >= 2:
-                    mapped_reactants = []
-                    for i, r in enumerate(op_reactants):
-                        if r == 'Any':
-                            mapped_reactants.append(exact_reactants.pop(0))
-                        else:
-                            mapped_reactants.append(r)
-
-                    ind_SMARTS = self.operators[base_rule][1]['SMARTS'].split('>>')[0].split('.')
-                    # now loop through and generate dictionary entries
-                    for i, r in enumerate(op_reactants):
-                        if r != 'Any':
-                            pass
-                        else:
-                            # Build entries
-                            fixed_reactants = [fr if i != j else 'SMARTS_match' for j, fr in enumerate(mapped_reactants)]
-                            bi_rule =  {
-                                'rule': base_rule,
-                                'rule_reaction': rule,
-                                'reactants': fixed_reactants
-                            }
-                            if ind_SMARTS[i] in self.partial_operators:
-                                self.partial_operators[ind_SMARTS[i]].append(bi_rule)
-                            else:
-                                self.partial_operators[ind_SMARTS[i]] = [bi_rule]
+                            ind_SMARTS = self.operators[base_rule][1]['SMARTS'].split('>>')[0].split('.')
+                            # now loop through and generate dictionary entries
+                            for i, r in enumerate(op_reactants):
+                                if r != 'Any':
+                                    pass
+                                else:
+                                    # Build entries
+                                    fixed_reactants = [fr if i != j else 'SMARTS_match' for j, fr in enumerate(mapped_reactants)]
+                                    bi_rule =  {
+                                        'rule': base_rule,
+                                        'rule_reaction': rule,
+                                        'reactants': fixed_reactants
+                                    }
+                                    if ind_SMARTS[i] in self.partial_operators:
+                                        self.partial_operators[ind_SMARTS[i]].append(bi_rule)
+                                    else:
+                                        self.partial_operators[ind_SMARTS[i]] = [bi_rule]
                 
     def _filter_partial_operators(self):
         # generate the reactions to specifically expand based on current compounds
