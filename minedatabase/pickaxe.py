@@ -935,13 +935,16 @@ class Pickaxe:
         core_update_mine_requests = []
         mine_cpd_requests = []
 
+        cpd_dicts = [self.compounds[cpd_id] for cpd_id in cpd_ids 
+                        if not self.compounds[cpd_id]['_id'].startswith('T')]
+        _save_compound_helper_partial = partial(_save_compound_helper, self.mine)
         if num_workers > 1:
             # parallel insertion
             chunk_size = max(
                 [round(len(cpd_ids) / (num_workers * 10)), 1])
             pool = multiprocessing.Pool(processes=num_workers)
             for i, res in enumerate(pool.imap_unordered(
-                    self._save_compound_helper, cpd_ids, chunk_size)):
+                    _save_compound_helper_partial, cpd_dicts, chunk_size)):
                 if res:
                     mine_cpd_requests.append(res[0])
                     core_update_mine_requests.append(res[1])
@@ -949,32 +952,13 @@ class Pickaxe:
         else:
             # non-parallel insertion
             # Write generated compounds to MINE and core compounds to core
-            for cpd_id in cpd_ids:
-                comp_dict = self.compounds[cpd_id]
-                # Write everything except for targets
-                if not comp_dict['_id'].startswith('T'):
-                    # These functions are in the MINE class. The request list is
-                    # passed and appended in the MINE method.
-                    db.insert_mine_compound(comp_dict, mine_cpd_requests)
-                    db.update_core_compound_MINES(comp_dict, core_update_mine_requests)
-                    db.insert_core_compound(comp_dict, core_cpd_requests)
+            for cpd_dict in cpd_dicts:
+                # These functions are in the MINE database class. The request list is
+                # passed and appended in the MINE method.
+                db.insert_mine_compound(cpd_dict, mine_cpd_requests)
+                db.update_core_compound_MINES(cpd_dict, core_update_mine_requests)
+                db.insert_core_compound(cpd_dict, core_cpd_requests)
         return core_cpd_requests, core_update_mine_requests, mine_cpd_requests
-    
-    def _save_compound_helper(self, cpd_id):
-        # Helper function to aid parallelization of saving compounds in
-        # save_to_mine
-        comp_dict = self.compounds[cpd_id]
-        if not comp_dict['_id'].startswith('T'):
-            # These functions are outside of the MINE class in order to
-            # allow for parallelization. When in the MINE class it is not
-            # serializable with pickle. In comparison to the class functions,
-            # these return the requests instead of appending to a passed list.
-            mine_req = databases.insert_mine_compound(comp_dict)
-            core_up_req = databases.update_core_compound_MINES(comp_dict, self.mine)
-            core_in_req = databases.insert_core_compound(comp_dict)
-            return [mine_req, core_up_req, core_in_req]
-        else:
-            return None
     
     def _save_reactions(self, rxn_ids, db, num_workers=1):
         # Function to save a given list of compound ids and then delete them from memory
@@ -1091,6 +1075,18 @@ def _racemization(compound, max_centers=3, carbon_only=True):
         new_comps.append(deepcopy(compound))
     return new_comps
 
+def _save_compound_helper(mine, cpd_dict):
+        # Helper function to aid parallelization of saving compounds in
+        # save_to_mine
+        # These functions are outside of the MINE class in order to
+        # allow for parallelization. When in the MINE class it is not
+        # serializable with pickle. In comparison to the class functions,
+        # these return the requests instead of appending to a passed list.
+        mine_req = databases.insert_mine_compound(cpd_dict)
+        core_up_req = databases.update_core_compound_MINES(cpd_dict, mine)
+        core_in_req = databases.insert_core_compound(cpd_dict)
+        return [mine_req, core_up_req, core_in_req]
+        
 ################################################################################
 ########## Functions to run transformations
 #   1. Full Operators are the operators as loaded directly from the list of operatores.
