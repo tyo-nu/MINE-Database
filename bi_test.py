@@ -64,7 +64,7 @@ quiet = True
 indexing = False
 
 # Tanimoto Filtering options
-target_cpds = './example_data/target_list_many.csv'
+# target_cpds = './example_data/target_list_many.csv'
 tani_filter = False
 # Prune results to only give expanded compounds/rxns
 tani_prune = False
@@ -89,12 +89,13 @@ pk = Pickaxe(coreactant_list=coreactant_list,
 
 # Load compounds
 pk.load_compound_set(compound_file=input_cpds)
-# pk._add_compound('Rule1_0A', 'CC(O)CC(=O)OCC1CCCC(OC2CCCC(CO)O2)O1', 'Starting Compound')
-# pk._add_compound('Rule1_0B', 'OCC1CCCCO1', 'Starting Compound')
+pk._add_compound('Rule1_0A', 'CC(O)CC(=O)OCC1CCCC(OC2CCCC(CO)O2)O1', 'Starting Compound')
+pk._add_compound('Rule1_0B', 'OCC1CCCCO1', 'Starting Compound')
 # pk._add_compound('Rule1', 'CC(=O)O', 'Starting Compound')
 
 # Load partial operators
-pk.load_partial_operators('./minedatabase/data/metacyc_mapped.txt')
+# pk.load_partial_operators('./minedatabase/data/metacyc_mapped.txt')
+pk.load_partial_operators('/Users/kevbot/Box Sync/Research/Projects/MINE/MINE-Database/local_data/J_examples.tsv')
 
 # Initialize tanimoto filter
 if tani_filter:

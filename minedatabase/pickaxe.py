@@ -25,6 +25,18 @@ from rdkit.Chem.Draw import MolToFile, rdMolDraw2D
 from rdkit.Chem import AllChem
 from rdkit import RDLogger
 
+# Getting object size
+import sys
+from numbers import Number
+from collections import Set, Mapping, deque
+
+try: # Python 2
+    zero_depth_bases = (basestring, Number, xrange, bytearray)
+    iteritems = 'iteritems'
+except NameError: # Python 3
+    zero_depth_bases = (str, bytes, Number, range, bytearray)
+    iteritems = 'items'
+
 class Pickaxe:
     """This class generates new compounds from user-specified starting
     compounds using a set of SMARTS-based reaction rules. It may be initialized
@@ -580,8 +592,10 @@ class Pickaxe:
                 cofactors_as_cpds.append(cpd_id)
 
         # Loop through identified compounds and update reactions/compounds accordingly
+        rxns = set()
         for cpd_id in cofactors_as_cpds:
             rxn_ids = set(self.compounds[cpd_id]['Product_of'] + self.compounds[cpd_id]['Reactant_in'])
+            rxns_to_del = rxns.union(rxn_ids)
             # Check and fix reactions as needed
             for rxn_id in rxn_ids:
                 rxn = self.reactions[rxn_id]
@@ -609,22 +623,18 @@ class Pickaxe:
                 
                 if cofactor_rxn_id in self.reactions:
                     # Update operators to
-                    self.reactions[cofactor_rxn_id]['Operators'] = self.reactions[cofactor_rxn]['Operators'].union(self.reactions[rxn_id]['Operators'])
+                    self.reactions[cofactor_rxn_id]['Operators'] = self.reactions[cofactor_rxn_id]['Operators'].union(self.reactions[rxn_id]['Operators'])
 
                     # Remove reaction from all participants logs
                     for _, cpd in rxn['Reactants']:
-                        if rxn_id in self.compounds[cpd]['Reactant_in']:
-                            self.compounds[cpd]['Reactant_in'].remove(rxn_id)
-                        if rxn_id in self.compounds[cpd]['Product_of']:
-                            self.compounds[cpd]['Product_of'].remove(rxn_id)
+                        if cpd.startswith('C'):
+                            if rxn_id in self.compounds[cpd]['Reactant_in']:
+                                self.compounds[cpd]['Reactant_in'].remove(rxn_id)
 
                     for _, cpd in rxn['Products']:
-                        if rxn_id in self.compounds[cpd]['Reactant_in']:
-                            self.compounds[cpd]['Reactant_in'].remove(rxn_id)
-                        if rxn_id in self.compounds[cpd]['Product_of']:
-                            self.compounds[cpd]['Product_of'].remove(rxn_id)
-
-                    del(self.reactions[rxn_id])
+                        if cpd.startswith('C'):
+                            if rxn_id in self.compounds[cpd]['Product_of']:
+                                self.compounds[cpd]['Product_of'].remove(rxn_id)
 
                 else:
                     # construct new reaction with cofactor replacements
@@ -641,16 +651,24 @@ class Pickaxe:
                     self.reactions[cofactor_rxn_id] = cofactor_rxn
                     
                     for _, cpd in rxn['Reactants']:
-                        self.compounds[cpd]['Reactant_in'].append(cofactor_rxn_id)
-                        if rxn_id in self.compounds[cpd]['Reactant_in']:
-                            self.compounds[cpd]['Reactant_in'].remove(rxn_id)                        
+                        if cpd.startswith('C'):
+                            self.compounds[cpd]['Reactant_in'].append(cofactor_rxn_id)
+                            if rxn_id in self.compounds[cpd]['Reactant_in']:
+                                self.compounds[cpd]['Reactant_in'].remove(rxn_id)                        
 
                     for _, cpd in rxn['Products']:
-                        self.compounds[cpd]['Product_of'].append(cofactor_rxn_id)
-                        if rxn_id in self.compounds[cpd]['Product_of']:
-                            self.compounds[cpd]['Product_of'].remove(rxn_id)
+                        if cpd.startswith('C'):
+                            self.compounds[cpd]['Product_of'].append(cofactor_rxn_id)
+                            if rxn_id in self.compounds[cpd]['Product_of']:
+                                self.compounds[cpd]['Product_of'].remove(rxn_id)
 
-                    del(self.reactions[rxn_id])           
+            
+        for rxn_id in rxns_to_del:
+            del(self.reactions[rxn_id])
+
+        for cpd_id in cofactors_as_cpds:
+            del(self.compounds[cpd_id])
+                  
 
     def _filter_by_tani(self, num_workers=1):
         """ 
@@ -675,7 +693,7 @@ class Pickaxe:
         if num_workers > 1:
             # Set up parallel computing of compounds to expand
             chunk_size = max(
-                        [round(len(compounds_to_check) / (num_workers * 10)), 1])
+                        [round(len(compounds_to_check) / (num_workers * 4)), 1])
             print(f'Filtering Generation {self.generation}')
             pool = multiprocessing.Pool(num_workers)
             for i, res in enumerate(pool.imap_unordered(
@@ -934,7 +952,7 @@ class Pickaxe:
         # and processed that way. Each batch is calculated
         # in parallel.
         n_rxns = len(self.reactions)
-        chunk_size = max(int(n_rxns/100), 10000)     
+        chunk_size = max(int(n_rxns/(num_workers*100)), 10000)     
         print(f"Reaction chunk size writing: {chunk_size}")   
         n_loop = 1
         for rxn_id_chunk in chunks(list(self.reactions.keys()), chunk_size):
@@ -943,6 +961,7 @@ class Pickaxe:
             mine_rxn_requests = self._save_reactions(rxn_id_chunk, db, num_workers)
             if mine_rxn_requests:
                 db.reactions.bulk_write(mine_rxn_requests, ordered=False)
+                del(mine_rxn_requests)
         print(f'Finished Inserting Reactions in {time.time() - rxn_start} seconds.')
         print(f'----------------------------------------\n')
 
@@ -950,15 +969,14 @@ class Pickaxe:
         cpd_start = time.time()
         # Due to memory concerns, compounds are chunked
         # and processed that way. Each batch is calculated
-        # in parallel. The memory issue comes from the fact
-        # that compounds are inserted in bulk in mongo.
+        # in parallel. 
         n_cpds = len(self.compounds)
-        chunk_size = max(int(n_cpds/100), 10000)
+        chunk_size = max(int(n_cpds/(num_workers*100)), 10000)
         print(f"Compound chunk size: {chunk_size}")  
         n_loop = 1
         for cpd_id_chunk in chunks(list(self.compounds.keys()), chunk_size):
             # Insert the three types of compounds
-            print(f"Writing Compound Chunk {n_loop} of {round(n_cpds/chunk_size)}")
+            print(f"Writing Compound Chunk {n_loop} of {round(n_cpds/chunk_size)+1}")
             n_loop += 1
             core_cpd_requests, core_update_mine_requests, mine_cpd_requests = self._save_compounds(cpd_id_chunk, db, num_workers)            
             if core_cpd_requests:
@@ -1038,13 +1056,16 @@ class Pickaxe:
         core_update_mine_requests = []
         mine_cpd_requests = []
 
+        cpd_dicts = [self.compounds[cpd_id] for cpd_id in cpd_ids 
+                        if not self.compounds[cpd_id]['_id'].startswith('T')]
+        _save_compound_helper_partial = partial(_save_compound_helper, self.mine)
         if num_workers > 1:
             # parallel insertion
             chunk_size = max(
-                [round(len(cpd_ids) / (num_workers * 10)), 1])
+                [round(len(cpd_ids) / (num_workers * 4)), 1])
             pool = multiprocessing.Pool(processes=num_workers)
             for i, res in enumerate(pool.imap_unordered(
-                    self._save_compound_helper, cpd_ids, chunk_size)):
+                    _save_compound_helper_partial, cpd_dicts, chunk_size)):
                 if res:
                     mine_cpd_requests.append(res[0])
                     core_update_mine_requests.append(res[1])
@@ -1052,15 +1073,12 @@ class Pickaxe:
         else:
             # non-parallel insertion
             # Write generated compounds to MINE and core compounds to core
-            for cpd_id in cpd_ids:
-                comp_dict = self.compounds[cpd_id]
-                # Write everything except for targets
-                if not comp_dict['_id'].startswith('T'):
-                    # These functions are in the MINE class. The request list is
-                    # passed and appended in the MINE method.
-                    db.insert_mine_compound(comp_dict, mine_cpd_requests)
-                    db.update_core_compound_MINES(comp_dict, core_update_mine_requests)
-                    db.insert_core_compound(comp_dict, core_cpd_requests)
+            for cpd_dict in cpd_dicts:
+                # These functions are in the MINE database class. The request list is
+                # passed and appended in the MINE method.
+                db.insert_mine_compound(cpd_dict, mine_cpd_requests)
+                db.update_core_compound_MINES(cpd_dict, core_update_mine_requests)
+                db.insert_core_compound(cpd_dict, core_cpd_requests)
         return core_cpd_requests, core_update_mine_requests, mine_cpd_requests
     
     def _save_compound_helper(self, cpd_id):
@@ -1087,7 +1105,7 @@ class Pickaxe:
         if num_workers > 1:
             # parallel insertion
             chunk_size = max(
-                [round(len(rxn_ids) / (num_workers * 10)), 1])
+                [round(len(rxn_ids) / (num_workers * 4)), 1])
             pool = multiprocessing.Pool(processes=num_workers)
             for i, res in enumerate(pool.imap_unordered(
                     databases.insert_reaction, rxns_to_write, chunk_size)):
@@ -1275,8 +1293,9 @@ def _run_reaction(rule_name, rule, reactant_mols, coreactant_mols, coreactant_di
     
         return cpd_dict
 
+    
     product_sets = rule[0].RunReactants(reactant_mols)
-
+    
     reactants, reactant_atoms = _make_half_rxn(reactant_mols, rule[1]['Reactants'])      
              
     if not reactants:
@@ -1376,9 +1395,10 @@ def _transform_all_compounds_with_full(compound_smiles, coreactants,
     # par loop
     if num_workers > 1:
         # TODO chunk size?
-        chunk_size = max(
-                [round(len(compound_smiles) / (num_workers)), 1])
-        print(f'Chunk size = {chunk_size}')
+        # chunk_size = max(
+        #         [round(len(compound_smiles) / (num_workers)), 1])
+        chunk_size = 1
+        # print(f'Chunk size = {chunk_size}')
         pool = multiprocessing.Pool(processes=num_workers)
         for i, res in enumerate(pool.imap_unordered(
                             transform_compound_partial, compound_smiles, chunk_size)):
@@ -1410,6 +1430,17 @@ def _transform_all_compounds_with_full(compound_smiles, coreactants,
 
     return new_cpds_master, new_rxns_master
 
+def _save_compound_helper(mine, cpd_dict):
+        # Helper function to aid parallelization of saving compounds in
+        # save_to_mine
+        # These functions are outside of the MINE class in order to
+        # allow for parallelization. When in the MINE class it is not
+        # serializable with pickle. In comparison to the class functions,
+        # these return the requests instead of appending to a passed list.
+        mine_req = databases.insert_mine_compound(cpd_dict)
+        core_up_req = databases.update_core_compound_MINES(cpd_dict, mine)
+        core_in_req = databases.insert_core_compound(cpd_dict)
+        return [mine_req, core_up_req, core_in_req]
 
 ########## Partial Operators
 def _transform_ind_compound_with_partial(coreactant_mols, coreactant_dict, operators, generation, explicit_h, partial_rules, compound_smiles):
@@ -1500,9 +1531,10 @@ def _transform_all_compounds_with_partial(compound_smiles, coreactants, coreacta
     # par loop
     if num_workers > 1:
         # TODO chunk size?
-        chunk_size = max(
-                [round(len(compound_smiles) / (num_workers)), 1])
-        print(f'Chunk size = {chunk_size}')
+        # chunk_size = max(
+        #         [round(len(compound_smiles) / (num_workers)), 1])
+        chunk_size = 1
+        # print(f'Chunk size = {chunk_size}')
         pool = multiprocessing.Pool(processes=num_workers)
         for i, res in enumerate(pool.imap_unordered(
                             transform_compound_partial, compound_smiles, chunk_size)):

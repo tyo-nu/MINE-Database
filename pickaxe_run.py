@@ -32,10 +32,10 @@ mongo_uri = 'mongodb://localhost:27017'
 # Database to write results to
 write_db = True
 database_overwrite = True
-database = 'test_db'
+database = 'test_write_cpd'
 
 # Local writing
-write_local = True
+write_local = False
 output_dir = '.'
 
 # Cofactors and rules
@@ -48,11 +48,11 @@ coreactant_list = './minedatabase/data/MetaCyc_Coreactants.tsv'
 rule_list = './minedatabase/data/metacyc_generalized_rules_500.tsv'
 
 # Input compounds
-input_cpds = './example_data/starting_cpds_ten.csv'
+input_cpds = '200cpd.csv'
 
 # Pickaxe Options
 generations = 1
-num_workers = 1     # Number of processes for parallelization
+num_workers = 12     # Number of processes for parallelization
 verbose = False     # Display RDKit warnings and errors
 explicit_h = False
 kekulize = True
@@ -89,7 +89,7 @@ pk = Pickaxe(coreactant_list=coreactant_list,
 pk.load_compound_set(compound_file=input_cpds)
 
 # Load partial operators
-pk.load_partial_operators('./local_data/J_examples copy.tsv')
+# pk.load_partial_operators('./local_data/J_examples copy.tsv')
 
 # Initialize tanimoto filter
 if tani_filter:
