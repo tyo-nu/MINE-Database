@@ -540,7 +540,6 @@ class Pickaxe:
                                     if ind_SMARTS[i] in self.partial_operators:
                                         self.partial_operators[ind_SMARTS[i]].append(bi_rule)
                                     else:
-                                        print(ind_SMARTS[i])
                                         self.partial_operators[ind_SMARTS[i]] = [bi_rule]
                 
     def _filter_partial_operators(self):
