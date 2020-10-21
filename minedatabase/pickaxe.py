@@ -524,7 +524,7 @@ class Pickaxe:
                                 else:
                                     mapped_reactants.append(r)
 
-                            ind_SMARTS = self.operators[base_rule][1]['SMARTS'].split('>>')[0].split('.')
+                            ind_SMARTS = self.operators[base_rule][1]['SMARTS'].split('>>')[0].replace('(', '').replace(')', '').split('.')
                             # now loop through and generate dictionary entries
                             for i, r in enumerate(op_reactants):
                                 if r != 'Any':
@@ -540,6 +540,7 @@ class Pickaxe:
                                     if ind_SMARTS[i] in self.partial_operators:
                                         self.partial_operators[ind_SMARTS[i]].append(bi_rule)
                                     else:
+                                        print(ind_SMARTS[i])
                                         self.partial_operators[ind_SMARTS[i]] = [bi_rule]
                 
     def _filter_partial_operators(self):
