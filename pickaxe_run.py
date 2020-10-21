@@ -89,7 +89,7 @@ pk = Pickaxe(coreactant_list=coreactant_list,
 pk.load_compound_set(compound_file=input_cpds)
 
 # Load partial operators
-# pk.load_partial_operators('./local_data/J_examples copy.tsv')
+pk.load_partial_operators('reaction_mappings.tsv')
 
 # Initialize tanimoto filter
 if tani_filter:
