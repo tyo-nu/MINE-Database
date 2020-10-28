@@ -593,6 +593,7 @@ class Pickaxe:
 
         # Loop through identified compounds and update reactions/compounds accordingly
         rxns = set()
+        rxns_to_del = None
         for cpd_id in cofactors_as_cpds:
             rxn_ids = set(self.compounds[cpd_id]['Product_of'] + self.compounds[cpd_id]['Reactant_in'])
             rxns_to_del = rxns.union(rxn_ids)
@@ -662,13 +663,13 @@ class Pickaxe:
                             if rxn_id in self.compounds[cpd]['Product_of']:
                                 self.compounds[cpd]['Product_of'].remove(rxn_id)
 
-            
-        for rxn_id in rxns_to_del:
-            del(self.reactions[rxn_id])
+        if rxns_to_del:  
+            for rxn_id in rxns_to_del:
+                del(self.reactions[rxn_id])
 
-        for cpd_id in cofactors_as_cpds:
-            del(self.compounds[cpd_id])
-                  
+            for cpd_id in cofactors_as_cpds:
+                del(self.compounds[cpd_id])
+                    
 
     def _filter_by_tani(self, num_workers=1):
         """ 
