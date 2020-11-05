@@ -43,9 +43,12 @@ def compound_hash(smi, cpd_type='Predicted'):
     # The ID is generated from a hash of either the InChI key (partial) or SMILES
     # The InChI key is used if the SMILES does not contain '*'
     if '*' not in smi:
-        compound = AllChem.MolFromSmiles(smi)
-        # Take the first part of the InChIKey as it contains structural information only
-        compound = ''.join(AllChem.MolToInchiKey(compound).split('-')[0])
+        try:
+            compound = AllChem.MolFromSmiles(smi)
+            # Take the first part of the InChIKey as it contains structural information only
+            compound = ''.join(AllChem.MolToInchiKey(compound).split('-')[0])
+        except:
+            return None
     else:
         compound = smi
 

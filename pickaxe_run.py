@@ -30,9 +30,9 @@ mongo_uri = 'mongodb://localhost:27017'
 # mongo_uri = f"mongodb://{creds[0]}:{creds[1]}@minedatabase.ci.northwestern.edu:27017/?authSource=admin"
 
 # Database to write results to
-write_db = True
+write_db = False
 database_overwrite = True
-database = 'test_write_cpd'
+database = "DBName"
 
 # Local writing
 write_local = False
@@ -48,7 +48,7 @@ coreactant_list = './minedatabase/data/MetaCyc_Coreactants.tsv'
 rule_list = './minedatabase/data/metacyc_generalized_rules_500.tsv'
 
 # Input compounds
-input_cpds = '200cpd.csv'
+input_cpds = 'ADP1_cpds_out_final.csv'
 
 # Pickaxe Options
 generations = 1
@@ -62,13 +62,13 @@ quiet = True
 indexing = False
 
 # Tanimoto Filtering options
-target_cpds = './example_data/target_list_many.csv'
-tani_filter = False
+target_cpds = 'APAH.csv'
+tani_filter = True
 # Prune results to only give expanded compounds/rxns
 tani_prune = False
 # Tanimito filter threshold. Can be single number of a list
 # of length generations. 
-crit_tani = 0.9
+crit_tani = 0.2
 # crit_tani = [0, 0.5] # expands first with no filter then a 0.5 filter
 
 ################################################################################
@@ -89,7 +89,7 @@ pk = Pickaxe(coreactant_list=coreactant_list,
 pk.load_compound_set(compound_file=input_cpds)
 
 # Load partial operators
-pk.load_partial_operators('reaction_mappings.tsv')
+# pk.load_partial_operators('minedatabase/data/metacyc_mapped.tsv')
 
 # Initialize tanimoto filter
 if tani_filter:

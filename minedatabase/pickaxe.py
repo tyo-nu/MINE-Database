@@ -368,28 +368,31 @@ class Pickaxe:
         """Generates a compound"""
         cpd_dict = {}
         cpd_id = utils.compound_hash(smi, cpd_type)
-        self._raw_compounds[smi] = cpd_id
-        # We don't want to overwrite the same compound from a prior
-        # generation so we check with hashed id from above
-        if cpd_id not in self.compounds:
-            if not mol:
-                mol = AllChem.MolFromSmiles(smi)
-            # expand only Predicted and Starting_compounds
-            expand = True if cpd_type in ['Predicted', 'Starting Compound'] else False
-            cpd_dict = {'ID': cpd_name, '_id': cpd_id, 'SMILES': smi,
-                                   'Type': cpd_type,
-                                   'Generation': self.generation,
-                                   'atom_count': utils._getatom_count(mol, self.radical_check),
-                                   'Reactant_in': [], 'Product_of': [],
-                                   'Expand': expand,
-                                   'Formula':CalcMolFormula(mol)}
-            if cpd_id.startswith('X'):
-                del(cpd_dict['Reactant_in'])
-                del(cpd_dict['Product_of'])
+        if cpd_id:
+            self._raw_compounds[smi] = cpd_id
+            # We don't want to overwrite the same compound from a prior
+            # generation so we check with hashed id from above
+            if cpd_id not in self.compounds:
+                if not mol:
+                    mol = AllChem.MolFromSmiles(smi)
+                # expand only Predicted and Starting_compounds
+                expand = True if cpd_type in ['Predicted', 'Starting Compound'] else False
+                cpd_dict = {'ID': cpd_name, '_id': cpd_id, 'SMILES': smi,
+                                    'Type': cpd_type,
+                                    'Generation': self.generation,
+                                    'atom_count': utils._getatom_count(mol, self.radical_check),
+                                    'Reactant_in': [], 'Product_of': [],
+                                    'Expand': expand,
+                                    'Formula':CalcMolFormula(mol)}
+                if cpd_id.startswith('X'):
+                    del(cpd_dict['Reactant_in'])
+                    del(cpd_dict['Product_of'])
+            else:
+                cpd_dict = self.compounds[cpd_id]
+            
+            return cpd_id, cpd_dict
         else:
-            cpd_dict = self.compounds[cpd_id]
-        
-        return cpd_id, cpd_dict
+            return
     
     def _insert_compound(self, cpd_dict):
         """Inserts a compound into the dictionary"""        
@@ -408,18 +411,23 @@ class Pickaxe:
                         outfile.write(d2d.GetDrawingText())
                 except OSError:
                     print(f"Unable to generate image for {smi}")
+        # Add images here
 
+    # This is redundant with insert_compound above
     def _add_compound(self, cpd_name, smi, cpd_type, mol=None):
         """Adds a compound to the internal compound dictionary"""
         cpd_id = utils.compound_hash(smi, cpd_type)
-        self._raw_compounds[smi] = cpd_id
-        # We don't want to overwrite the same compound from a prior
-        # generation so we check with hashed id from above
-        if cpd_id not in self.compounds:
-            _, cpd_dict = self._gen_compound(cpd_name, smi, cpd_type, mol)
-            self._insert_compound(cpd_dict)
-        
-        return cpd_id
+        if cpd_id:
+            self._raw_compounds[smi] = cpd_id
+            # We don't want to overwrite the same compound from a prior
+            # generation so we check with hashed id from above
+            if cpd_id not in self.compounds:
+                _, cpd_dict = self._gen_compound(cpd_name, smi, cpd_type, mol)
+                self._insert_compound(cpd_dict)
+            
+            return cpd_id
+        else: 
+            return None
   
         """If the SMARTS rule is not atom balanced, this check detects the
         accidental alchemy."""
@@ -771,7 +779,9 @@ class Pickaxe:
         for target_smi in self.target_smiles:
             try:
                 # generate hash of predicted target compounds
-                white_list.add(utils.compound_hash(target_smi, 'Predicted'))
+                target_id = utils.compound_hash(target_smi, "Predicted")
+                if target_id:
+                    white_list.add(target_id)
             except:
                 pass
         print(f"Identified {len(white_list)} target compounds to filter for.")
@@ -1281,18 +1291,21 @@ def _run_reaction(rule_name, rule, reactant_mols, coreactant_mols, coreactant_di
             return None
                    
         cpd_id = utils.compound_hash(mol_smiles, 'Predicted')
-        if cpd_id not in local_cpds:
-            cpd_dict = {'ID': None, '_id': cpd_id, 'SMILES': mol_smiles,
-                            'Type': 'Predicted',
-                            'Generation': generation,
-                            'atom_count': utils._getatom_count(mol),
-                            'Reactant_in': [], 'Product_of': [],
-                            'Expand': True,
-                            'Formula': CalcMolFormula(mol)}
+        if cpd_id:
+            if cpd_id not in local_cpds:
+                cpd_dict = {'ID': None, '_id': cpd_id, 'SMILES': mol_smiles,
+                                'Type': 'Predicted',
+                                'Generation': generation,
+                                'atom_count': utils._getatom_count(mol),
+                                'Reactant_in': [], 'Product_of': [],
+                                'Expand': True,
+                                'Formula': CalcMolFormula(mol)}
+            else:
+                cpd_dict = local_cpds[cpd_id]
+        
+            return cpd_dict
         else:
-            cpd_dict = local_cpds[cpd_id]
-    
-        return cpd_dict
+            return None
 
     
     product_sets = rule[0].RunReactants(reactant_mols)
