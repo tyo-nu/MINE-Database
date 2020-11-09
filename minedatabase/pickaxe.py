@@ -30,13 +30,6 @@ import sys
 from numbers import Number
 from collections import Set, Mapping, deque
 
-try: # Python 2
-    zero_depth_bases = (basestring, Number, xrange, bytearray)
-    iteritems = 'iteritems'
-except NameError: # Python 3
-    zero_depth_bases = (str, bytes, Number, range, bytearray)
-    iteritems = 'items'
-
 class Pickaxe:
     """This class generates new compounds from user-specified starting
     compounds using a set of SMARTS-based reaction rules. It may be initialized
@@ -678,7 +671,6 @@ class Pickaxe:
             for cpd_id in cofactors_as_cpds:
                 del(self.compounds[cpd_id])
                     
-
     def _filter_by_tani(self, num_workers=1):
         """ 
         Compares the current generation to the target compound fingerprints
@@ -1251,9 +1243,10 @@ def _racemization(compound, max_centers=3, carbon_only=True):
 # Both operators are preprocessed slightly differently, but yield the same output format back to the pickaxe object.
 
 # there are way too many variables passed... switch to **kwargs?
-# Generic reaction implementation that handles both types of operators
+# Generic reaction implementation
 def _run_reaction(rule_name, rule, reactant_mols, coreactant_mols, coreactant_dict, local_cpds, local_rxns, generation, explicit_h):
-    # function to transform a given rule and list of reactant mols
+    # Transform list of mols and a reaction rule into a half reaction
+    # describing either the reactants or products
     def _make_half_rxn(mol_list, rules):
         cpds = {}
         cpd_counter = collections.Counter()
@@ -1307,9 +1300,7 @@ def _run_reaction(rule_name, rule, reactant_mols, coreactant_mols, coreactant_di
         else:
             return None
 
-    
     product_sets = rule[0].RunReactants(reactant_mols)
-    
     reactants, reactant_atoms = _make_half_rxn(reactant_mols, rule[1]['Reactants'])      
              
     if not reactants:
@@ -1387,8 +1378,7 @@ def _transform_ind_compound_with_full(coreactant_mols, coreactant_dict, operator
 
     return local_cpds,local_rxns
 
-def _transform_all_compounds_with_full(compound_smiles, coreactants, 
-    coreactant_dict, operators, generation, explicit_h, num_workers):
+def _transform_all_compounds_with_full(compound_smiles, coreactants, coreactant_dict, operators, generation, explicit_h, num_workers):
     """
     This function is made to reduce the memory load of parallelization.
     This function accepts in a list of cpds (cpd_list) and runs the transformation in parallel of these.

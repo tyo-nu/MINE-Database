@@ -3,7 +3,7 @@ import pymongo
 import datetime
 import time
 
-################################################################################
+###############################################################################
 ##### pickaxe_run.py
 # This python script provides a skeleton to build Pickaxe runs around
 # The general format of a script will be:
@@ -13,44 +13,63 @@ import time
 #   4. Load Tanimoto filtering options
 #   5. Transform Compounds
 #   6. Write results
-################################################################################
+###############################################################################
 
 start = time.time()
-# mongo_uri is the login information for the mongodb. 
-# The default is localhost:27017
+
+###############################################################################
+##### Database and output information
+# The default mongo is localhost:27017
 # Connecting remotely requires the location of the database 
 # as well as username/password if security is being used. 
 # Username/password are stored in credentials.csv
-# in the following format: username,password
-creds = open('credentials.csv').readline().split(',')
-creds = [cred.strip('\n') for cred in creds]
-# Local MINE server
-mongo_uri = 'mongodb://localhost:27017'
-# Connecting to the northwestern MINE server
-# mongo_uri = f"mongodb://{creds[0]}:{creds[1]}@minedatabase.ci.northwestern.edu:27017/?authSource=admin"
+# in the following format: username
 
 # Database to write results to
-write_db = False
+write_db = True
 database_overwrite = True
-database = "DBName"
+database = "KEGG_200_int"
+# Message to insert into metadata
+message = "Text to describe reaction."
 
-# Local writing
+# mongo DB information
+use_local = True
+if use_local:
+    mongo_uri = 'mongodb://localhost:27017'
+else:
+    # load file of form user,pass
+    creds = open('credentials.csv').readline().split(',')
+    creds = [cred.strip('\n') for cred in creds]
+    # URI of remote mongo instance
+    mongo_uri = f"mongodb://{creds[0]}:{creds[1]}@minedatabase.ci.northwestern.edu:27017/?authSource=admin"
+
+# Write output .csv files locally
 write_local = False
 output_dir = '.'
+###############################################################################
 
-# Cofactors and rules
+###############################################################################
+##### Cofactors, rules and inputs
 # Original rules derived from BNICE
 # coreactant_list = './minedatabase/data/EnzymaticCoreactants.tsv'
 # rule_list = './minedatabase/data/EnzymaticReactionRules.tsv'
 
 # Rules from Joseph Ni
 coreactant_list = './minedatabase/data/MetaCyc_Coreactants.tsv'
+# rule_list = './minedatabase/data/intermediate_rules_uniprot.tsv'
 rule_list = './minedatabase/data/metacyc_generalized_rules_500.tsv'
 
 # Input compounds
-input_cpds = 'ADP1_cpds_out_final.csv'
+input_cpds = 'kegg_200.csv'
 
-# Pickaxe Options
+# Partial operators
+# Partial operators allow use of multiple compounds in an any;any expansion
+partial_rules = False
+mapped_rxns = 'minedatabase/data/metacyc_mapped.tsv'
+###############################################################################
+
+###############################################################################
+##### Core Pickaxe Run Options
 generations = 1
 num_workers = 12     # Number of processes for parallelization
 verbose = False     # Display RDKit warnings and errors
@@ -60,10 +79,12 @@ neutralise = True
 image_dir = None
 quiet = True
 indexing = False
+###############################################################################
 
-# Tanimoto Filtering options
+###############################################################################
+##### Tanimoto Filtering options
 target_cpds = 'APAH.csv'
-tani_filter = True
+tani_filter = False
 # Prune results to only give expanded compounds/rxns
 tani_prune = False
 # Tanimito filter threshold. Can be single number of a list
@@ -71,7 +92,10 @@ tani_prune = False
 crit_tani = 0.2
 # crit_tani = [0, 0.5] # expands first with no filter then a 0.5 filter
 
-################################################################################
+# TODO: fingerprint options
+###############################################################################
+
+###############################################################################
 ##### Running pickaxe
 # Initialize the Pickaxe class 
 if write_db == False:
@@ -89,7 +113,8 @@ pk = Pickaxe(coreactant_list=coreactant_list,
 pk.load_compound_set(compound_file=input_cpds)
 
 # Load partial operators
-# pk.load_partial_operators('minedatabase/data/metacyc_mapped.tsv')
+if partial_rules:
+    pk.load_partial_operators(mapped_reactions)
 
 # Initialize tanimoto filter
 if tani_filter:
@@ -116,7 +141,7 @@ if write_db:
                                     "Tanimoto filter": f"{crit_tani}"}
                                     )
     db.meta_data.insert_one({"Timestamp": datetime.datetime.now(),
-                            "Message": ("")})
+                            "Message": message})
 
 if write_local:
     pk.assign_ids()
