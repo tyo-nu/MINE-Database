@@ -466,14 +466,17 @@ class Pickaxe:
                     crit_tani = self.crit_tani
 
                 print(f"Filtering out compounds with maximum tanimoto match < {crit_tani}")
-                self._filter_by_tani(num_workers=num_workers)
-                n_filtered = 0
                 n_total = 0                
                 for cpd_dict in self.compounds.values():
                     if cpd_dict['Generation'] == self.generation and cpd_dict['_id'].startswith('C'):
                         n_total += 1
-                        if cpd_dict['Expand'] == True:
-                            n_filtered += 1
+                        
+                self._filter_by_tani(num_workers=num_workers)
+                n_filtered = 0
+                for cpd_dict in self.compounds.values():
+                    if cpd_dict['Generation'] == self.generation and cpd_dict['_id'].startswith('C') and cpd_dict['Expand'] == True:
+                        n_filtered += 1
+                        
                 print(f'{n_filtered} of {n_total} compounds remain after filtering generation {self.generation}--took {time.time() - time_tani}s.\n\nExpanding.')
 
             # Starting time for expansion
@@ -491,7 +494,7 @@ class Pickaxe:
                             and cpd['Expand'] == True]
             # No compounds found 
             if not compound_smiles:
-                print(f'No compounds to expand in generation {self.generation}. Finished expanding.')
+                print(f'No compounds to expand in generation {self.generation-1}. Finished expanding.')
                 return None
 
             self._transform_helper(compound_smiles, num_workers)
@@ -716,7 +719,67 @@ class Pickaxe:
                 if not res[1]:
                     self.compounds[res[0]]['Expand'] = False
                 print_progress(i, len(compounds_to_check), 'Tanimoto filter progress:')            
-            
+
+
+        # Remove compounds and reactions that can be removed
+        # For a compound to be removed it must:
+        #   1. Not be flagged for expansion
+        #   2. Not have a coproduct in a reaction marked for expansion
+        #   3. Start with 'C'
+
+        # For a compound to be removed it must:
+        #   1. Produce products that are not expanded
+
+        # Identify compounds who won't be expanded
+
+        def should_delete_reaction(rxn_id):
+                products = self.reactions[rxn_id]['Products']
+                
+                for _, c_id in products:
+                    if c_id.startswith('C') and c_id not in cpds_to_remove:
+                        return False
+                # Every compound isn't in cpds_to_remove
+                return True
+
+        cpds_to_remove = []
+        rxns_to_check = set()
+        for cpd_id, cpd_dict in self.compounds.items():
+            if cpd_dict['Expand'] == False and cpd_dict['_id'].startswith('C'):
+                cpds_to_remove.append(cpd_id)
+                # Generate set of reactions to remove
+                rxn_ids = set(self.compounds[cpd_id]['Product_of'] + self.compounds[cpd_id]['Reactant_in'])
+                rxns_to_check = rxns_to_check.union(rxn_ids)
+
+        # Function to check to see if should delete reaction
+        # TODO: refactor this
+        # Check reactions for deletion
+        for rxn_id in rxns_to_check:
+            if should_delete_reaction(rxn_id):
+                products = self.reactions[rxn_id]['Products']
+                for _, c_id in products:
+                    if c_id.startswith('C'):
+                        if rxn_id in self.compounds[c_id]['Product_of']:
+                            self.compounds[c_id]['Product_of'].remove(rxn_id)
+                
+                reactants = self.reactions[rxn_id]['Reactants']
+                for _, c_id in reactants:
+                    if c_id.startswith('C'):
+                        if rxn_id in self.compounds[c_id]['Reactant_in']:
+                            self.compounds[c_id]['Reactant_in'].remove(rxn_id)
+
+                del(self.reactions[rxn_id])
+            else:
+                # Reaction is dependent on compound that isn't used. 
+                products = self.reactions[rxn_id]['Products']
+                for _, c_id in products:
+                    if c_id in cpds_to_remove:
+                        cpds_to_remove.remove(c_id)
+
+        # Remove compounds and reactions if any found
+        for cpd_id in cpds_to_remove:
+            del(self.compounds[cpd_id])
+    
+
         return None
     
     def _compare_to_targets(self, cpd):
@@ -779,7 +842,8 @@ class Pickaxe:
         print(f"Identified {len(white_list)} target compounds to filter for.")
         self.prune_network(white_list)
         cpd_to_del = set()
-        # Filter out upstream non-targets
+
+        # Filter compounds with no children
         for i in reversed(range(self.generation+1)):
             for cpd_dict in self.compounds.values():
                 if cpd_dict['_id'].startswith('C'):
