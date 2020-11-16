@@ -680,46 +680,24 @@ class Pickaxe:
         marking compounds, who have a tanimoto similarity score to a target compound
         greater than or equal to the crit_tani, for expansion.
         """
-        # TODO: make external of class?
-        def print_progress(done, total, section):
-            # Use print_on to print % completion roughly every 5 percent
-            # Include max to print no more than once per compound (e.g. if
-            # less than 20 compounds)
-            print_on = max(round(.05 * total), 1)
-            if not (done % print_on):
-                print(f"{section} {round(done / total * 100)} percent complete")
+    
+        if type(self.crit_tani) == list:
+            crit_tani = self.crit_tani[self.generation]
+        else:
+            crit_tani = self.crit_tani
 
         # Get compounds eligible for expansion in the current generation
         compounds_to_check = [cpd for cpd in self.compounds.values() 
                                 if cpd['Generation'] == self.generation
                                 and cpd['Type'] not in ['Coreactant', 'Target Compound']]
         
-        if num_workers > 1:
-            # Set up parallel computing of compounds to expand
-            chunk_size = max(
-                        [round(len(compounds_to_check) / (num_workers * 4)), 1])
-            print(f'Filtering Generation {self.generation}')
-            pool = multiprocessing.Pool(num_workers)
-            for i, res in enumerate(pool.imap_unordered(
-                    self._compare_to_targets, 
-                    [cpd for cpd in compounds_to_check 
-                        if cpd['Generation'] == self.generation], chunk_size)):                
-                # If the result of comparison is false, compound is not expanded
-                # Default value for a compound is True, so no need to specify expansion
-                # TODO: delete these compounds instead of just labeling as false?
-                if not res[1]:
-                    self.compounds[res[0]]['Expand'] = False
-                print_progress(i, len(compounds_to_check), 'Tanimoto filter progress:')
-        else:
-            print(f'Filtering Generation {self.generation}')
-            cpd_to_compare = [cpd for cpd in compounds_to_check 
-                        if cpd['Generation'] == self.generation]
-            for i, cpd in enumerate(cpd_to_compare):
-                res = self._compare_to_targets(cpd)
-                if not res[1]:
-                    self.compounds[res[0]]['Expand'] = False
-                print_progress(i, len(compounds_to_check), 'Tanimoto filter progress:')            
+        # filter by tani here external
+        print(f'Filtering Generation {self.generation}')
+        cpd_info = [(cpd['_id'], cpd['SMILES']) for cpd in compounds_to_check]
+        ids_to_ignore = _filter_by_tani_helper(cpd_info, self.target_fps, crit_tani, num_workers)
 
+        for c_id in ids_to_ignore:
+            self.compounds[c_id]['Expand'] = False    
 
         # Remove compounds and reactions that can be removed
         # For a compound to be removed it must:
@@ -743,7 +721,8 @@ class Pickaxe:
 
         cpds_to_remove = []
         rxns_to_check = set()
-        for cpd_id, cpd_dict in self.compounds.items():
+        for cpd_dict in compounds_to_check:
+            cpd_id = cpd_dict['_id']
             if cpd_dict['Expand'] == False and cpd_dict['_id'].startswith('C'):
                 cpds_to_remove.append(cpd_id)
                 # Generate set of reactions to remove
@@ -1293,6 +1272,61 @@ def _racemization(compound, max_centers=3, carbon_only=True):
         # same object
         new_comps.append(deepcopy(compound))
     return new_comps
+
+def _filter_by_tani_helper(compounds_info, target_fps, crit_tani, num_workers):
+    def print_progress(done, total, section):
+            # Use print_on to print % completion roughly every 5 percent
+            # Include max to print no more than once per compound (e.g. if
+            # less than 20 compounds)
+            print_on = max(round(.05 * total), 1)
+            if not (done % print_on):
+                print(f"{section} {round(done / total * 100)} percent complete")
+        
+    # compound_info = [(smiles, id)]
+    ids_to_filter = list()
+    compare_target_fps_partial = partial(_compare_target_fps, target_fps, crit_tani)
+
+    if num_workers > 1:
+        # Set up parallel computing of compounds to 
+        chunk_size = max(
+                    [round(len(compounds_info) / (num_workers * 4)), 1])
+        pool = multiprocessing.Pool(num_workers)
+        for i, res in enumerate(pool.imap_unordered(
+                compare_target_fps_partial, compounds_info, chunk_size)):                
+            # If the result of comparison is false, compound is not expanded
+            # Default value for a compound is True, so no need to specify expansion
+            if res:
+                ids_to_filter.append(res)
+            print_progress(i, len(compounds_info), 'Tanimoto filter progress:')
+
+    else:
+        for i, cpd in enumerate(compounds_info):
+            res = compare_target_fps_partial(cpd)
+            if res:
+                ids_to_filter.append(res)
+            print_progress(i, len(compounds_info), 'Tanimoto filter progress:')
+    print("Tanimoto filter progress: 100 percent complete")
+    return ids_to_filter
+
+def _compare_target_fps(target_fps, crit_tani, compound_info):
+    # do finger print loop here
+    """ 
+    Helper function to allow parallel computation of tanimoto filtering.
+    Works with _filter_by_tani_helper
+
+    Returns cpd_id if a the compound is similar enough to a target.
+    
+    """
+    # Generate the fingerprint of a compound and compare to the fingerprints of the targets
+    try:
+        fp1 = utils.get_fp(compound_info[1])
+        for fp2 in target_fps:
+            if AllChem.DataStructs.FingerprintSimilarity(fp1, fp2) >= crit_tani:
+                return None
+    except:
+        pass
+
+    return compound_info[0]
 
 ################################################################################
 ########## Functions to run transformations
