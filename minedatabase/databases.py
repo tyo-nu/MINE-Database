@@ -370,7 +370,7 @@ class MINE:
 
         # If bulk insertion, upsert (insert and update) the database
         if requests != None:
-            requests.append(pymongo.ReplaceOne({'_id':compound_dict['_id']}, compound_dict, upsert=True))
+            requests.append(pymongo.ReplaceOne({'_id': compound_dict['_id']}, compound_dict, upsert=True))
         else:
             self.compounds.replace_one({'_id':compound_dict['_id']}, compound_dict, upsert=True)
 
@@ -455,8 +455,8 @@ def insert_mine_compound(compound_dict):
         #  InChI key, etc.) as well as its properties in a dictionary
         if 'atom_count' in compound_dict:
             del compound_dict['atom_count']
-        if 'Inchikey' in compound_dict:
-            del compound_dict['Inchikey']
+        # if 'Inchikey' in compound_dict:
+        #     del compound_dict['Inchikey']
         if 'ID' in compound_dict:
             del compound_dict['ID']
 

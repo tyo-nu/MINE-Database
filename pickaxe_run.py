@@ -20,17 +20,17 @@ start = time.time()
 ###############################################################################
 ##### Database and output information
 # The default mongo is localhost:27017
-# Connecting remotely requires the location of the database 
-# as well as username/password if security is being used. 
+# Connecting remotely requires the location of the database
+# as well as username/password if security is being used.
 # Username/password are stored in credentials.csv
 # in the following format: username
 
 # Database to write results to
 write_db = True
 database_overwrite = True
-database = "KEGG_200_int"
+database = "PCA_tani"
 # Message to insert into metadata
-message = "Text to describe reaction."
+message = "Testing write speed"
 
 # mongo DB information
 use_local = True
@@ -57,10 +57,10 @@ output_dir = '.'
 # Rules from Joseph Ni
 coreactant_list = './minedatabase/data/MetaCyc_Coreactants.tsv'
 # rule_list = './minedatabase/data/intermediate_rules_uniprot.tsv'
-rule_list = './minedatabase/data/metacyc_generalized_rules_500.tsv'
+rule_list = './minedatabase/data/metacyc_generalized_rules.tsv'
 
 # Input compounds
-input_cpds = 'kegg_200.csv'
+input_cpds = 'PCA.csv'
 
 # Partial operators
 # Partial operators allow use of multiple compounds in an any;any expansion
@@ -82,23 +82,36 @@ indexing = False
 ###############################################################################
 
 ###############################################################################
-##### Tanimoto Filtering options
-target_cpds = 'APAH.csv'
-tani_filter = False
+##### Filtering Options
+target_cpds = 'catechol.csv'
+
 # Prune results to only give expanded compounds/rxns
-tani_prune = False
+prune_by_filter = True
+
+##### Tanimoto Filtering options
+tani_filter = True
+increasing_tani = False
+
 # Tanimito filter threshold. Can be single number of a list
-# of length generations. 
-crit_tani = 0.2
+# of length generations.
+crit_tani = [0.3, 0.7, 0.8]
 # crit_tani = [0, 0.5] # expands first with no filter then a 0.5 filter
 
-# TODO: fingerprint options
+# TODO: Fingerprint
+
+##### MCS Filter options
+mcs_filter = False
+# Tanimito filter threshold. Can be single number of a list
+# of length generations.
+crit_mcs = [0.2, 0.7, 0.8]
+
+# TODO: MCS options
 ###############################################################################
 
 ###############################################################################
 ##### Running pickaxe
-# Initialize the Pickaxe class 
-if write_db == False:
+# Initialize the Pickaxe class
+if write_db is False:
     database = None
 
 pk = Pickaxe(coreactant_list=coreactant_list,
@@ -114,32 +127,37 @@ pk.load_compound_set(compound_file=input_cpds)
 
 # Load partial operators
 if partial_rules:
-    pk.load_partial_operators(mapped_reactions)
+    pk.load_partial_operators(mapped_rxns)
 
-# Initialize tanimoto filter
-if tani_filter:
-    pk.load_target_set(target_compound_file=target_cpds, crit_tani=crit_tani)
+# Initialize filter
+if tani_filter or mcs_filter:
+    pk.load_target_and_filters(target_compound_file=target_cpds,
+        tani_filter=tani_filter, crit_tani=crit_tani, increasing_tani=increasing_tani,
+        mcs_filter=mcs_filter, crit_mcs=crit_mcs
+    )
 
 # Transform compounds
 pk.transform_all(num_workers, generations)
 
-# Remove cofactor redundancies 
+# Remove cofactor redundancies
 pk.remove_cofactor_redundancy()
 
 # Write results to database
 if write_db:
-    if tani_filter and tani_prune:
+    # TODO: Should be moved into pickaxe.py if using filter
+    if (tani_filter or mcs_filter) and prune_by_filter:
         pk.prune_network_to_targets()
     pk.save_to_mine(num_workers=num_workers, indexing=indexing)
     client = pymongo.MongoClient(mongo_uri)
     db = client[database]
     db.meta_data.insert_one({"Timestamp": datetime.datetime.now(),
-                                    "Generations": f"{generations}",
-                                    "Operator file": f"{rule_list}",
-                                    "Coreactant file": f"{coreactant_list}",
-                                    "Input compound file": f"{input_cpds}",
-                                    "Tanimoto filter": f"{crit_tani}"}
-                                    )
+                             "Generations": f"{generations}",
+                             "Operator file": f"{rule_list}",
+                             "Coreactant file": f"{coreactant_list}",
+                             "Input compound file": f"{input_cpds}",
+                             "Tanimoto filter": f"{crit_tani}"
+                            })
+
     db.meta_data.insert_one({"Timestamp": datetime.datetime.now(),
                             "Message": message})
 
@@ -148,6 +166,6 @@ if write_local:
     pk.write_compound_output_file(output_dir + '/compounds.tsv')
     pk.write_reaction_output_file(output_dir + '/reactions.tsv')
 
-print(f'----------------------------------------')
+print('----------------------------------------')
 print(f'Overall run took {round(time.time() - start, 2)} seconds.')
-print(f'----------------------------------------')
+print('----------------------------------------')
