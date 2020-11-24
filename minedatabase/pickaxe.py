@@ -847,14 +847,14 @@ class Pickaxe:
         cpd_info = [(cpd['_id'], cpd['SMILES']) for cpd in compounds_to_check]
         cpds_to_ignore = _filter_by_helper(cpd_info, targets, crit_val, num_workers)
 
-        for c_id, current_tani in cpds_to_ignore:
-            if current_tani == -1:
+        for c_id, current_val in cpds_to_ignore:
+            if current_val == -1:
                 self.compounds[c_id]['Expand'] = False
             else:
                 # Check if tani is increasing
-                if self.increasing_tani == True:
-                    if current_tani >= self.compounds[c_id]['last_tani']:
-                        self.compounds[c_id]['last_tani'] = current_tani
+                if measure == 'tani' and self.increasing_tani is True:
+                    if current_val >= self.compounds[c_id]['last_tani']:
+                        self.compounds[c_id]['last_tani'] = current_val
                     else:
                         # tanimoto isn't increasing
                         self.compounds[c_id]['Expand'] = False
