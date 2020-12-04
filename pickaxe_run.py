@@ -30,7 +30,7 @@ write_db = True
 database_overwrite = True
 database = "PCA_tani"
 # Message to insert into metadata
-message = "Testing write speed"
+message = ""
 
 # mongo DB information
 use_local = True
@@ -60,7 +60,7 @@ coreactant_list = './minedatabase/data/MetaCyc_Coreactants.tsv'
 rule_list = './minedatabase/data/metacyc_generalized_rules.tsv'
 
 # Input compounds
-input_cpds = 'PCA.csv'
+input_cpds = './local_data/APAH.csv'
 
 # Partial operators
 # Partial operators allow use of multiple compounds in an any;any expansion
@@ -70,7 +70,7 @@ mapped_rxns = 'minedatabase/data/metacyc_mapped.tsv'
 
 ###############################################################################
 ##### Core Pickaxe Run Options
-generations = 1
+generations = 2
 num_workers = 12     # Number of processes for parallelization
 verbose = False     # Display RDKit warnings and errors
 explicit_h = False
@@ -83,8 +83,10 @@ indexing = False
 
 ###############################################################################
 ##### Filtering Options
-target_cpds = 'catechol.csv'
+target_cpds = './local_data/ADP1_cpds_out_final.csv'
 
+# Specify if network expansion is done in a retrosynthetic direction
+retrosynthesis = True
 # Prune results to only give expanded compounds/rxns
 prune_by_filter = True
 
@@ -94,16 +96,19 @@ increasing_tani = False
 
 # Tanimito filter threshold. Can be single number of a list
 # of length generations.
-crit_tani = [0.3, 0.7, 0.8]
+crit_tani = [0.3, 0.8, 0.8]
 # crit_tani = [0, 0.5] # expands first with no filter then a 0.5 filter
 
 # TODO: Fingerprint
 
 ##### MCS Filter options
-mcs_filter = False
-# Tanimito filter threshold. Can be single number of a list
+mcs_filter = True
+# MCS. Can be single number of a list
 # of length generations.
-crit_mcs = [0.2, 0.7, 0.8]
+
+# Finds the MCS of the target and compound and identifies fraction of target
+# the MCS composes
+crit_mcs = [0.5, 0.95, 0.95]
 
 # TODO: MCS options
 ###############################################################################
@@ -133,7 +138,8 @@ if partial_rules:
 if tani_filter or mcs_filter:
     pk.load_target_and_filters(target_compound_file=target_cpds,
         tani_filter=tani_filter, crit_tani=crit_tani, increasing_tani=increasing_tani,
-        mcs_filter=mcs_filter, crit_mcs=crit_mcs
+        mcs_filter=mcs_filter, crit_mcs=crit_mcs,
+        retrosynthesis=False
     )
 
 # Transform compounds

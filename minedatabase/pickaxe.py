@@ -81,6 +81,7 @@ class Pickaxe:
         self.structure_field = None
         # For filtering
         self.target_smiles = []
+        self.retro = False
         # For tani filtering
         self.tani_filter = False
         self.target_fps = []
@@ -141,6 +142,7 @@ class Pickaxe:
     def load_target_and_filters(self, target_compound_file=None,
             tani_filter=False, crit_tani=0, increasing_tani=False,
             mcs_filter=False, crit_mcs=0,
+            retrosynthesis=False,
             structure_field=None, id_field='id'):
 
         """
@@ -160,6 +162,10 @@ class Pickaxe:
         :return: compound SMILES
         :rtype: list
         """
+
+        # TODO: retrosynthesis effects on filtering
+        self.retro = retrosynthesis
+
         # Update options for tanimoto filtering
         self.tani_filter = tani_filter
         self.crit_tani = crit_tani
@@ -487,7 +493,7 @@ class Pickaxe:
                     if cpd_dict['Generation'] == self.generation and cpd_dict['_id'].startswith('C') and cpd_dict['Expand'] == True:
                         n_filtered += 1
 
-                print(f'{n_filtered} of {n_total} compounds remain after filtering generation {self.generation}--took {time.time() - time_tani}s.\n\nExpanding.')
+                print(f'{n_filtered} of {n_total} compounds remain after Tanimoto filtering generation {self.generation}--took {time.time() - time_tani}s.\n')
 
             if self.mcs_filter == True:
                 # Starting time for tani filtering
@@ -514,7 +520,7 @@ class Pickaxe:
                     if cpd_dict['Generation'] == self.generation and cpd_dict['_id'].startswith('C') and cpd_dict['Expand'] == True:
                         n_filtered += 1
 
-                print(f'{n_filtered} of {n_total} compounds remain after MCS filtering of generation {self.generation}--took {time.time() - time_mcs}s.\n\nExpanding.')
+                print(f'{n_filtered} of {n_total} compounds remain after MCS filtering of generation {self.generation}--took {time.time() - time_mcs}s.\n')
 
             # Starting time for expansion
             time_init = time.time()
@@ -845,7 +851,7 @@ class Pickaxe:
         # filter by tani here external
         print(f'Filtering Generation {self.generation} via {filter_type}')
         cpd_info = [(cpd['_id'], cpd['SMILES']) for cpd in compounds_to_check]
-        cpds_to_ignore = _filter_by_helper(cpd_info, targets, crit_val, num_workers)
+        cpds_to_ignore = _filter_by_helper(cpd_info, targets, crit_val, num_workers, self.retro)
 
         for c_id, current_val in cpds_to_ignore:
             if current_val == -1:
@@ -1409,7 +1415,7 @@ def _racemization(compound, max_centers=3, carbon_only=True):
         new_comps.append(deepcopy(compound))
     return new_comps
 
-def _filter_by_tani_helper(compounds_info, target_fps, crit_tani, num_workers):
+def _filter_by_tani_helper(compounds_info, target_fps, crit_tani, num_workers, retro=False):
     def print_progress(done, total, section):
             # Use print_on to print % completion roughly every 5 percent
             # Include max to print no more than once per compound (e.g. if
@@ -1465,7 +1471,7 @@ def _compare_target_fps(target_fps, crit_tani, compound_info):
 
     return (compound_info[0], -1)
 
-def _compare_target_mcs(target_smiles, crit_mcs, compound_info):
+def _compare_target_mcs(target_smiles, crit_mcs, retro, compound_info):
     """
     Helper function to allow parallel computation of MCS filtering.
     Works with _filter_by_tani_helper
@@ -1484,7 +1490,9 @@ def _compare_target_mcs(target_smiles, crit_mcs, compound_info):
             t_atoms = target_mol.GetNumAtoms()
             t_bonds = target_mol.GetNumBonds()
 
-            return ((ss_atoms + ss_atoms) / (t_bonds + t_atoms))
+            mcs_overlap = ((ss_atoms + ss_bonds) / (t_bonds + t_atoms))
+            return mcs_overlap
+            
         else:
             return 0
     # compare MCS for filter
@@ -1493,8 +1501,13 @@ def _compare_target_mcs(target_smiles, crit_mcs, compound_info):
 
         for t_smi in target_smiles:
             t_mol = AllChem.MolFromSmiles(t_smi)
-            mcs_overlap = get_mcs_overlap(mol, t_mol)
-
+            if not retro:
+                mcs_overlap = get_mcs_overlap(mol, t_mol)
+            else:
+                mcs_overlap = get_mcs_overlap(t_mol, mol)
+            
+            if mcs_overlap > 1:
+                print("pause")
             if mcs_overlap >= crit_mcs:
                 return (compound_info[0], mcs_overlap)
     except:
@@ -1502,7 +1515,7 @@ def _compare_target_mcs(target_smiles, crit_mcs, compound_info):
 
     return (compound_info[0], -1)
 
-def _filter_by_mcs_helper(compounds_info, target_smiles, crit_mcs, num_workers):
+def _filter_by_mcs_helper(compounds_info, target_smiles, crit_mcs, num_workers, retro=False):
     def print_progress(done, total, section):
         # Use print_on to print % completion roughly every 5 percent
         # Include max to print no more than once per compound (e.g. if
@@ -1514,7 +1527,7 @@ def _filter_by_mcs_helper(compounds_info, target_smiles, crit_mcs, num_workers):
     # compound_info = [(smiles, id)]
     cpds_to_filter = list()
     compare_target_mcs_partial = partial(_compare_target_mcs,
-                                    target_smiles, crit_mcs)
+                                    target_smiles, crit_mcs, retro)
 
     if num_workers > 1:
         # Set up parallel computing of compounds to
@@ -1611,8 +1624,11 @@ def _run_reaction(rule_name, rule, reactant_mols, coreactant_mols, coreactant_di
         else:
             return None
 
-    product_sets = rule[0].RunReactants(reactant_mols)
-    reactants, reactant_atoms = _make_half_rxn(reactant_mols, rule[1]['Reactants'])
+    try:
+        product_sets = rule[0].RunReactants(reactant_mols)
+        reactants, reactant_atoms = _make_half_rxn(reactant_mols, rule[1]['Reactants'])
+    except:
+        reactants = None
 
     if not reactants:
         return local_cpds, local_rxns
