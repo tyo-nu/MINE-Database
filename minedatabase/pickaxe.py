@@ -644,10 +644,10 @@ class Pickaxe:
 
         # Loop through identified compounds and update reactions/compounds accordingly
         rxns = set()
-        rxns_to_del = None
+        rxns_to_del = set()
         for cpd_id in cofactors_as_cpds:
             rxn_ids = set(self.compounds[cpd_id]['Product_of'] + self.compounds[cpd_id]['Reactant_in'])
-            rxns_to_del = rxns.union(rxn_ids)
+            rxns_to_del = rxns_to_del.union(rxn_ids)
             # Check and fix reactions as needed
             for rxn_id in rxn_ids:
                 rxn = self.reactions[rxn_id]
@@ -669,24 +669,24 @@ class Pickaxe:
 
                 cofactor_rxn_id, rxn_text = utils.rxn2hash(reactants, products)
 
-                # Now have a reaction has IF the reaction used cofactors
-                # If rxn hash exists delete curr reaction
-                # If doesn't exist make new reaction
+                # Check to see if reaction makes changes
+                # Reactions such as
+                # '(1) NCCCNc1cc(C(=O)O)ccc1O + (1) O =>
+                #       (1) O + (1) NCCCNc1cc(C(=O)O)ccc1O'
+                # are possible. Filter out
 
-                if cofactor_rxn_id in self.reactions:
+                def sort_by(x):
+                    return x[0]['_id']
+                sorted_reactants = sorted(reactants, key=lambda x: x[1]['_id'])
+                sorted_products = sorted(products, key=lambda x: x[1]['_id'])
+
+                if sorted_reactants == sorted_products:
+                    # Remove reaction from all participants logs
+                    pass
+
+                elif cofactor_rxn_id in self.reactions:
                     # Update operators to
                     self.reactions[cofactor_rxn_id]['Operators'] = self.reactions[cofactor_rxn_id]['Operators'].union(self.reactions[rxn_id]['Operators'])
-
-                    # Remove reaction from all participants logs
-                    for _, cpd in rxn['Reactants']:
-                        if cpd.startswith('C'):
-                            if rxn_id in self.compounds[cpd]['Reactant_in']:
-                                self.compounds[cpd]['Reactant_in'].remove(rxn_id)
-
-                    for _, cpd in rxn['Products']:
-                        if cpd.startswith('C'):
-                            if rxn_id in self.compounds[cpd]['Product_of']:
-                                self.compounds[cpd]['Product_of'].remove(rxn_id)
 
                 else:
                     # construct new reaction with cofactor replacements
@@ -702,17 +702,16 @@ class Pickaxe:
                         cofactor_rxn['Partial Operators'] = rxn.get('Partial Operators')
                     self.reactions[cofactor_rxn_id] = cofactor_rxn
 
-                    for _, cpd in rxn['Reactants']:
-                        if cpd.startswith('C'):
-                            self.compounds[cpd]['Reactant_in'].append(cofactor_rxn_id)
-                            if rxn_id in self.compounds[cpd]['Reactant_in']:
-                                self.compounds[cpd]['Reactant_in'].remove(rxn_id)
+                # Remove reaction from all participants logs
+                for _, cpd in rxn['Reactants']:
+                    if cpd.startswith('C'):
+                        if rxn_id in self.compounds[cpd]['Reactant_in']:
+                            self.compounds[cpd]['Reactant_in'].remove(rxn_id)
 
-                    for _, cpd in rxn['Products']:
-                        if cpd.startswith('C'):
-                            self.compounds[cpd]['Product_of'].append(cofactor_rxn_id)
-                            if rxn_id in self.compounds[cpd]['Product_of']:
-                                self.compounds[cpd]['Product_of'].remove(rxn_id)
+                for _, cpd in rxn['Products']:
+                    if cpd.startswith('C'):
+                        if rxn_id in self.compounds[cpd]['Product_of']:
+                            self.compounds[cpd]['Product_of'].remove(rxn_id)
 
         if rxns_to_del:
             for rxn_id in rxns_to_del:
@@ -1492,7 +1491,7 @@ def _compare_target_mcs(target_smiles, crit_mcs, retro, compound_info):
 
             mcs_overlap = ((ss_atoms + ss_bonds) / (t_bonds + t_atoms))
             return mcs_overlap
-            
+
         else:
             return 0
     # compare MCS for filter
@@ -1505,7 +1504,7 @@ def _compare_target_mcs(target_smiles, crit_mcs, retro, compound_info):
                 mcs_overlap = get_mcs_overlap(mol, t_mol)
             else:
                 mcs_overlap = get_mcs_overlap(t_mol, mol)
-            
+
             if mcs_overlap > 1:
                 print("pause")
             if mcs_overlap >= crit_mcs:
