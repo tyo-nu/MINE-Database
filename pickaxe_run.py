@@ -26,11 +26,11 @@ start = time.time()
 # in the following format: username
 
 # Database to write results to
-write_db = True
+write_db = False
 database_overwrite = True
-database = "PCA_tani"
+database = "test"
 # Message to insert into metadata
-message = ""
+message = "Debugging filter. Should yield no orphans. 50 Sampling. Terminal, Tani filtering."
 
 # mongo DB information
 use_local = True
@@ -57,7 +57,7 @@ output_dir = '.'
 # Rules from Joseph Ni
 coreactant_list = './minedatabase/data/MetaCyc_Coreactants.tsv'
 # rule_list = './minedatabase/data/intermediate_rules_uniprot.tsv'
-rule_list = './minedatabase/data/metacyc_generalized_rules.tsv'
+rule_list = './minedatabase/data/metacyc_generalized_rules_10.tsv'
 
 # Input compounds
 input_cpds = './local_data/APAH.csv'
@@ -86,29 +86,33 @@ indexing = False
 target_cpds = './local_data/ADP1_cpds_out_final.csv'
 
 # Specify if network expansion is done in a retrosynthetic direction
-retrosynthesis = True
+retrosynthesis = False
 # Prune results to only give expanded compounds/rxns
 prune_by_filter = True
 
 ##### Tanimoto Filtering options
-tani_filter = True
-increasing_tani = False
+tani_filter = False
 
 # Tanimito filter threshold. Can be single number of a list
 # of length generations.
-crit_tani = [0.3, 0.8, 0.8]
+crit_tani = [0, 0.5, 0.7]
 # crit_tani = [0, 0.5] # expands first with no filter then a 0.5 filter
 
-# TODO: Fingerprint
+tani_sample = True
+sample_size = 25
+# Give a function that accepts a single argument and returns a single result
+# Inputs are [0, 1]
+# weight = None will use a f(x) = x^4 to weight.
+weight = None
 
 ##### MCS Filter options
-mcs_filter = True
+mcs_filter = False
 # MCS. Can be single number of a list
 # of length generations.
 
 # Finds the MCS of the target and compound and identifies fraction of target
 # the MCS composes
-crit_mcs = [0.5, 0.95, 0.95]
+crit_mcs = [0.3, 0.8, 0.95]
 
 # TODO: MCS options
 ###############################################################################
@@ -135,9 +139,11 @@ if partial_rules:
     pk.load_partial_operators(mapped_rxns)
 
 # Initialize filter
-if tani_filter or mcs_filter:
-    pk.load_target_and_filters(target_compound_file=target_cpds,
-        tani_filter=tani_filter, crit_tani=crit_tani, increasing_tani=increasing_tani,
+if tani_filter or mcs_filter or tani_sample:
+    pk.load_target_and_filters(
+        target_compound_file=target_cpds,
+        tani_filter=tani_filter, crit_tani=crit_tani,
+        tani_sample=tani_sample, sample_size=sample_size, weight=weight,
         mcs_filter=mcs_filter, crit_mcs=crit_mcs,
         retrosynthesis=False
     )
@@ -146,6 +152,7 @@ if tani_filter or mcs_filter:
 pk.transform_all(num_workers, generations)
 
 # Remove cofactor redundancies
+# Eliminates cofactors that are being counted as compounds
 pk.remove_cofactor_redundancy()
 
 # Write results to database
