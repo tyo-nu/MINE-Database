@@ -26,11 +26,13 @@ start = time.time()
 # in the following format: username
 
 # Database to write results to
-write_db = False
+write_db = True
 database_overwrite = True
-database = "test"
+# database = "APAH_100Sam_50rule"
+database = "test_true"
 # Message to insert into metadata
-message = "Debugging filter. Should yield no orphans. 50 Sampling. Terminal, Tani filtering."
+message = ("Debugging filter. Should yield no orphans. 100 Sampling. Terminal,"
+           " Tani filtering.")
 
 # mongo DB information
 use_local = True
@@ -49,7 +51,7 @@ output_dir = '.'
 ###############################################################################
 
 ###############################################################################
-##### Cofactors, rules and inputs
+#    Cofactors, rules and inputs
 # Original rules derived from BNICE
 # coreactant_list = './minedatabase/data/EnzymaticCoreactants.tsv'
 # rule_list = './minedatabase/data/EnzymaticReactionRules.tsv'
@@ -57,7 +59,7 @@ output_dir = '.'
 # Rules from Joseph Ni
 coreactant_list = './minedatabase/data/MetaCyc_Coreactants.tsv'
 # rule_list = './minedatabase/data/intermediate_rules_uniprot.tsv'
-rule_list = './minedatabase/data/metacyc_generalized_rules_10.tsv'
+rule_list = r'/Users/kevbot/Box Sync/Research/Projects/MINE/MINE-Database/minedatabase/data/metacyc_272rules_90percentMapping.tsv'
 
 # Input compounds
 input_cpds = './local_data/APAH.csv'
@@ -72,7 +74,7 @@ mapped_rxns = 'minedatabase/data/metacyc_mapped.tsv'
 ##### Core Pickaxe Run Options
 generations = 2
 num_workers = 12     # Number of processes for parallelization
-verbose = False     # Display RDKit warnings and errors
+verbose = False      # Display RDKit warnings and errors
 explicit_h = False
 kekulize = True
 neutralise = True
@@ -84,6 +86,8 @@ indexing = False
 ###############################################################################
 ##### Filtering Options
 target_cpds = './local_data/ADP1_cpds_out_final.csv'
+# Should targets be flagged for reaction?
+react_targets = True
 
 # Specify if network expansion is done in a retrosynthetic direction
 retrosynthesis = False
@@ -99,11 +103,12 @@ crit_tani = [0, 0.5, 0.7]
 # crit_tani = [0, 0.5] # expands first with no filter then a 0.5 filter
 
 tani_sample = True
-sample_size = 25
+sample_size = 100
 # Give a function that accepts a single argument and returns a single result
 # Inputs are [0, 1]
 # weight = None will use a f(x) = x^4 to weight.
 weight = None
+weight_for_db = "T^4"
 
 ##### MCS Filter options
 mcs_filter = False
@@ -145,7 +150,7 @@ if tani_filter or mcs_filter or tani_sample:
         tani_filter=tani_filter, crit_tani=crit_tani,
         tani_sample=tani_sample, sample_size=sample_size, weight=weight,
         mcs_filter=mcs_filter, crit_mcs=crit_mcs,
-        retrosynthesis=False
+        retrosynthesis=False, react_targets=react_targets
     )
 
 # Transform compounds
@@ -155,24 +160,38 @@ pk.transform_all(num_workers, generations)
 # Eliminates cofactors that are being counted as compounds
 pk.remove_cofactor_redundancy()
 
+if (tani_filter or mcs_filter or tani_sample):
+    if prune_by_filter:
+        pk.prune_network_to_targets()
+
 # Write results to database
 if write_db:
-    # TODO: Should be moved into pickaxe.py if using filter
-    if (tani_filter or mcs_filter) and prune_by_filter:
-        pk.prune_network_to_targets()
     pk.save_to_mine(num_workers=num_workers, indexing=indexing)
     client = pymongo.MongoClient(mongo_uri)
     db = client[database]
     db.meta_data.insert_one({"Timestamp": datetime.datetime.now(),
+                             "Run Time": f"{round(time.time() - start, 2)}",
                              "Generations": f"{generations}",
                              "Operator file": f"{rule_list}",
                              "Coreactant file": f"{coreactant_list}",
-                             "Input compound file": f"{input_cpds}",
-                             "Tanimoto filter": f"{crit_tani}"
-                            })
+                             "Input compound file": f"{input_cpds}"
+                             })
 
     db.meta_data.insert_one({"Timestamp": datetime.datetime.now(),
                             "Message": message})
+
+    if (tani_filter or mcs_filter or tani_sample):
+        db.meta_data.insert_one({"Timestamp": datetime.datetime.now(),
+                                 "React Targets": react_targets,
+                                 "Tanimoto Filter": tani_filter,
+                                 "Tanimoto Values": f"{crit_tani}",
+                                 "MCS Filter": mcs_filter,
+                                 "MCS Values": f"{crit_mcs}",
+                                 "Sample By": tani_sample,
+                                 "Sample Size": sample_size,
+                                 "Sample Weight": weight_for_db,
+                                 "Pruned": prune_by_filter
+                                 })
 
 if write_local:
     pk.assign_ids()
