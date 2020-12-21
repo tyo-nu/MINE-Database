@@ -24,7 +24,7 @@ def file_to_dict_list(filepath):
         raise ValueError('Unrecognized input file type')
     return list(reader)
 
-def get_fp( smi):
+def get_fp(smi):
     mol = AllChem.MolFromSmiles(smi)
     fp = AllChem.RDKFingerprint(mol)
     return fp

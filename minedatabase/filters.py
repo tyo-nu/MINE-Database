@@ -13,49 +13,49 @@ from minedatabase.utils import get_fp
 
 ###############################################################################
 # Tanimoto Sampling Filter
-#
-#
+
+
 def _filter_by_sample(self, weight=None, num_workers=1):
-        """
-        Samples N compounds to expand based on the weighted Tanimoto
-        distribution.
-        """
-        print(f'Filtering Generation {self.generation} via Tanimoto Sampling.')
+    """
+    Samples N compounds to expand based on the weighted Tanimoto
+    distribution.
+    """
+    print(f'Filtering Generation {self.generation} via Tanimoto Sampling.')
 
-        # Get compounds eligible for expansion in the current generation
-        compounds_to_check = [cpd for cpd in self.compounds.values() if
-                              (cpd['Generation'] == self.generation
-                              and cpd['Type'] not in ['Coreactant',
-                                                      'Target Compound'])
-                              ]
+    # Get compounds eligible for expansion in the current generation
+    compounds_to_check = []
 
-        # Remove targets from the list of potential expansions on sampling.
-        for t_id in self.target_ids:
-            if t_id in compounds_to_check:
-                self.compounds[t_id]['Expand'] = False
-                compounds_to_check.remove(t_id)
+    for cpd in self.compounds.values():
+        # Compounds are in generation and correct type
+        if (cpd['Generation'] == self.generation
+                and cpd['Type'] not in ['Coreactant', 'Target Compound']):
 
-        # Get compounds to keep
-        cpd_info = [(cpd['_id'], cpd['SMILES']) for cpd in compounds_to_check]
-        sampled_ids = sample_by_tanimoto(cpd_info, self.target_fps,
-                                         self.sample_size, min_T=0.05,
-                                         weighting=self.sample_weight,
-                                         max_iter=10**7, n_cores=num_workers)
-        # Get compounds to remove
-        ids = set(i[0] for i in cpd_info)
-        cpds_remove_set = ids - sampled_ids
+            # Check for targets and only react if terminal
+            if self.react_targets:
+                compounds_to_check.append(cpd)
+            else:
+                for t_id in self.targets:
+                    if 'C' + t_id[1:] != cpd['_id']:
+                        compounds_to_check.append(cpd)
+                    else:
+                        self.compounds[cpd['_id']]['Expand'] = False
 
-        for c_id in cpds_remove_set:
-            self.compounds[c_id]['Expand'] = False
+    # Get compounds to keep
+    cpd_info = [(cpd['_id'], cpd['SMILES']) for cpd in compounds_to_check]
+    sampled_ids = sample_by_tanimoto(cpd_info, self.target_fps,
+                                     self.sample_size, min_T=0.05,
+                                     weighting=self.sample_weight,
+                                     max_iter=10**7, n_cores=num_workers)
+    # Get compounds to remove
+    ids = set(i[0] for i in cpd_info)
+    cpds_remove_set = ids - sampled_ids
 
-        self._apply_filter_results(compounds_to_check)
+    for c_id in cpds_remove_set:
+        self.compounds[c_id]['Expand'] = False
 
-        # TODO: Readd targets id react_targets
-        # for t_id in self.target_ids:
-        #     if t_id in compounds_to_check:
-        #         self.compounds[t_id]['Expand'] = True
-        #         compounds_to_check.remove(t_id)
-        return None
+    self._apply_filter_results(compounds_to_check)
+
+    return None
 
 
 def sample_by_tanimoto(mol_info, t_fp, n_cpds=None, min_T=0.05,
@@ -161,15 +161,14 @@ def _calc_max_T(t_df, min_T, df):
     df = df[df['T'] > min_T]
 
     return df
-#
-#
+
 # End Tanimoto Sampling Filter
 ###############################################################################
 
 ###############################################################################
 # Hard cutoff filters -- e.g. Tanimoto and MCS metric
-#
-#
+
+
 def _filter_by_tani(self, num_workers=1):
     """
     Compares the current generation to the target compound fingerprints
@@ -178,8 +177,6 @@ def _filter_by_tani(self, num_workers=1):
     """
 
     # Set up variables required for filtering
-    # Get fingerprints of targets to generate tanimoto
-    targets = self.target_fps
     # Tanimoto Threshold
     if type(self.crit_tani) == list:
         crit_tani = self.crit_tani[self.generation]
@@ -187,17 +184,22 @@ def _filter_by_tani(self, num_workers=1):
         crit_tani = self.crit_tani
 
     # Get compounds eligible for expansion in the current generation
-    compounds_to_check = [cpd for cpd in self.compounds.values()
-                          if cpd['Generation'] == self.generation
-                          and cpd['Type'] not in ['Coreactant',
-                                                  'Target Compound']
-                          ]
+    compounds_to_check = []
 
-    # Once a target is reached don't expand it anymore
-    for t_id in self.target_ids:
-        if t_id in compounds_to_check:
-            self.compounds[t_id]['Expand'] = False
-            compounds_to_check.remove(t_id)
+    for cpd in self.compounds.values():
+        # Compounds are in generation and correct type
+        if (cpd['Generation'] == self.generation
+                and cpd['Type'] not in ['Coreactant', 'Target Compound']):
+
+            # Check for targets and only react if terminal
+            if self.react_targets:
+                compounds_to_check.append(cpd)
+            else:
+                for t_id in self.targets:
+                    if 'C' + t_id[1:] != cpd['_id']:
+                        compounds_to_check.append(cpd)
+                    else:
+                        self.compounds[cpd['_id']]['Expand'] = False
 
     # Run the filtering code to get a list of compounds to ignore
     print(f"Filtering Generation {self.generation} "
@@ -226,7 +228,8 @@ def _filter_by_tani(self, num_workers=1):
     self._apply_filter_results(compounds_to_check)
 
 
-def _filter_by_tani_helper(compounds_info, target_fps, crit_tani, num_workers, retro=False):
+def _filter_by_tani_helper(compounds_info, target_fps, crit_tani,
+                           num_workers, retro=False):
     def print_progress(done, total, section):
         # Use print_on to print % completion roughly every 5 percent
         # Include max to print no more than once per compound (e.g. if
@@ -237,7 +240,8 @@ def _filter_by_tani_helper(compounds_info, target_fps, crit_tani, num_workers, r
 
     # compound_info = [(smiles, id)]
     cpds_to_filter = list()
-    compare_target_fps_partial = partial(_compare_target_fps, target_fps, crit_tani)
+    compare_target_fps_partial = partial(_compare_target_fps, target_fps,
+                                         crit_tani)
 
     if num_workers > 1:
         # Set up parallel computing of compounds to
@@ -247,7 +251,8 @@ def _filter_by_tani_helper(compounds_info, target_fps, crit_tani, num_workers, r
         for i, res in enumerate(pool.imap_unordered(
                 compare_target_fps_partial, compounds_info, chunk_size)):
             # If the result of comparison is false, compound is not expanded
-            # Default value for a compound is True, so no need to specify expansion
+            # Default value for a compound is True, so no need to
+            # specify expansion
             if res:
                 cpds_to_filter.append(res)
             print_progress(i, len(compounds_info), 'Tanimoto filter progress:')
@@ -271,7 +276,8 @@ def _compare_target_fps(target_fps, crit_tani, compound_info):
     Returns cpd_id if a the compound is similar enough to a target.
 
     """
-    # Generate the fingerprint of a compound and compare to the fingerprints of the targets
+    # Generate the fingerprint of a compound and compare to the fingerprints
+    # of the targets
     try:
         fp1 = get_fp(compound_info[1])
         for fp2 in target_fps:
@@ -290,8 +296,6 @@ def _filter_by_MCS(self, num_workers=1):
     """
 
     # Set up variables required for filtering
-    # Get fingerprints of targets to generate tanimoto
-    targets = self.target_smiles
     # Tanimoto Threshold
     if type(self.crit_mcs) == list:
         crit_mcs = self.crit_mcs[self.generation]
@@ -299,18 +303,23 @@ def _filter_by_MCS(self, num_workers=1):
         crit_mcs = self.crit_mcs
 
     # Get compounds eligible for expansion in the current generation
-    compounds_to_check = [cpd for cpd in self.compounds.values()
-                          if cpd['Generation'] == self.generation
-                          and cpd['Type'] not in ['Coreactant',
-                                                  'Target Compound']
-                          ]
+    compounds_to_check = []
 
-    # Once a target is reached don't expand it anymore
-    for t_id in self.target_ids:
-        if t_id in compounds_to_check:
-            self.compounds[t_id]['Expand'] = False
-            compounds_to_check.remove(t_id)
+    for cpd in self.compounds.values():
+        # Compounds are in generation and correct type
+        if (cpd['Generation'] == self.generation
+                and cpd['Type'] not in ['Coreactant', 'Target Compound']):
 
+            # Check for targets and only react if terminal
+            if self.react_targets:
+                compounds_to_check.append(cpd)
+            else:
+                for t_id in self.targets:
+                    if 'C' + t_id[1:] != cpd['_id']:
+                        compounds_to_check.append(cpd)
+                    else:
+                        self.compounds[cpd['_id']]['Expand'] = False
+                
     # Run the filtering code to get a list of compounds to ignore
     print(f"Filtering Generation {self.generation} "
           f"with MCS > {crit_mcs}.")
@@ -372,7 +381,7 @@ def _filter_by_mcs_helper(compounds_info, target_smiles, crit_mcs, num_workers,
             if res:
                 cpds_to_filter.append(res)
             print_progress(i, len(compounds_info),
-                            'Maximum Common Substructure filter progress:')
+                           'Maximum Common Substructure filter progress:')
 
     print("Maximum Common Substructure filter progress: 100 percent complete")
     return cpds_to_filter
@@ -426,8 +435,8 @@ def _compare_target_mcs(target_smiles, crit_mcs, retro, compound_info):
 
 ###############################################################################
 # Agnostic Filtering Functions
-#
-#
+
+
 def _apply_filter_results(self, compounds_to_check):
     """
     Remove compounds and reactions that can be removed
@@ -452,7 +461,7 @@ def _apply_filter_results(self, compounds_to_check):
             cpds_to_remove.add(cpd_id)
             # Generate set of reactions to remove
             rxn_ids = set(self.compounds[cpd_id]['Product_of']
-                            + self.compounds[cpd_id]['Reactant_in'])
+                          + self.compounds[cpd_id]['Reactant_in'])
 
             rxns_to_check = rxns_to_check.union(rxn_ids)
 
@@ -485,7 +494,6 @@ def _apply_filter_results(self, compounds_to_check):
     # Remove compounds and reactions if any found
     for cpd_id in cpds_to_remove:
         del(self.compounds[cpd_id])
-#
-#
+
 # End of Agnostic Filtering Functions
 ###############################################################################
