@@ -1,5 +1,7 @@
 from functools import partial
 import multiprocessing
+import time
+import copy
 
 from rdkit.DataStructs import FingerprintSimilarity
 from rdkit.Chem import rdFMCS as mcs
@@ -43,9 +45,9 @@ def _filter_by_sample(self, weight=None, num_workers=1):
     # Get compounds to keep
     cpd_info = [(cpd['_id'], cpd['SMILES']) for cpd in compounds_to_check]
     sampled_ids = sample_by_tanimoto(cpd_info, self.target_fps,
-                                     self.sample_size, min_T=0.05,
+                                     self.sample_size, min_T=0.15,
                                      weighting=self.sample_weight,
-                                     max_iter=10**7, n_cores=num_workers)
+                                     max_iter=None, n_cores=num_workers)
     # Get compounds to remove
     ids = set(i[0] for i in cpd_info)
     cpds_remove_set = ids - sampled_ids
@@ -78,36 +80,67 @@ def sample_by_tanimoto(mol_info, t_fp, n_cpds=None, min_T=0.05,
     """
     if len(mol_info) <= n_cpds:
         ids = set(x[0] for x in mol_info)
+        print("-- Number to sample is less than number of compounds. "
+              "Returning all compounds.")
         return ids
 
+    # Get DF and ids
+    df = _gen_df_from_tanimoto(mol_info, t_fp, min_T=min_T, n_cores=n_cores)
+    
+    then = time.time()
+    print("-- Sampling compounds to expand.")
     # Get random, discrete distribution and associated ids
-    rv, ids = _gen_rv_from_tanimoto(mol_info, t_fp, weighting, min_T, n_cores)
+    rv, ids = _gen_rv_from_df(df, weighting=weighting)
 
     # Sample intervals from rv and get c_id from id
     if max_iter is None:
-        max_iter = n_cpds*5
+        max_iter = n_cpds/10 if n_cpds > 1000 else n_cpds/2
 
-    chosen = set()
+    chosen_ids = set()
     i = 0
+    nCDF = 0
 
-    while len(chosen) < n_cpds and i < max_iter:
-        chosen.add(rv.rvs(size=1)[0])
+    while len(chosen_ids) != n_cpds:
+        if i > max_iter:
+            i = 0
+            nCDF += 1
+            rv, ids = _gen_rv_from_df(df, chosen=chosen_ids,
+                                      weighting=weighting)
+
+        chosen_ids.add(ids.iloc[rv.rvs(size=1)[0]])
         i += 1
 
-    # Map sampled intervals into pickaxe c_ids
-    chosen_ids = set(ids.iloc[chosen_id] for chosen_id in chosen)
-
+    print(f"-- Finished sampling in {time.time() - then} s."
+          f" Recalculated CDF {nCDF} times.")
     return chosen_ids
 
 
-def _gen_rv_from_tanimoto(mol_info, t_fp, weighting=None, min_T=0.05,
-                          n_cores=1):
-    """Generate a CDF in a pandas dataframe from a list of IDs and smiles"""
+def _gen_rv_from_df(df, chosen=[], weighting=None):
+    """Genderate a scipy.rv object to sample from."""
     if weighting is None:
         def weight_f(T):
             return T**4
 
+    rescale_df = copy.copy(df[~df['_id'].isin(chosen)])
+    rescale_df.loc[:, 'T_trans'] = rescale_df['T'].map(weight_f)
+    rescale_df.loc[:, 'T_pdf'] = rescale_df['T_trans']/sum(rescale_df['T_trans'])
+
+    # Generate CDF
+    rescale_df.reset_index(inplace=True, drop=True)
+    xk = rescale_df.index
+    pk = rescale_df['T_pdf']
+    rv = rv_discrete(values=(xk, pk))
+    ids = rescale_df['_id']
+
+    del(rescale_df)
+
+    return rv, ids
+
+
+def _gen_df_from_tanimoto(mol_info, t_fp, min_T=0.15, n_cores=1):
     # Construct target df
+    then = time.time()
+    print("-- Calculating Fingerprints and Tanimoto Values.")
     t_df = pd.DataFrame(t_fp, columns=['fp'])
 
     # Construct targets to sample df
@@ -117,17 +150,12 @@ def _gen_rv_from_tanimoto(mol_info, t_fp, weighting=None, min_T=0.05,
     partial_T_calc = partial(_calc_max_T, t_df, min_T)
     df = _parallelize_dataframe(df, partial_T_calc, n_cores)
 
-    # Generate CDF for sampling
-    df['T_trans'] = df['T'].map(weight_f)
-    df['T_pdf'] = df['T_trans']/sum(df['T_trans'])
-
     # Generate CDF
     df.reset_index(inplace=True, drop=True)
-    xk = df.index
-    pk = df['T_pdf']
-    rv = rv_discrete(values=(xk, pk))
 
-    return rv, df['_id']
+    print(f"-- Completed Tanimoto Calculation in {time.time() - then}")
+
+    return df
 
 
 def _parallelize_dataframe(df, func, n_cores=1):
@@ -319,7 +347,7 @@ def _filter_by_MCS(self, num_workers=1):
                         compounds_to_check.append(cpd)
                     else:
                         self.compounds[cpd['_id']]['Expand'] = False
-                
+
     # Run the filtering code to get a list of compounds to ignore
     print(f"Filtering Generation {self.generation} "
           f"with MCS > {crit_mcs}.")

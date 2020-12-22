@@ -227,7 +227,7 @@ class Pickaxe:
             raise ValueError("No input file specified for "
                              "target compounds")
 
-        print(f"{len(self.target_smiles)} target compounds loaded")
+        print(f"{len(self.target_smiles)} target compounds loaded\n")
 
         return self.target_smiles
 
@@ -492,7 +492,7 @@ class Pickaxe:
                        f"{round(done / total * 100)} percent complete"))
         while self.generation < max_generations:
             print('----------------------------------------')
-            print(f'Expanding Generation {self.generation}')
+            print(f'Expanding Generation {self.generation}\n')
 
             if self.tani_filter:
                 # Starting time for tani filtering
@@ -608,11 +608,12 @@ class Pickaxe:
 
             self._transform_helper(compound_smiles, num_workers)
 
-            print(f"Generation {self.generation} took {time.time()-time_init} "
-                  "sec and produced:")
+            print(f"Generation {self.generation} produced in {time.time()-time_init} "
+                  "s and contains:")
             print(f"\t\t{len(self.compounds) - n_comps} new compounds")
             print(f"\t\t{len(self.reactions) - n_rxns} new reactions")
-            print('----------------------------------------\n')
+            print(f"\nDone expanding Generation: {self.generation-1}.")
+            print("----------------------------------------\n")
 
     def load_partial_operators(self, mapped_reactions):
         """Generate set of partial operators from a list of mapped reactions
@@ -831,41 +832,17 @@ class Pickaxe:
         Prune the predicted reaction network to only compounds and reactions
         that terminate in the target compounds.
         """
-        print('Pruning to target compounds')
+        print('\n----------------------------------------')
         prune_start = time.time()
         white_list = set()
         for target_id in self.targets:
             white_list.add('C' + target_id[1:])
-
-        print(f"Identified {len(white_list)} target compounds to filter for.")
+        
+        print(f'Pruning to {len(white_list)} target compounds')
         self.prune_network(white_list)
 
-        # Filter compounds with no children
-        # for i in reversed(range(self.generation+1)):
-        #     for cpd_dict in self.compounds.values():
-        #         if cpd_dict['_id'].startswith('C'):
-        #             if (cpd_dict['Generation'] == i and
-        #                     not cpd_dict['Reactant_in'] and
-        #                     cpd_dict['_id'] not in white_list):
-        #                 # remove reactions
-        #                 for rxn_id in cpd_dict['Product_of']:
-        #                     if rxn_id in self.reactions:
-        #                         del(self.reactions[rxn_id])
-        #                 # remove compound
-        #                 cpd_to_del.add(cpd_dict['_id'])
-        # for cpd in cpd_to_del:
-        #     del(self.compounds[cpd])
-
-        # cpd_count = 0
-        # for cpd_dict in self.compounds.values():
-        #     if (cpd_dict['_id'].startswith('X') or
-        #             cpd_dict['_id'].startswith('C')):
-        #         cpd_count += 1
-                
-        # print(f"""Removed upstream non-targets. {cpd_count} compounds remain
-        #             and {len(self.reactions)} reactions remain.""")
-
         print(f"Pruning took {time.time() - prune_start}s")
+        print('----------------------------------------\n')
 
     def find_minimal_set(self, white_list):
         """
@@ -887,34 +864,19 @@ class Pickaxe:
             visited.add(cpd_id)
             if cpd_id not in self.compounds:
                 continue
-            
-            i = 1
+
             # Add info for reactions that produce compound
             for rxn_id in self.compounds[cpd_id]['Product_of']:
                 rxn_set.add(rxn_id)
                 # Add products, not to be further explored
                 for cpd in self.reactions[rxn_id]['Products']:
                     cpd_set.add(cpd[1])
-                
+
                 # Add reactants, also add to queue
                 for cpd in self.reactions[rxn_id]['Reactants']:
                     cpd_set.add(cpd[1])
                     if cpd[1].startswith('C') and cpd[1] not in visited:
                         queue.append(cpd[1])
-                
-        # for cpd_id in white_list:
-        #     if cpd_id not in self.compounds:
-        #         continue
-        #     for rxn_id in self.compounds[cpd_id]['Product_of']:
-        #         rxn_set.add(rxn_id)
-        #         comp_set.update([x[1] for x
-        #                          in self.reactions[rxn_id]['Products']])
-        #         for reactant in self.reactions[rxn_id]['Reactants']:
-        #             comp_set.add(reactant[1])
-        #             # do not want duplicates or cofactors in the whitelist
-        #             if (reactant[1].startswith('C') and
-        #                     reactant[1] not in white_set):
-        #                 white_list.append(reactant[1])
 
         return cpd_set, rxn_set
 
@@ -1028,14 +990,14 @@ class Pickaxe:
             for i in range(0, len(lst), n):
                 yield lst[i:i + n]
 
-        print('----------------------------------------')
+        print('\n----------------------------------------')
         print(f'Saving results to {self.mine}')
         print('----------------------------------------\n')
         start = time.time()
         db = MINE(self.mine, self.mongo_uri)
 
         # Insert Reactions
-        print('--------------- Reactions ---------------')
+        print('--------------- Reactions --------------')
         rxn_start = time.time()
         # Due to memory concerns, reactions are chunked
         # and processed that way. Each batch is calculated
@@ -1118,7 +1080,7 @@ class Pickaxe:
                 db.target_compounds.bulk_write(target_cpd_requests,
                                                ordered=False)
                 print(f"Inserted {len(target_cpd_requests)}"
-                      f"Target Compounds in {time.time() - target_start}"
+                      f" Target Compounds in {time.time() - target_start}"
                       " seconds.")
                 del(target_cpd_requests)
                 db.meta_data.insert_one({"Timestamp": datetime.datetime.now(),
