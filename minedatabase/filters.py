@@ -26,6 +26,7 @@ def _filter_by_sample(self, weight=None, num_workers=1):
 
     # Get compounds eligible for expansion in the current generation
     compounds_to_check = []
+    set_unreactive = True
 
     for cpd in self.compounds.values():
         # Compounds are in generation and correct type
@@ -39,8 +40,14 @@ def _filter_by_sample(self, weight=None, num_workers=1):
                 for t_id in self.targets:
                     if 'C' + t_id[1:] != cpd['_id']:
                         compounds_to_check.append(cpd)
-                    else:
-                        self.compounds[cpd['_id']]['Expand'] = False
+                        set_unreactive = False
+                        break
+
+                if set_unreactive:
+                    self.compounds[cpd['_id']]['Expand'] = False
+                else:
+                    set_unreactive = True
+
 
     # Get compounds to keep
     cpd_info = [(cpd['_id'], cpd['SMILES']) for cpd in compounds_to_check]
@@ -70,26 +77,36 @@ def sample_by_tanimoto(mol_info, t_fp, n_cpds=None, min_T=0.05,
 
     :param mol_info:  A list consisting of (cpd_id, SMILES)
     :type mol_info: list(tuple)
-    :param t_fp: A list consistent of the target fingerprints
+    :param t_fp: A list of the target fingerprints
     :type t_fp: list(rdkit.DataStructs.cDataStructs.ExplicitBitVect)
+    :param n_cpds: Number of compounds to sample
+    :type n_cpds: int
+    :param min_T: Minimum Tanimoto for consideration
+    :type min_T: float
+    :param weighting: Weighting function that takes Tanimoto as input
+    :type weighting: func
+    :param max_iter: Maximum iterations before new CDF is calculated
+    :type max_iter: int
+    :param n_cores: Number of CPU cores to use
+    :type n_cores: int
 
-    #TODO
-
-    :return: A list of cpd_id to be expanded
-    :rtype: list(str)
+    :return: A set of cpd_ids to be expanded
+    :rtype: set(str)
     """
+
+    # Return input if less than desired number of compounds
     if len(mol_info) <= n_cpds:
         ids = set(x[0] for x in mol_info)
         print("-- Number to sample is less than number of compounds. "
               "Returning all compounds.")
         return ids
 
-    # Get DF and ids
+    # Get pandas df and ids
     df = _gen_df_from_tanimoto(mol_info, t_fp, min_T=min_T, n_cores=n_cores)
-    
+
     then = time.time()
     print("-- Sampling compounds to expand.")
-    # Get random, discrete distribution and associated ids
+    # Get discrete distribution to sample randomly from
     rv, ids = _gen_rv_from_df(df, weighting=weighting)
 
     # Sample intervals from rv and get c_id from id
@@ -101,6 +118,8 @@ def sample_by_tanimoto(mol_info, t_fp, n_cpds=None, min_T=0.05,
     nCDF = 0
 
     while len(chosen_ids) != n_cpds:
+        # if current iteration if greater than max then
+        # recalc distribution to exclude chosen
         if i > max_iter:
             i = 0
             nCDF += 1
@@ -112,17 +131,17 @@ def sample_by_tanimoto(mol_info, t_fp, n_cpds=None, min_T=0.05,
 
     print(f"-- Finished sampling in {time.time() - then} s."
           f" Recalculated CDF {nCDF} times.")
+          
     return chosen_ids
 
 
 def _gen_rv_from_df(df, chosen=[], weighting=None):
     """Genderate a scipy.rv object to sample from."""
     if weighting is None:
-        def weight_f(T):
-            return T**4
+        def weighting(T): return T**4
 
     rescale_df = copy.copy(df[~df['_id'].isin(chosen)])
-    rescale_df.loc[:, 'T_trans'] = rescale_df['T'].map(weight_f)
+    rescale_df.loc[:, 'T_trans'] = rescale_df['T'].map(weighting)
     rescale_df.loc[:, 'T_pdf'] = rescale_df['T_trans']/sum(rescale_df['T_trans'])
 
     # Generate CDF

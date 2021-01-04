@@ -26,8 +26,8 @@ start = time.time()
 # in the following format: username
 
 # Database to write results to
-write_db = True
-database_overwrite = True
+write_db = False
+database_overwrite = False
 # database = "APAH_100Sam_50rule"
 database = "test_true"
 # Message to insert into metadata
@@ -59,7 +59,7 @@ output_dir = '.'
 # Rules from Joseph Ni
 coreactant_list = './minedatabase/data/MetaCyc_Coreactants.tsv'
 # rule_list = './minedatabase/data/intermediate_rules_uniprot.tsv'
-rule_list = r'/Users/kevbot/Box Sync/Research/Projects/MINE/MINE-Database/minedatabase/data/metacyc_272rules_90percentMapping.tsv'
+rule_list = './minedatabase/data/metacyc_272rules_90percentMapping.tsv'
 
 # Input compounds
 input_cpds = './local_data/APAH.csv'
@@ -72,7 +72,7 @@ mapped_rxns = 'minedatabase/data/metacyc_mapped.tsv'
 
 ###############################################################################
 ##### Core Pickaxe Run Options
-generations = 2
+generations = 3
 num_workers = 12     # Number of processes for parallelization
 verbose = False      # Display RDKit warnings and errors
 explicit_h = False
@@ -86,8 +86,8 @@ indexing = False
 ###############################################################################
 ##### Filtering Options
 target_cpds = './local_data/ADP1_cpds_out_final.csv'
-# Should targets be flagged for reaction?
-react_targets = True
+# Should targets be flagged for reaction
+react_targets = False
 
 # Specify if network expansion is done in a retrosynthetic direction
 retrosynthesis = False
@@ -95,22 +95,23 @@ retrosynthesis = False
 prune_by_filter = True
 
 ##### Tanimoto Filtering options
-tani_filter = False
+tani_filter = True
 
 # Tanimito filter threshold. Can be single number of a list
 # of length generations.
 crit_tani = [0, 0.5, 0.7]
 # crit_tani = [0, 0.5] # expands first with no filter then a 0.5 filter
 
-tani_sample = True
-sample_size = 100
+tani_sample = False
+sample_size = 5
 # Give a function that accepts a single argument and returns a single result
 # Inputs are [0, 1]
 # weight = None will use a f(x) = x^4 to weight.
-weight = None
+weight = lambda T: T**4
 weight_for_db = "T^4"
 
-##### MCS Filter options
+##### MCS Filter
+# Implementation isn't as refined as tanimoto filters above
 mcs_filter = False
 # MCS. Can be single number of a list
 # of length generations.
@@ -119,7 +120,6 @@ mcs_filter = False
 # the MCS composes
 crit_mcs = [0.3, 0.8, 0.95]
 
-# TODO: MCS options
 ###############################################################################
 
 ###############################################################################

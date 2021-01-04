@@ -608,7 +608,7 @@ class Pickaxe:
 
             self._transform_helper(compound_smiles, num_workers)
 
-            print(f"Generation {self.generation} produced in {time.time()-time_init} "
+            print(f"Generation {self.generation} finished in {time.time()-time_init} "
                   "s and contains:")
             print(f"\t\t{len(self.compounds) - n_comps} new compounds")
             print(f"\t\t{len(self.reactions) - n_rxns} new reactions")
@@ -832,12 +832,12 @@ class Pickaxe:
         Prune the predicted reaction network to only compounds and reactions
         that terminate in the target compounds.
         """
-        print('\n----------------------------------------')
+        print('----------------------------------------')
         prune_start = time.time()
         white_list = set()
         for target_id in self.targets:
             white_list.add('C' + target_id[1:])
-        
+
         print(f'Pruning to {len(white_list)} target compounds')
         self.prune_network(white_list)
 
