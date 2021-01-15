@@ -34,14 +34,16 @@ Valid formats are:
 - sdf: Structured Data File (concatenated mol files)
 - tsv: FOR EXPORT ONLY, a tab separated file compatible with ModelSEED
 
-### Running Pickaxe through a python file
+## Running Pickaxe
+### Running Pickaxe through a python file (recommended)
 An example file, pickaxe_run.py, provides a framework for running pickaxe through a python file.
 The starting compounds, rules and cofactors, optional database information, and Pickaxe run options are specified.
 After running the results are stored in a specified database or written to .tsv files.
 
-### Pickaxe command-line usage
+### Pickaxe command-line usage (not recommended - see above section)
 Pickaxe.py can be called independently to generate predictions with or 
-without database storage. To list all options call `python pickaxe.py -h`. 
+without database storage. To list all options call `python -m minedatabase.pickaxe -h`. Note that
+due to relative imports, it needs to be run as a module (-m flag) from the MINE-Database directory.
 To predict all chemical damage reactions for one generation on compounds in the iAF1260 
 model one would call `python pickaxe.py -C ./data/ChemicalDamageCoreactants.tsv -r 
 ./data/ChemicalDamageRxnRules.tsv -g 1 -c ./data/iAF1260.tsv`
