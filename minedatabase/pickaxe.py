@@ -7,6 +7,7 @@ import datetime
 import time
 import csv
 import os
+import pandas as pd
 
 from argparse import ArgumentParser
 from functools import partial
@@ -19,7 +20,9 @@ from minedatabase.databases import MINE
 from minedatabase import utils
 
 from rdkit.Chem.rdMolDescriptors import CalcMolFormula
+from rdkit.Chem.inchi import MolToInchiKey
 from rdkit.Chem.Draw import MolToFile, rdMolDraw2D
+from rdkit.Chem.rdmolfiles import MolFromSmiles
 from rdkit.Chem import AllChem
 from rdkit import RDLogger
 
@@ -33,7 +36,8 @@ class Pickaxe:
                  kekulize=True, neutralise=True, errors=True,
                  racemize=False, database=None, database_overwrite=False,
                  mongo_uri='mongodb://localhost:27017',
-                 image_dir=None, quiet=False):
+                 image_dir=None, quiet=False, retro=False, react_targets=True,
+                 filter_after_final_gen=True):
         """
         :param rule_list: Path to a list of reaction rules in TSV form
         :type rule_list: str
@@ -62,39 +66,33 @@ class Pickaxe:
         :param quiet: Silence unbalenced reaction warnings
         :type quiet: bool
         """
+        # Main pickaxe properties
         self.operators = {}
         self.coreactants = {}
         self._raw_compounds = {}
         self.compounds = {}
         self.reactions = {}
         self.generation = 0
+        # Chemistry options
         self.explicit_h = explicit_h
         self.kekulize = kekulize
         self.racemize = racemize
         self.neutralise = neutralise
+        self.fragmented_mols = False
+        self.radical_check = False
+        # Other options
+        self.structure_field = None
         self.image_dir = image_dir
         self.errors = errors
         self.quiet = quiet
-        self.fragmented_mols = False
-        self.radical_check = False
-        self.structure_field = None
         # For filtering
-        self.target_smiles = []
+        self.filters = []
         self.targets = dict()
-        self.retro = False
-        self.react_targets = False
-        # For tani filtering
-        self.tani_filter = False
+        self.target_smiles = []
         self.target_fps = []
-        self.crit_tani = 0
-        self.increasing_tani = False
-        # For mcs filtering
-        self.mcs_filter = False
-        self.crit_mcs = False
-        # For sampling
-        self.sample_filter = False
-        self.sample_size = 100
-        self.sample_weight = None
+        self.retro = retro
+        self.react_targets = react_targets
+        self.filter_after_final_gen = filter_after_final_gen
         # database info
         self.mongo_uri = mongo_uri
         # partial_operators
@@ -150,86 +148,37 @@ class Pickaxe:
         print("\nDone intializing pickaxe object")
         print("----------------------------------------\n")
 
-    # Import methods
-    from .filters import (_filter_by_tani,
-                          _filter_by_sample,
-                          _filter_by_MCS,
-                          _apply_filter_results)
-
-    def load_target_and_filters(
-            self, target_compound_file=None,
-            tani_filter=False, crit_tani=0, increasing_tani=False,
-            tani_sample=False, sample_size=100, weight=None,
-            mcs_filter=False, crit_mcs=0,
-            retrosynthesis=False, react_targets=False,
-            structure_field=None, id_field='id'):
-
-        """
-        Loads the target list into an list of fingerprints to later compare to
+    def load_targets(self, target_compound_file, structure_field=None,
+                     id_field='id', calc_fp=True):
+        """Loads the target list into an list of fingerprints to later compare to
         compounds to determine if those compounds should be expanded.
 
-        :param target_compound_file: Path to a file containing compounds as tsv
-        :type target_compound_file: basestring
-        :param crit_tani: The critical tanimoto cutoff for expansion
-        :type crit_tani: float
         :param structure_field: the name of the column containing the
             structure incarnation as Inchi or SMILES (Default:'structure')
         :type structure_field: str
         :param id_field: the name of the column containing the desired
             compound ID (Default: 'id)
         :type id_field: str
-        :return: compound SMILES
-        :rtype: list
         """
-
-        # TODO: retrosynthesis effects on filtering
-        self.retro = retrosynthesis
-        self.react_targets = react_targets
-
-        # Update options for tanimoto filtering
-        self.tani_filter = tani_filter
-        self.crit_tani = crit_tani
-        self.increasing_tani = increasing_tani
-
-        # Update options for MCS filtering
-        self.mcs_filter = mcs_filter
-        self.crit_mcs = crit_mcs
-
-        # Update options for Tanimoto sampling
-        self.sample_filter = tani_sample
-        self.sample_size = sample_size
-        self.sample_weight = weight
-
-        # Set structure field to None otherwise value determined by
-        # load_structures can interfere
-        self.structure_field = None
-
-        # Load target compounds
-        if target_compound_file:
-            for target_dict in utils.file_to_dict_list(target_compound_file):
-                mol = self._mol_from_dict(target_dict, structure_field)
-                if not mol:
-                    continue
-                # Add compound to internal dictionary as a target
-                # compound and store SMILES string to be returned
-                smi = AllChem.MolToSmiles(mol, True)
-                cpd_name = target_dict[id_field]
-                # Only operate on organic compounds
-                if 'c' in smi.lower():
-                    AllChem.SanitizeMol(mol)
-                    self._add_compound(cpd_name, smi, 'Target Compound', mol)
-                    self.target_smiles.append(smi)
-                    if self.tani_filter or self.sample_filter:
-                        # Generate fingerprints for tanimoto filtering
-                        fp = AllChem.RDKFingerprint(mol)
-                        self.target_fps.append(fp)
-        else:
-            raise ValueError("No input file specified for "
-                             "target compounds")
+        for target_dict in utils.file_to_dict_list(target_compound_file):
+            mol = self._mol_from_dict(target_dict, structure_field)
+            if not mol:
+                continue
+            # Add compound to internal dictionary as a target
+            # compound and store SMILES string to be returned
+            smi = AllChem.MolToSmiles(mol, True)
+            cpd_name = target_dict[id_field]
+            # Only operate on organic compounds
+            if 'c' in smi.lower():
+                AllChem.SanitizeMol(mol)
+                self._add_compound(cpd_name, smi, 'Target Compound', mol)
+                self.target_smiles.append(smi)
+                if calc_fp:
+                    # Generate fingerprints for tanimoto filtering
+                    fp = AllChem.RDKFingerprint(mol)
+                    self.target_fps.append(fp)
 
         print(f"{len(self.target_smiles)} target compounds loaded\n")
-
-        return self.target_smiles
 
     def load_compound_set(self, compound_file=None, id_field='id'):
         """If a compound file is provided, this function loads the compounds
@@ -490,130 +439,44 @@ class Pickaxe:
             if not done % print_on:
                 print((f"Generation {self.generation}: "
                        f"{round(done / total * 100)} percent complete"))
-        while self.generation < max_generations:
-            print('----------------------------------------')
-            print(f'Expanding Generation {self.generation}\n')
 
-            if self.tani_filter:
-                # Starting time for tani filtering
-                time_tani = time.time()
-                if not self.target_fps:
-                    print("No targets to filter for. Can\'t expand.")
+        while self.generation < max_generations or (self.generation == max_generations and self.filter_after_final_gen):
+
+            for _filter in self.filters:                
+                _filter.apply_filter(self, num_workers)
+
+            if self.generation < max_generations:
+                print('----------------------------------------')
+                print(f'Expanding Generation {self.generation + 1}\n')
+
+                # Starting time for expansion
+                time_init = time.time()
+
+                # Tracking compounds formed
+                n_comps = len(self.compounds)
+                n_rxns = len(self.reactions)
+
+                # Get SMILES to be expanded
+                compound_smiles = [cpd['SMILES'] for cpd in self.compounds.values()
+                                   if cpd['Generation'] == self.generation
+                                   and cpd['Type'] not in ['Coreactant', 'Target Compound']
+                                   and cpd['Expand']]
+                # No compounds found
+                if not compound_smiles:
+                    print("No compounds to expand in generation "
+                        f"{self.generation + 1}. Finished expanding.")
                     return None
 
-                # Flag compounds to be expanded
-                if type(self.crit_tani) == list:
-                    crit_tani = self.crit_tani[self.generation]
-                else:
-                    crit_tani = self.crit_tani
+                self._transform_helper(compound_smiles, num_workers)
 
-                n_total = 0
-                for cpd_dict in self.compounds.values():
-                    if (cpd_dict['Generation'] == self.generation and
-                            cpd_dict['_id'].startswith('C')):
-                        n_total += 1
-                print(("Filtering out compounds with maximum tanimoto match"
-                       f" < {crit_tani}"))
-                self._filter_by_tani(num_workers=num_workers)
-                n_filtered = 0
-                for cpd_dict in self.compounds.values():
-                    if (cpd_dict['Generation'] == self.generation and
-                            cpd_dict['_id'].startswith('C')):
-                        if cpd_dict['Expand']:
-                            n_filtered += 1
+                print(f"Generation {self.generation + 1} finished in {time.time()-time_init} "
+                    "s and contains:")
+                print(f"\t\t{len(self.compounds) - n_comps} new compounds")
+                print(f"\t\t{len(self.reactions) - n_rxns} new reactions")
+                print(f"\nDone expanding Generation: {self.generation + 1}.")
+                print("----------------------------------------\n")
 
-                print((f"{n_filtered} of {n_total} compounds remain after "
-                       f"Tanimoto filtering of generation {self.generation}"
-                       f"--took {time.time() - time_tani}s.\n"))
-
-            if self.mcs_filter:
-                # Starting time for MCS filtering
-                time_mcs = time.time()
-                if not self.targets:
-                    print("No targets to filter for. Can\'t expand.")
-                    return None
-
-                # Flag compounds to be expanded
-                if type(self.crit_mcs) == list:
-                    crit_mcs = self.crit_mcs[self.generation]
-                else:
-                    crit_mcs = self.crit_mcs[self.generation]
-
-                print(("Filtering out compounds with maximum common"
-                       f"substructure overlap < {crit_mcs}"))
-                self._filter_by_mcs(num_workers=num_workers)
-                n_filtered = 0
-                n_total = 0
-                for cpd_dict in self.compounds.values():
-                    if (cpd_dict['Generation'] == self.generation and
-                            cpd_dict['_id'].startswith('C')):
-                        if cpd_dict['Expand']:
-                            n_filtered += 1
-                            n_total += 1
-                        else:
-                            n_total += 1
-
-                print((f"{n_filtered} of {n_total} compounds remain after "
-                       f"MCS filtering of generation {self.generation}--took"
-                       f"{time.time() - time_mcs}s.\n"))
-
-            if self.sample_filter:
-                # Starting time for tani filtering
-                time_sample = time.time()
-                if not self.target_fps:
-                    print("No targets to filter for. Can\'t expand.")
-                    return None
-
-                n_total = 0
-                for cpd_dict in self.compounds.values():
-                    if (cpd_dict['Generation'] == self.generation and
-                            cpd_dict['_id'].startswith('C')):
-                        n_total += 1
-
-                print((f"Sampling {self.sample_size} Compounds Based on a "
-                       f"Weighted Tanimoto Distribution"))
-                self._filter_by_sample(self.sample_weight, num_workers)
-
-                n_filtered = 0
-                for cpd_dict in self.compounds.values():
-                    if (cpd_dict['Generation'] == self.generation and
-                            cpd_dict['_id'].startswith('C')):
-                        if cpd_dict['Expand']:
-                            n_filtered += 1
-
-                print((f"{n_filtered} of {n_total} "
-                       "compounds selected after "
-                       f"Tanimoto Sampling of generation {self.generation}"
-                       f"--took {time.time() - time_sample}s.\n"))
-
-            # Starting time for expansion
-            time_init = time.time()
             self.generation += 1
-
-            # Tracking compounds formed
-            n_comps = len(self.compounds)
-            n_rxns = len(self.reactions)
-
-            # Get SMILES to be expanded
-            compound_smiles = [cpd['SMILES'] for cpd in self.compounds.values()
-                               if cpd['Generation'] == self.generation - 1
-                               and cpd['Type'] not in ['Coreactant',
-                                                       'Target Compound']
-                               and cpd['Expand']]
-            # No compounds found
-            if not compound_smiles:
-                print("No compounds to expand in generation "
-                      f"{self.generation-1}. Finished expanding.")
-                return None
-
-            self._transform_helper(compound_smiles, num_workers)
-
-            print(f"Generation {self.generation} finished in {time.time()-time_init} "
-                  "s and contains:")
-            print(f"\t\t{len(self.compounds) - n_comps} new compounds")
-            print(f"\t\t{len(self.reactions) - n_rxns} new reactions")
-            print(f"\nDone expanding Generation: {self.generation-1}.")
-            print("----------------------------------------\n")
 
     def load_partial_operators(self, mapped_reactions):
         """Generate set of partial operators from a list of mapped reactions
@@ -966,7 +829,8 @@ class Pickaxe:
                                               ';'.join(rxn['Operators'])])
                               + '\n')
 
-    def save_to_mine(self, num_workers=1, indexing=True, insert_core=True):
+    def save_to_mine(self, num_workers=1, indexing=True, insert_core=True,
+                     insert_targets=True):
         """Save compounds to a MINE database.
 
         :param num_workers: Number of processors to use.
@@ -1062,7 +926,7 @@ class Pickaxe:
         print("----------------------------------------\n")
 
         # Insert target compounds
-        if (self.tani_filter or self.mcs_filter or self.sample_filter):
+        if insert_targets and self.targets:
             target_start = time.time()
             target_cpd_requests = []
             # Write target compounds to target collection
@@ -1217,7 +1081,7 @@ class Pickaxe:
         new_cpds, new_rxns = _transform_all_compounds_with_full(
                                     compound_smiles, self.coreactants,
                                     coreactant_dict, self.operators,
-                                    self.generation, self.explicit_h,
+                                    self.generation + 1, self.explicit_h,
                                     num_workers
                             )
 
