@@ -26,6 +26,33 @@ from rdkit.Chem.rdmolfiles import MolFromSmiles
 from rdkit.Chem import AllChem
 from rdkit import RDLogger
 
+import psutil
+
+from threading import BoundedSemaphore
+from collections import Iterator
+
+
+class BoundedIterator(Iterator):
+    def __init__(self, it, bound):
+        self._it = it
+
+        self._sem = BoundedSemaphore(bound)
+    
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        return self.next()
+
+    def next(self, timeout):
+        if not self._sem.acquire(timeout=timeout):
+            raise TimeoutError('Too many values un-acknowledged.')
+
+        return next(self._it)
+
+    def processed(self):
+        self.sem.release()
+
 
 class Pickaxe:
     """This class generates new compounds from user-specified starting
@@ -1285,6 +1312,7 @@ def _run_reaction(rule_name, rule, reactant_mols, coreactant_mols,
 def _transform_ind_compound_with_full(coreactant_mols, coreactant_dict,
                                       operators, generation, explicit_h,
                                       compound_smiles):
+    start = psutil.Process().memory_info().rss / 1024 ** 2
     local_cpds = dict()
     local_rxns = dict()
 
@@ -1310,17 +1338,13 @@ def _transform_ind_compound_with_full(coreactant_mols, coreactant_dict,
             rule_name, rule, reactant_mols, coreactant_mols,
             coreactant_dict, local_cpds, local_rxns, generation, explicit_h
         )
-        # This error should be addressed in a new version of RDKit
-        # TODO: Check this claim
-        # except:
-        #     print("Runtime ERROR!" + rule_name)
-        #     print(compound_smiles)
-        #     continue
+
         local_cpds.update(generated_cpds)
         for rxn, vals in generated_rxns.items():
             if rxn in local_rxns:
                 local_rxns[rxn]['Operators'].union(vals['Operators'])
 
+    print(f"\nGen {generation} : Start {start} MB -- End {psutil.Process().memory_info().rss / 1024 ** 2} MB")
     return local_cpds, local_rxns
 
 
@@ -1353,17 +1377,19 @@ def _transform_all_compounds_with_full(compound_smiles, coreactants,
         generation,
         explicit_h
     )
+    print(f"\nTall in gen {generation} {psutil.Process().memory_info().rss / 1024 ** 2} MB")
     # par loop
     if num_workers > 1:
         # TODO chunk size?
         # chunk_size = max(
         #         [round(len(compound_smiles) / (num_workers)), 1])
         chunk_size = 1
+        bounded_compound_smiles = BoundedIterator(compound_smiles, 12)
         # print(f'Chunk size = {chunk_size}')
         pool = multiprocessing.Pool(processes=num_workers)
         for i, res in enumerate(pool.imap_unordered(
                             transform_compound_partial,
-                            compound_smiles,
+                            bounded_compound_smiles,
                             chunk_size)):
             new_cpds, new_rxns = res
             new_cpds_master.update(new_cpds)
@@ -1393,6 +1419,7 @@ def _transform_all_compounds_with_full(compound_smiles, coreactants,
                     new_rxns_master.update({rxn: rxn_dict})
             print_progress(i, len(compound_smiles))
 
+    print(f"\nTall end in gen {generation} {psutil.Process().memory_info().rss / 1024 ** 2} MB")
     return new_cpds_master, new_rxns_master
 
 
