@@ -14,6 +14,8 @@ import time
 
 import pymongo
 
+import multiprocessing
+
 # from minedatabase.filters import (MCSFilter, MetabolomicsFilter, TanimotoFilter,
 #                                   TanimotoSamplingFilter)
 from minedatabase.pickaxe import Pickaxe
@@ -173,6 +175,8 @@ mass_tolerance = 0.001
 ###############################################################################
 ##### Running pickaxe
 if __name__ == '__main__':  # required for parallelization on Windows
+    multiprocessing.set_start_method('fork')
+
     # Initialize the Pickaxe class
     if write_db is False:
         database = None

@@ -2,16 +2,14 @@
    compounds using a set of SMARTS-based reaction rules."""
 import multiprocessing
 import collections
-import itertools
 import datetime
 import time
 import csv
 import os
-import pandas as pd
 
 from argparse import ArgumentParser
 from functools import partial
-from copy import deepcopy
+# from copy import deepcopy
 from sys import exit
 
 import minedatabase.databases as databases
@@ -22,14 +20,19 @@ from minedatabase import utils
 from rdkit.Chem.rdMolDescriptors import CalcMolFormula
 from rdkit.Chem.inchi import MolToInchiKey
 from rdkit.Chem.Draw import MolToFile, rdMolDraw2D
-from rdkit.Chem.rdmolfiles import MolFromSmiles
-from rdkit.Chem import AllChem
+from rdkit.Chem.AllChem import (
+    MolFromInchi, MolToInchiKey, MolToSmiles, MolFromSmiles, ReactionFromSmarts,
+    GetMolFrags, SanitizeMol, AddHs, Kekulize, RemoveHs
+    )
+
 from rdkit import RDLogger
 
 import psutil
 
 from threading import BoundedSemaphore
 from collections import Iterator
+
+
 
 
 class BoundedIterator(Iterator):
@@ -44,14 +47,14 @@ class BoundedIterator(Iterator):
     def __next__(self):
         return self.next()
 
-    def next(self, timeout):
+    def next(self, timeout=None):
         if not self._sem.acquire(timeout=timeout):
             raise TimeoutError('Too many values un-acknowledged.')
 
         return next(self._it)
 
     def processed(self):
-        self.sem.release()
+        self._sem.release()
 
 
 class Pickaxe:
@@ -193,16 +196,16 @@ class Pickaxe:
                 continue
             # Add compound to internal dictionary as a target
             # compound and store SMILES string to be returned
-            smi = AllChem.MolToSmiles(mol, True)
+            smi = MolToSmiles(mol, True)
             cpd_name = target_dict[id_field]
             # Only operate on organic compounds
             if 'c' in smi.lower():
-                AllChem.SanitizeMol(mol)
+                SanitizeMol(mol)
                 self._add_compound(cpd_name, smi, 'Target Compound', mol)
                 self.target_smiles.append(smi)
                 if calc_fp:
                     # Generate fingerprints for tanimoto filtering
-                    fp = AllChem.RDKFingerprint(mol)
+                    fp = RDKFingerprint(mol)
                     self.target_fps.append(fp)
 
         print(f"{len(self.target_smiles)} target compounds loaded\n")
@@ -236,11 +239,11 @@ class Pickaxe:
                     continue
                 # Add compound to internal dictionary as a starting
                 # compound and store SMILES string to be returned
-                smi = AllChem.MolToSmiles(mol, True)
+                smi = MolToSmiles(mol, True)
                 cpd_name = cpd_dict[id_field]
                 # Do not operate on inorganic compounds
                 if 'C' in smi or 'c' in smi:
-                    AllChem.SanitizeMol(mol)
+                    SanitizeMol(mol)
                     self._add_compound(cpd_name, smi,
                                        cpd_type='Starting Compound', mol=mol)
                     compound_smiles.append(smi)
@@ -267,24 +270,24 @@ class Pickaxe:
         # split_text[0] is compound name, split_text[1] is SMILES string
         # Generate a Mol object from the SMILES string if possible
         try:
-            mol = AllChem.MolFromSmiles(split_text[2])
+            mol = MolFromSmiles(split_text[2])
             if not mol:
                 raise ValueError
             # TODO: what do do about stereochemistry? Original comment is below
             # but stereochem was taken out (isn't it removed later anyway?)
             # # Generate SMILES string with stereochemistry taken into account
-            smi = AllChem.MolToSmiles(mol)
+            smi = MolToSmiles(mol)
         except (IndexError, ValueError):
             raise ValueError(f"Unable to load coreactant: {coreactant_text}")
         cpd_id = self._add_compound(split_text[0], smi, 'Coreactant', mol)
         # If hydrogens are to be explicitly represented, add them to the Mol
         # object
         if self.explicit_h:
-            mol = AllChem.AddHs(mol)
+            mol = AddHs(mol)
         # If kekulization is preferred (no aromatic bonds, just 3 C=C bonds
         # in a 6-membered aromatic ring for example)
         if self.kekulize:
-            AllChem.Kekulize(mol, clearAromaticFlags=True)
+            Kekulize(mol, clearAromaticFlags=True)
         # Store coreactant in a coreactants dictionary with the Mol object
         # and hashed id as values (coreactant name as key)
         self.coreactants[split_text[0]] = (mol, cpd_id,)
@@ -314,7 +317,7 @@ class Pickaxe:
                             raise ValueError("Undefined coreactant:"
                                              f"{coreactant_name}")
                     # Create ChemicalReaction object from SMARTS string
-                    rxn = AllChem.ReactionFromSmarts(rule['SMARTS'])
+                    rxn = ReactionFromSmarts(rule['SMARTS'])
                     rule.update({'_id': rule['Name'],
                                  'Reactions_predicted': 0,
                                  'SMARTS': rule['SMARTS']})
@@ -353,10 +356,10 @@ class Pickaxe:
             return
         # Generate Mol object from InChI code if present
         if 'InChI=' in input_dict[structure_field]:
-            mol = AllChem.MolFromInchi(input_dict[structure_field])
+            mol = MolFromInchi(input_dict[structure_field])
         # Otherwise generate Mol object from SMILES string
         else:
-            mol = AllChem.MolFromSmiles(input_dict[structure_field])
+            mol = MolFromSmiles(input_dict[structure_field])
         if not mol:
             if self.errors:
                 print(f"Unable to Parse {input_dict[structure_field]}")
@@ -366,7 +369,7 @@ class Pickaxe:
         # allowed (i.e. fragmented_mols == 1), then don't add to
         # internal dictionary. This is most common when compounds
         # are salts.
-        if not self.fragmented_mols and len(AllChem.GetMolFrags(mol)) > 1:
+        if not self.fragmented_mols and len(GetMolFrags(mol)) > 1:
             return
         # If specified remove charges (before applying reaction
         # rules later on)
@@ -384,7 +387,7 @@ class Pickaxe:
             # generation so we check with hashed id from above
             if cpd_id not in self.compounds:
                 if not mol:
-                    mol = AllChem.MolFromSmiles(smi)
+                    mol = MolFromSmiles(smi)
                 # expand only Predicted and Starting_compounds
                 expand = cpd_type in ['Predicted', 'Starting Compound']
                 cpd_dict = {'ID': cpd_name, '_id': cpd_id, 'SMILES': smi,
@@ -434,7 +437,7 @@ class Pickaxe:
                                       join(self.image_dir, cpd_id + '.svg'),
                                       'w') as outfile:
 
-                                mol = AllChem.MolFromSmiles(cpd_dict['SMILES'])
+                                mol = MolFromSmiles(cpd_dict['SMILES'])
                                 nmol = rdMolDraw2D.PrepareMolForDrawing(mol)
                                 d2d = rdMolDraw2D.MolDraw2DSVG(1000, 1000)
                                 d2d.DrawMolecule(nmol)
@@ -790,7 +793,7 @@ class Pickaxe:
                 # If we are not loading into the mine, we generate the image
                 # here.
                 if self.image_dir and not self.mine:
-                    mol = AllChem.MolFromSmiles(comp['SMILES'])
+                    mol = MolFromSmiles(comp['SMILES'])
                     try:
                         MolToFile(
                             mol,
@@ -827,8 +830,7 @@ class Pickaxe:
         columns = ('ID', 'Type', 'Generation', 'Formula', 'InChiKey',
                    'SMILES')
         for _id, val in self.compounds.items():
-            inchi_key = AllChem.\
-                MolToInchiKey(AllChem.MolFromSmiles(val['SMILES']))
+            inchi_key = MolToInchiKey(MolFromSmiles(val['SMILES']))
             self.compounds[_id]['InChiKey'] = inchi_key
 
         with open(path, 'w') as outfile:
@@ -1132,50 +1134,50 @@ class Pickaxe:
                 print("No partial operators could be generated.")
 
 
-def _racemization(compound, max_centers=3, carbon_only=True):
-    """Enumerates all possible stereoisomers for unassigned chiral centers.
+# def _racemization(compound, max_centers=3, carbon_only=True):
+#     """Enumerates all possible stereoisomers for unassigned chiral centers.
 
-    :param compound: A compound
-    :type compound: rdMol object
-    :param max_centers: The maximum number of unspecified stereocenters to
-        enumerate. Sterioisomers grow 2^n_centers so this cutoff prevents lag
-    :type max_centers: int
-    :param carbon_only: Only enumerate unspecified carbon centers. (other
-        centers are often not tautomeric artifacts)
-    :type carbon_only: bool
-    :return: list of stereoisomers
-    :rtype: list of rdMol objects
-    """
-    new_comps = []
-    # FindMolChiralCenters (rdkit) finds all chiral centers. We get all
-    # unassigned centers (represented by '?' in the second element
-    # of the function's return parameters).
-    unassigned_centers = [c[0] for c in AllChem.FindMolChiralCenters(
-        compound, includeUnassigned=True) if c[1] == '?']
-    # Get only unassigned centers that are carbon (atomic number of 6) if
-    # indicated
-    if carbon_only:
-        unassigned_centers = list(
-            filter(lambda x: compound.GetAtomWithIdx(x).GetAtomicNum() == 6,
-                unassigned_centers))
-    # Return original compound if no unassigned centers exist (or if above
-    # max specified (to prevent lag))
-    if not unassigned_centers or len(unassigned_centers) > max_centers:
-        return [compound]
-    for seq in itertools.product([1, 0], repeat=len(unassigned_centers)):
-        for atomid, clockwise in zip(unassigned_centers, seq):
-            # Get both cw and ccw chiral centers for each center. Used
-            # itertools.product to get all combinations.
-            if clockwise:
-                compound.GetAtomWithIdx(atomid).SetChiralTag(
-                    AllChem.rdchem.ChiralType.CHI_TETRAHEDRAL_CW)
-            else:
-                compound.GetAtomWithIdx(atomid).SetChiralTag(
-                    AllChem.rdchem.ChiralType.CHI_TETRAHEDRAL_CCW)
-        # Duplicate C++ object so that we don't get multiple pointers to
-        # same object
-        new_comps.append(deepcopy(compound))
-    return new_comps
+#     :param compound: A compound
+#     :type compound: rdMol object
+#     :param max_centers: The maximum number of unspecified stereocenters to
+#         enumerate. Sterioisomers grow 2^n_centers so this cutoff prevents lag
+#     :type max_centers: int
+#     :param carbon_only: Only enumerate unspecified carbon centers. (other
+#         centers are often not tautomeric artifacts)
+#     :type carbon_only: bool
+#     :return: list of stereoisomers
+#     :rtype: list of rdMol objects
+#     """
+#     new_comps = []
+#     # FindMolChiralCenters (rdkit) finds all chiral centers. We get all
+#     # unassigned centers (represented by '?' in the second element
+#     # of the function's return parameters).
+#     unassigned_centers = [c[0] for c in AllChem.FindMolChiralCenters(
+#         compound, includeUnassigned=True) if c[1] == '?']
+#     # Get only unassigned centers that are carbon (atomic number of 6) if
+#     # indicated
+#     if carbon_only:
+#         unassigned_centers = list(
+#             filter(lambda x: compound.GetAtomWithIdx(x).GetAtomicNum() == 6,
+#                 unassigned_centers))
+#     # Return original compound if no unassigned centers exist (or if above
+#     # max specified (to prevent lag))
+#     if not unassigned_centers or len(unassigned_centers) > max_centers:
+#         return [compound]
+#     for seq in itertools.product([1, 0], repeat=len(unassigned_centers)):
+#         for atomid, clockwise in zip(unassigned_centers, seq):
+#             # Get both cw and ccw chiral centers for each center. Used
+#             # itertools.product to get all combinations.
+#             if clockwise:
+#                 compound.GetAtomWithIdx(atomid).SetChiralTag(
+#                     AllChem.rdchem.ChiralType.CHI_TETRAHEDRAL_CW)
+#             else:
+#                 compound.GetAtomWithIdx(atomid).SetChiralTag(
+#                     AllChem.rdchem.ChiralType.CHI_TETRAHEDRAL_CCW)
+#         # Duplicate C++ object so that we don't get multiple pointers to
+#         # same object
+#         new_comps.append(deepcopy(compound))
+#     return new_comps
 
 
 ###############################################################################
@@ -1232,12 +1234,12 @@ def _run_reaction(rule_name, rule, reactant_mols, coreactant_mols,
     def _gen_compound(mol):
         try:
             if explicit_h:
-                mol = AllChem.RemoveHs(mol)
-            AllChem.SanitizeMol(mol)
+                mol = RemoveHs(mol)
+            SanitizeMol(mol)
         except:
             return None
 
-        mol_smiles = AllChem.MolToSmiles(mol, True)
+        mol_smiles = MolToSmiles(mol, True)
         if '.' in mol_smiles:
             return None
 
@@ -1313,17 +1315,19 @@ def _transform_ind_compound_with_full(coreactant_mols, coreactant_dict,
                                       operators, generation, explicit_h,
                                       compound_smiles):
     start = psutil.Process().memory_info().rss / 1024 ** 2
+    logger = RDLogger.logger()
+    logger.setLevel(4)
     local_cpds = dict()
     local_rxns = dict()
 
-    mol = AllChem.MolFromSmiles(compound_smiles)
-    mol = AllChem.RemoveHs(mol)
+    mol = MolFromSmiles(compound_smiles)
+    mol = RemoveHs(mol)
     if not mol:
         print(f"Unable to parse: {compound_smiles}")
         return None
-    AllChem.Kekulize(mol, clearAromaticFlags=True)
+    Kekulize(mol, clearAromaticFlags=True)
     if explicit_h:
-        mol = AllChem.AddHs(mol)
+        mol = AddHs(mol)
     # Apply reaction rules to prepared compound
 
     # run through the single compound operatores
@@ -1384,15 +1388,16 @@ def _transform_all_compounds_with_full(compound_smiles, coreactants,
         # chunk_size = max(
         #         [round(len(compound_smiles) / (num_workers)), 1])
         chunk_size = 1
-        bounded_compound_smiles = BoundedIterator(compound_smiles, 12)
+        bounded_compound_smiles = BoundedIterator(iter(compound_smiles), 10)
         # print(f'Chunk size = {chunk_size}')
         pool = multiprocessing.Pool(processes=num_workers)
         for i, res in enumerate(pool.imap_unordered(
                             transform_compound_partial,
-                            bounded_compound_smiles,
-                            chunk_size)):
+                            bounded_compound_smiles)): #,
+                            # chunk_size)):
             new_cpds, new_rxns = res
             new_cpds_master.update(new_cpds)
+            print(f"\nIn res {generation} {psutil.Process().memory_info().rss / 1024 ** 2} MB")
 
             # Need to check if reactions already exist to update operators list
             for rxn, rxn_dict in new_rxns.items():
@@ -1402,6 +1407,7 @@ def _transform_all_compounds_with_full(compound_smiles, coreactants,
                 else:
                     new_rxns_master.update({rxn: rxn_dict})
             print_progress(i, len(compound_smiles))
+            bounded_compound_smiles.processed()
 
 
     else:
@@ -1445,11 +1451,11 @@ def _transform_ind_compound_with_partial(coreactant_mols, coreactant_dict,
     # 2. If match apply transform_ind_compound_with_full to each
     def generate_partial_mols(partial_rule):
         def gen_mol(smi):
-            mol = AllChem.MolFromSmiles(smi)
-            mol = AllChem.RemoveHs(mol)
-            AllChem.Kekulize(mol, clearAromaticFlags=True)
+            mol = MolFromSmiles(smi)
+            mol = RemoveHs(mol)
+            Kekulize(mol, clearAromaticFlags=True)
             if explicit_h:
-                mol = AllChem.AddHs(mol)
+                mol = AddHs(mol)
             return mol
 
         rule_reactants = operators[partial_rule['rule']][1]['Reactants']
@@ -1472,20 +1478,20 @@ def _transform_ind_compound_with_partial(coreactant_mols, coreactant_dict,
     local_cpds = dict()
     local_rxns = dict()
 
-    mol = AllChem.MolFromSmiles(compound_smiles)
-    mol = AllChem.RemoveHs(mol)
+    mol = MolFromSmiles(compound_smiles)
+    mol = RemoveHs(mol)
     if not mol:
         print(f"Unable to parse: {compound_smiles}")
         return None
-    AllChem.Kekulize(mol, clearAromaticFlags=True)
+    Kekulize(mol, clearAromaticFlags=True)
     if explicit_h:
-        mol = AllChem.AddHs(mol)
+        mol = AddHs(mol)
     # Apply reaction rules to prepared compound
 
     # run through the single compound operatores
     for ind_SMARTS, rules in partial_rules.items():
         # does mol match vs smiles match change things?
-        if AllChem.QuickSmartsMatch(compound_smiles, ind_SMARTS):
+        if QuickSmartsMatch(compound_smiles, ind_SMARTS):
             for partial_rule in rules:
                 # Perform chemical reaction on reactants for each rule
                 # try:

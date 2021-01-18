@@ -6,12 +6,13 @@ print(f"n_cpds: {len(local_cpds)}\nn_rxns: {len(local_rxns)}")
 
 # Get list of vars
 locals()
-zero_depth_bases = (str, bytes, Number, range, bytearray)
-iteritems = 'items'
-
 import sys
 from numbers import Number
 from collections import Set, Mapping, deque
+zero_depth_bases = (str, bytes, Number, range, bytearray)
+iteritems = 'items'
+
+
 def getsize(obj_0):
     """Recursively iterate to sum size of object & members."""
     _seen_ids = set()
