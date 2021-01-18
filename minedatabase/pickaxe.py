@@ -3,6 +3,7 @@
 import multiprocessing
 import collections
 import datetime
+import copy
 import time
 import csv
 import os
@@ -1132,7 +1133,8 @@ class Pickaxe:
                 update_cpds_rxns(new_cpds, new_rxns)
             else:
                 print("No partial operators could be generated.")
-
+    
+        
 
 # def _racemization(compound, max_centers=3, carbon_only=True):
 #     """Enumerates all possible stereoisomers for unassigned chiral centers.
@@ -1375,11 +1377,11 @@ def _transform_all_compounds_with_full(compound_smiles, coreactants,
 
     transform_compound_partial = partial(
         _transform_ind_compound_with_full,
-        coreactants,
-        coreactant_dict,
-        operators,
-        generation,
-        explicit_h
+        copy.copy(coreactants),
+        copy.copy(coreactant_dict),
+        copy.copy(operators),
+        copy.copy(generation),
+        copy.copy(explicit_h)
     )
     print(f"\nTall in gen {generation} {psutil.Process().memory_info().rss / 1024 ** 2} MB")
     # par loop
@@ -1388,12 +1390,12 @@ def _transform_all_compounds_with_full(compound_smiles, coreactants,
         # chunk_size = max(
         #         [round(len(compound_smiles) / (num_workers)), 1])
         chunk_size = 1
-        bounded_compound_smiles = BoundedIterator(iter(compound_smiles), 10)
+        bounded_compound_smiles = BoundedIterator(iter(compound_smiles), 5)
         # print(f'Chunk size = {chunk_size}')
         pool = multiprocessing.Pool(processes=num_workers)
         for i, res in enumerate(pool.imap_unordered(
                             transform_compound_partial,
-                            bounded_compound_smiles)): #,
+                            compound_smiles)): #,
                             # chunk_size)):
             new_cpds, new_rxns = res
             new_cpds_master.update(new_cpds)
@@ -1407,7 +1409,7 @@ def _transform_all_compounds_with_full(compound_smiles, coreactants,
                 else:
                     new_rxns_master.update({rxn: rxn_dict})
             print_progress(i, len(compound_smiles))
-            bounded_compound_smiles.processed()
+            # bounded_compound_smiles.processed()
 
 
     else:

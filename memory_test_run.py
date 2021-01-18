@@ -16,8 +16,8 @@ import pymongo
 
 import multiprocessing
 
-# from minedatabase.filters import (MCSFilter, MetabolomicsFilter, TanimotoFilter,
-#                                   TanimotoSamplingFilter)
+from minedatabase.filters import (MCSFilter, MetabolomicsFilter, TanimotoFilter,
+                                  TanimotoSamplingFilter)
 from minedatabase.pickaxe import Pickaxe
 
 # pylint: disable=invalid-name
@@ -173,6 +173,10 @@ mass_tolerance = 0.001
 ###############################################################################
 
 ###############################################################################
+# Verbose output
+print_verbose = True
+
+###############################################################################
 ##### Running pickaxe
 if __name__ == '__main__':  # required for parallelization on Windows
     multiprocessing.set_start_method('fork')
@@ -191,37 +195,37 @@ if __name__ == '__main__':  # required for parallelization on Windows
     # Load compounds
     pk.load_compound_set(compound_file=input_cpds)
 
-    # # Load partial operators
-    # if partial_rules:
-    #     pk.load_partial_operators(mapped_rxns)
+    # Load partial operators
+    if partial_rules:
+        pk.load_partial_operators(mapped_rxns)
 
-    # # Load target compounds for filters
-    # if (tani_filter or mcs_filter or tani_sample):
-    #     pk.load_targets(target_cpds, structure_field="SMILES")
+    # Load target compounds for filters
+    if (tani_filter or mcs_filter or tani_sample):
+        pk.load_targets(target_cpds, structure_field="SMILES")
 
-    # # Apply filters
-    # if tani_filter:
-    #     taniFilter = TanimotoFilter(filter_name="Tani", crit_tani=crit_tani,
-    #                                 increasing_tani=increasing_tani)
-    #     pk.filters.append(taniFilter)
+    # Apply filters
+    if tani_filter:
+        taniFilter = TanimotoFilter(filter_name="Tani", crit_tani=crit_tani,
+                                    increasing_tani=increasing_tani)
+        pk.filters.append(taniFilter)
 
-    # if tani_sample:
-    #     taniSampleFilter = TanimotoSamplingFilter(filter_name="Tani_Sample",
-    #                                               sample_size=sample_size,
-    #                                               weight=weight)
-    #     pk.filters.append(taniSampleFilter)
+    if tani_sample:
+        taniSampleFilter = TanimotoSamplingFilter(filter_name="Tani_Sample",
+                                                  sample_size=sample_size,
+                                                  weight=weight)
+        pk.filters.append(taniSampleFilter)
 
-    # if mcs_filter:
-    #     mcsFilter = MCSFilter(filter_name="MCS", crit_mcs=crit_mcs)
-    #     pk.filters.append(mcsFilter)
+    if mcs_filter:
+        mcsFilter = MCSFilter(filter_name="MCS", crit_mcs=crit_mcs)
+        pk.filters.append(mcsFilter)
 
-    # if metabolomics_filter:
-    #     metFilter = MetabolomicsFilter(filter_name="ADP1_Metabolomics_Data",
-    #                                    met_data_name=met_data_name,
-    #                                    met_data_path=met_data_path,
-    #                                    possible_adducts=possible_adducts,
-    #                                    mass_tolerance=mass_tolerance)
-    #     pk.filters.append(metFilter)
+    if metabolomics_filter:
+        metFilter = MetabolomicsFilter(filter_name="ADP1_Metabolomics_Data",
+                                       met_data_name=met_data_name,
+                                       met_data_path=met_data_path,
+                                       possible_adducts=possible_adducts,
+                                       mass_tolerance=mass_tolerance)
+        pk.filters.append(metFilter)
 
     # Transform compounds (the main step)
     pk.transform_all(num_workers, generations)
@@ -231,16 +235,18 @@ if __name__ == '__main__':  # required for parallelization on Windows
     pk.remove_cofactor_redundancy()
 
     if (tani_filter or mcs_filter or tani_sample):
-        if prune_by_target:
+        if prune_by_targets:
             pk.prune_network_to_targets()
 
     # Write results to database
+    run_time = round(time.time() - start, 2)
     if write_db:
         pk.save_to_mine(num_workers=num_workers, indexing=indexing)
+        run_time = round(time.time() - start, 2)
         client = pymongo.MongoClient(mongo_uri)
         db = client[database]
         db.meta_data.insert_one({"Timestamp": datetime.datetime.now(),
-                                 "Run Time": f"{round(time.time() - start, 2)}",
+                                 "Run Time": f"{run_time}",
                                  "Generations": f"{generations}",
                                  "Operator file": f"{rule_list}",
                                  "Coreactant file": f"{coreactant_list}",
@@ -260,7 +266,7 @@ if __name__ == '__main__':  # required for parallelization on Windows
                                      "Sample By": tani_sample,
                                      "Sample Size": sample_size,
                                      "Sample Weight": weight_for_db,
-                                     "Pruned": prune_by_filter
+                                     "Pruned": prune_by_filters
                                      })
 
     if write_local:
@@ -271,3 +277,37 @@ if __name__ == '__main__':  # required for parallelization on Windows
     print('----------------------------------------')
     print(f'Overall run took {round(time.time() - start, 2)} seconds.')
     print('----------------------------------------')
+
+    if print_verbose:
+        print('\n-------------Verbose Output-------------')
+
+        print ('\nRun Info')
+        for i in ['run_time', 'coreactant_list', 'rule_list', 'input_cpds']:
+            print(f"--{i}: {eval(i)}")
+
+        print('\nExpansion Options')
+        for i in ['generations', 'num_workers']:
+            print(f"--{i}: {eval(i)}")
+
+        print('\nFilter Options')
+        for i in ['filter_after_final_gen', 'react_targets', 'prune_by_targets', 'react_targets',
+                  'tani_sample', 'sample_size', 'weight_for_db']:
+            print(f"--{i}: {eval(i)}")
+        
+        print('\nPickaxe Options')
+        for i in ['verbose', 'explicit_h', 'kekulize', 'neutralise',
+                  'image_dir', 'quiet', 'indexing']:
+            print(f"--{i}: {eval(i)}")
+
+        # {"Timestamp": datetime.datetime.now(),
+        #                              "React Targets": react_targets,
+        #                              "Tanimoto Filter": tani_filter,
+        #                              "Tanimoto Values": f"{crit_tani}",
+        #                              "MCS Filter": mcs_filter,
+        #                              "MCS Values": f"{crit_mcs}",
+        #                              "Sample By": tani_sample,
+        #                              "Sample Size": sample_size,
+        #                              "Sample Weight": weight_for_db,
+        #                              "Pruned": prune_by_filter
+        #                              }
+
