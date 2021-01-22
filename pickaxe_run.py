@@ -61,7 +61,7 @@ coreactant_list = './minedatabase/data/metacyc_rules/MetaCyc_Coreactants.tsv'
 # See ./example_data/metacyc_rule_selection/rule_selection.ipynb
 # to generate sets of rules from metacyc based on reaction mapping, where
 # the reactions being mapped are the reactions the rules are derived from.
-rule_list = './minedatabase/data/metacyc_rules/metacyc_90percent_272.tsv'
+rule_list = './minedatabase/data/metacyc_rules/metacyc_27percent_10rules.tsv'
 
 # Partial operators
 # Partial operators allow use of multiple compounds in an any;any expansion
