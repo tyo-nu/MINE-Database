@@ -482,7 +482,6 @@ class Pickaxe:
     def load_partial_operators(self, mapped_reactions):
         """Generate set of partial operators from a list of mapped reactions
         corresponding to the reaction rules being used.
-
         :param mapped_reactions: A .csv file with four columns: rule id,
         source, SMARTS, mapping info.
         :type mapped_reactions: file

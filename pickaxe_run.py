@@ -317,3 +317,4 @@ if __name__ == '__main__':  # required for parallelization on Windows
     print('----------------------------------------')
     print(f'Overall run took {round(time.time() - start, 2)} seconds.')
     print('----------------------------------------')
+    
