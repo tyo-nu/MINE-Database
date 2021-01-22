@@ -173,6 +173,16 @@ class TanimotoSamplingFilter(Filter):
     @property
     def filter_name(self):
         return self._filter_name
+    
+    def pre_print(self):
+        print((f"Sampling {self.sample_size} Compounds Based on a "
+               f"Weighted Tanimoto Distribution"))
+
+    def post_print(self, pickaxe, n_total, n_filtered, time_sample):
+        print((f"{n_filtered} of {n_total} "
+               "compounds selected after "
+               f"Tanimoto Sampling of generation {pickaxe.generation}"
+               f"--took {time.time() - time_sample}s.\n"))
 
     def _choose_cpds_to_filter(self, pickaxe, num_workers):
         """
@@ -262,8 +272,15 @@ class TanimotoSamplingFilter(Filter):
         # Get pandas df and ids
         df = self._gen_df_from_tanimoto(mol_info, t_fp, min_T=min_T, n_cores=n_cores)
 
-        then = time.time()
+        if len(df) <= n_cpds:
+            ids = set(df['_id'])
+            print(f"-- After filtering by minimum tanimoto ({min_T}) "
+                  "number to sample is less than number of compounds. "
+                  "Returning all compounds.")
+            return ids
+
         print("-- Sampling compounds to expand.")
+        then = time.time()
         # Get discrete distribution to sample randomly from
         rv, ids = self._gen_rv_from_df(df, weighting=weighting)
 
@@ -297,6 +314,7 @@ class TanimotoSamplingFilter(Filter):
         if weighting is None:
             def weighting(T): return T**4
 
+        # TODO Make more memory efficient... maybe use np directly instead?
         rescale_df = copy.copy(df[~df['_id'].isin(chosen)])
         rescale_df.loc[:, 'T_trans'] = rescale_df['T'].map(weighting)
         rescale_df.loc[:, 'T_pdf'] = rescale_df['T_trans'] / sum(rescale_df['T_trans'])
@@ -312,70 +330,75 @@ class TanimotoSamplingFilter(Filter):
 
         return rv, ids
 
-    def _gen_df_from_tanimoto(self, mol_info, t_fp, min_T=0.15, n_cores=1):
+    def _gen_df_from_tanimoto(self, mol_info, t_fp, min_T, n_cores):
         # Construct target df
+
+        def chunks(lst, size):
+            """Yield successive n-sized chunks from lst."""
+            for i in range(0, len(lst), size):
+                yield lst[i:i + size]
+
         then = time.time()
         print("-- Calculating Fingerprints and Tanimoto Values.")
+        # target fingerprint dataframe
         t_df = pd.DataFrame(t_fp, columns=['fp'])
 
-        # Construct targets to sample df
-        df = pd.DataFrame(mol_info, columns=['_id', 'SMILES'])
-
         # Calculate Tanimoto for each compound and drop T < min_T
-        partial_T_calc = partial(self._calc_max_T, t_df, min_T)
-        df = self._parallelize_dataframe(df, partial_T_calc, n_cores)
+        partial_T_calc = partial(_calc_max_T, t_df, min_T)
 
-        # Generate CDF
+        df = pd.DataFrame()
+        for mol_chunk in chunks(mol_info, 10000):
+
+            # Construct targets to sample df
+            temp_df = pd.DataFrame(mol_chunk, columns=['_id', 'SMILES'])
+            df = df.append(_parallelize_dataframe(temp_df, partial_T_calc, n_cores))
+
+        # Reset index for CDF calculation
         df.reset_index(inplace=True, drop=True)
-
         print(f"-- Completed Tanimoto Calculation in {time.time() - then}")
 
         return df
 
-    def _parallelize_dataframe(self, df, func, n_cores=1):
-        """
-        Applies a function to a dataframe in parallel by chunking it up over
-        the specified number of cores.
-        """
-        if n_cores > 1:
-            df_split = np.array_split(df, n_cores)
-            pool = multiprocessing.Pool(n_cores)
-            df = pd.concat(pool.map(func, df_split))
-            pool.close()
-            pool.join()
-        else:
-            df = func(df)
-        return df
+def _parallelize_dataframe(df, func, n_cores=1):
+    """
+    Applies a function to a dataframe in parallel by chunking it up over
+    the specified number of cores.
+    """
+    # Require minimum number of compounds to parallelize
+    if len(df) <= n_cores*4:
+            n_cores = 1
 
-    def _calc_max_T(self, t_df, min_T, df):
-        """
-        Generate the tanimoto to use to generate the PMF to sample from.
-        For each compound a list of tanimoito values are obtained by a generated
-        compound to every target compound and the max is taken.
-        """
-        df['fp'] = df['SMILES'].map(get_fp)
+    if n_cores > 1:
+        df_split = np.array_split(df, n_cores)
+        pool = multiprocessing.Pool(n_cores)
+        df = pd.concat(pool.map(func, df_split))
+        pool.close()
+        pool.join()
+    else:
+        df = func(df)
+    return df
 
-        df['T'] = None
-        fp = None
-        for i in range(len(df)):
-            fp = df['fp'].iloc[i]
-            df['T'].iloc[i] = max(t_df['fp'].map(
-                lambda x: FingerprintSimilarity(x, fp))
-            )
-        # Filter out low Tanimoto
-        df = df[df['T'] > min_T]
+def _calc_max_T(t_df, min_T, df):
+    """
+    Generate the tanimoto to use to generate the PMF to sample from.
+    For each compound a list of tanimoito values are obtained by a generated
+    compound to every target compound and the max is taken.
+    """
+    df['fp'] = df['SMILES'].map(get_fp)
 
-        return df
+    df['T'] = None
+    fp = None
+    for i in range(len(df)):
+        fp = df['fp'].iloc[i]
+        df['T'].iloc[i] = max(t_df['fp'].map(
+            lambda x: FingerprintSimilarity(x, fp))
+        )
+    # Filter out low Tanimoto
+    df = df[df['T'] > min_T]
 
-    def pre_print(self):
-        print((f"Sampling {self.sample_size} Compounds Based on a "
-               f"Weighted Tanimoto Distribution"))
+    return df
 
-    def post_print(self, pickaxe, n_total, n_filtered, time_sample):
-        print((f"{n_filtered} of {n_total} "
-               "compounds selected after "
-               f"Tanimoto Sampling of generation {pickaxe.generation}"
-               f"--took {time.time() - time_sample}s.\n"))
+    
 
 
 # End Tanimoto Sampling Filter
@@ -597,20 +620,22 @@ class TanimotoFilter(Filter):
             # Use print_on to print % completion roughly every 5 percent
             # Include max to print no more than once per compound (e.g. if
             # less than 20 compounds)
-            print_on = max(round(.05 * total), 1)
+            print_on = max(round(.1 * total), 1)
             if not (done % print_on):
                 print(f"{section} {round(done / total * 100)} percent complete")
 
         # compound_info = [(smiles, id)]
         cpds_to_filter = list()
-        compare_target_fps_partial = partial(self._compare_target_fps, target_fps)
+        compare_target_fps_partial = partial(self._compare_target_fps, 
+                                             target_fps,
+                                             this_crit_tani)
 
         if num_workers > 1:
             # Set up parallel computing of compounds to
             chunk_size = max([round(len(compounds_info) / (num_workers * 4)), 1])
             pool = multiprocessing.Pool(num_workers)
             for i, res in enumerate(pool.imap_unordered(
-                    compare_target_fps_partial, compounds_info, this_crit_tani, chunk_size)):
+                    compare_target_fps_partial, compounds_info, chunk_size)):
                 # If the result of comparison is false, compound is not expanded
                 # Default value for a compound is True, so no need to
                 # specify expansion
@@ -620,7 +645,7 @@ class TanimotoFilter(Filter):
 
         else:
             for i, cpd in enumerate(compounds_info):
-                res = compare_target_fps_partial(cpd, this_crit_tani)
+                res = compare_target_fps_partial(cpd)
                 if res:
                     cpds_to_filter.append(res)
                 print_progress(i, len(compounds_info), 'Tanimoto filter progress:')
@@ -628,7 +653,7 @@ class TanimotoFilter(Filter):
 
         return cpds_to_filter
 
-    def _compare_target_fps(self, target_fps, compound_info, this_crit_tani):
+    def _compare_target_fps(self, target_fps, this_crit_tani, compound_info):
         # do finger print loop here
         """
         Helper function to allow parallel computation of tanimoto filtering.
@@ -735,7 +760,7 @@ class MCSFilter(Filter):
             # Use print_on to print % completion roughly every 5 percent
             # Include max to print no more than once per compound (e.g. if
             # less than 20 compounds)
-            print_on = max(round(.05 * total), 1)
+            print_on = max(round(.1 * total), 1)
             if not (done % print_on):
                 print(f"{section} {round(done / total * 100)} percent complete")
 

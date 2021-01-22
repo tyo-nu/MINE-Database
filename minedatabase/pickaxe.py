@@ -10,7 +10,6 @@ import os
 
 from argparse import ArgumentParser
 from functools import partial
-# from copy import deepcopy
 from sys import exit
 
 import minedatabase.databases as databases
@@ -23,39 +22,10 @@ from rdkit.Chem.inchi import MolToInchiKey
 from rdkit.Chem.Draw import MolToFile, rdMolDraw2D
 from rdkit.Chem.AllChem import (
     MolFromInchi, MolToInchiKey, MolToSmiles, MolFromSmiles, ReactionFromSmarts,
-    GetMolFrags, SanitizeMol, AddHs, Kekulize, RemoveHs
+    GetMolFrags, SanitizeMol, AddHs, Kekulize, RemoveHs, RDKFingerprint
     )
 
 from rdkit import RDLogger
-
-import psutil
-
-from threading import BoundedSemaphore
-from collections import Iterator
-
-
-
-
-class BoundedIterator(Iterator):
-    def __init__(self, it, bound):
-        self._it = it
-
-        self._sem = BoundedSemaphore(bound)
-    
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        return self.next()
-
-    def next(self, timeout=None):
-        if not self._sem.acquire(timeout=timeout):
-            raise TimeoutError('Too many values un-acknowledged.')
-
-        return next(self._it)
-
-    def processed(self):
-        self._sem.release()
 
 
 class Pickaxe:
@@ -466,14 +436,14 @@ class Pickaxe:
             # Use print_on to print % completion roughly every 5 percent
             # Include max to print no more than once per compound (e.g. if
             # less than 20 compounds)
-            print_on = max(round(.05 * total), 1)
+            print_on = max(round(0.1 * total), 1)
             if not done % print_on:
                 print((f"Generation {self.generation}: "
                        f"{round(done / total * 100)} percent complete"))
 
         while self.generation < max_generations or (self.generation == max_generations and self.filter_after_final_gen):
 
-            for _filter in self.filters:                
+            for _filter in self.filters:
                 _filter.apply_filter(self, num_workers)
 
             if self.generation < max_generations:
@@ -652,25 +622,33 @@ class Pickaxe:
                 # '(1) NCCCNc1cc(C(=O)O)ccc1O + (1) O =>
                 #       (1) O + (1) NCCCNc1cc(C(=O)O)ccc1O'
                 # are possible. Filter out
-
-                def sort_by(x):
-                    return x[0]['_id']
                 sorted_reactants = sorted(reactants, key=lambda x: x[1]['_id'])
                 sorted_products = sorted(products, key=lambda x: x[1]['_id'])
 
+                # Update newly calculated reaction info in self.reactions.
+                # Three possibilites:
+                # 1. Reaction has same products as reactants -- Remove completely
+                # 2. Reaction exists already -- append to existing reaction
+                # 3. Reaction doesn't exist -- make new reaction
+
+                # After this, delete redudnant compounds and update
+                # other compounds in reaction
+
+                append_new = False
                 if sorted_reactants == sorted_products:
-                    # Remove reaction from all participants logs
-                    pass
+                    # Reaction is something like CoF + CoF -> Product + Product
+                    # Where products are actually just cofactors
+                    pass # No need to update anything in self.reactions
 
                 elif cofactor_rxn_id in self.reactions:
-                    # Update operators to
+                    # Reaction already exists, update reaction operators
                     ops = self.reactions[cofactor_rxn_id]['Operators']
                     ops = ops | self.reactions[rxn_id]['Operators']
                     self.reactions[cofactor_rxn_id]['Operators'] = ops
+                    append_new = True
 
                 else:
-                    # construct new reaction with cofactor replacements
-                    # and remove from all logs
+                    # Reaction does not exist, generate new reaction
                     cofactor_rxn = {
                         '_id': cofactor_rxn_id,
                         # give stoich and id of reactants/products
@@ -679,21 +657,30 @@ class Pickaxe:
                         'Operators': rxn['Operators'],
                         'SMILES_rxn': rxn_text
                         }
-                    par_ops = rxn.get('Partial Operators')
-                    if par_ops:
-                        cofactor_rxn['Partial Operators'] = par_ops
-                    self.reactions[cofactor_rxn_id] = cofactor_rxn
 
-                # Remove reaction from all participants logs
+                    # Assign reaction to reactions dict
+                    self.reactions[cofactor_rxn_id] = cofactor_rxn
+                    append_new = True
+
                 for _, cpd in rxn['Reactants']:
                     if cpd.startswith('C'):
                         if rxn_id in self.compounds[cpd]['Reactant_in']:
                             self.compounds[cpd]['Reactant_in'].remove(rxn_id)
 
+                        if (append_new
+                            and cofactor_rxn_id
+                                not in self.compounds[cpd]['Reactant_in']):
+                            self.compounds[cpd]['Reactant_in'].append(rxn_id)
+
                 for _, cpd in rxn['Products']:
                     if cpd.startswith('C'):
                         if rxn_id in self.compounds[cpd]['Product_of']:
                             self.compounds[cpd]['Product_of'].remove(rxn_id)
+
+                        if (append_new
+                            and cofactor_rxn_id
+                                not in self.compounds[cpd]['Product_of']):
+                            self.compounds[cpd]['Product_of'].append(rxn_id)
 
         if rxns_to_del:
             for rxn_id in rxns_to_del:
@@ -874,7 +861,7 @@ class Pickaxe:
             # Use print_on to print % completion roughly every 5 percent
             # Include max to print no more than once per compound (e.g. if
             # less than 20 compounds)
-            print_on = max(round(.05 * total), 1)
+            print_on = max(round(0.1 * total), 1)
             if not (done % print_on):
                 print(f"{section} {round(done / total*100)} percent complete")
 
@@ -1133,8 +1120,8 @@ class Pickaxe:
                 update_cpds_rxns(new_cpds, new_rxns)
             else:
                 print("No partial operators could be generated.")
-    
-        
+
+
 
 # def _racemization(compound, max_centers=3, carbon_only=True):
 #     """Enumerates all possible stereoisomers for unassigned chiral centers.
@@ -1316,7 +1303,6 @@ def _run_reaction(rule_name, rule, reactant_mols, coreactant_mols,
 def _transform_ind_compound_with_full(coreactant_mols, coreactant_dict,
                                       operators, generation, explicit_h,
                                       compound_smiles):
-    start = psutil.Process().memory_info().rss / 1024 ** 2
     logger = RDLogger.logger()
     logger.setLevel(4)
     local_cpds = dict()
@@ -1350,7 +1336,6 @@ def _transform_ind_compound_with_full(coreactant_mols, coreactant_dict,
             if rxn in local_rxns:
                 local_rxns[rxn]['Operators'].union(vals['Operators'])
 
-    print(f"\nGen {generation} : Start {start} MB -- End {psutil.Process().memory_info().rss / 1024 ** 2} MB")
     return local_cpds, local_rxns
 
 
@@ -1366,7 +1351,7 @@ def _transform_all_compounds_with_full(compound_smiles, coreactants,
         # Use print_on to print % completion roughly every 2.5 percent
         # Include max to print no more than once per compound (e.g. if
         # less than 20 compounds)
-        print_on = max(round(.025 * total), 1)
+        print_on = max(round(0.1 * total), 1)
         if not done % print_on:
             print(f"Generation {generation}: {round(done / total * 100)}"
                   " percent complete")
@@ -1383,23 +1368,20 @@ def _transform_all_compounds_with_full(compound_smiles, coreactants,
         copy.copy(generation),
         copy.copy(explicit_h)
     )
-    print(f"\nTall in gen {generation} {psutil.Process().memory_info().rss / 1024 ** 2} MB")
     # par loop
     if num_workers > 1:
         # TODO chunk size?
         # chunk_size = max(
         #         [round(len(compound_smiles) / (num_workers)), 1])
         chunk_size = 1
-        bounded_compound_smiles = BoundedIterator(iter(compound_smiles), 5)
         # print(f'Chunk size = {chunk_size}')
         pool = multiprocessing.Pool(processes=num_workers)
         for i, res in enumerate(pool.imap_unordered(
                             transform_compound_partial,
-                            compound_smiles)): #,
-                            # chunk_size)):
+                            compound_smiles,
+                            chunk_size)):
             new_cpds, new_rxns = res
             new_cpds_master.update(new_cpds)
-            print(f"\nIn res {generation} {psutil.Process().memory_info().rss / 1024 ** 2} MB")
 
             # Need to check if reactions already exist to update operators list
             for rxn, rxn_dict in new_rxns.items():
@@ -1409,8 +1391,6 @@ def _transform_all_compounds_with_full(compound_smiles, coreactants,
                 else:
                     new_rxns_master.update({rxn: rxn_dict})
             print_progress(i, len(compound_smiles))
-            # bounded_compound_smiles.processed()
-
 
     else:
         for i, smiles in enumerate(compound_smiles):
@@ -1427,7 +1407,6 @@ def _transform_all_compounds_with_full(compound_smiles, coreactants,
                     new_rxns_master.update({rxn: rxn_dict})
             print_progress(i, len(compound_smiles))
 
-    print(f"\nTall end in gen {generation} {psutil.Process().memory_info().rss / 1024 ** 2} MB")
     return new_cpds_master, new_rxns_master
 
 
@@ -1527,7 +1506,7 @@ def _transform_all_compounds_with_partial(compound_smiles, coreactants,
             # Use print_on to print % completion roughly every 2.5 percent
             # Include max to print no more than once per compound (e.g. if
             # less than 20 compounds)
-            print_on = max(round(.025 * total), 1)
+            print_on = max(round(0.1 * total), 1)
             if not done % print_on:
                 print(f"Generation {generation}: {round(done / total * 100)} percent complete")
 
