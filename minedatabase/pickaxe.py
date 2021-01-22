@@ -670,7 +670,7 @@ class Pickaxe:
                         if (append_new
                             and cofactor_rxn_id
                                 not in self.compounds[cpd]['Reactant_in']):
-                            self.compounds[cpd]['Reactant_in'].append(rxn_id)
+                            self.compounds[cpd]['Reactant_in'].append(cofactor_rxn_id)
 
                 for _, cpd in rxn['Products']:
                     if cpd.startswith('C'):
@@ -680,7 +680,7 @@ class Pickaxe:
                         if (append_new
                             and cofactor_rxn_id
                                 not in self.compounds[cpd]['Product_of']):
-                            self.compounds[cpd]['Product_of'].append(rxn_id)
+                            self.compounds[cpd]['Product_of'].append(cofactor_rxn_id)
 
         if rxns_to_del:
             for rxn_id in rxns_to_del:
