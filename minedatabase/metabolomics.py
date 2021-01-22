@@ -85,9 +85,27 @@ class MetabolomicsDataset:
         self.total_formulas = 0
         self.total_hits = 0
         self.matched_peaks = 0
+        self.possible_masses = []
+        self.possible_ranges = []
 
     def __str__(self):
         return self.name
+
+    def enumerate_possible_masses(self, tolerance):
+        """Take list of masses from unknown peaks and list of adducts, and
+        combine them into all possible masses."""
+        possible_masses = []
+        possible_ranges = []
+        for peak in self.unk_peaks + self.known_peaks:
+            for adduct in list(self.pos_adducts) + list(self.neg_adducts):
+                possible_mass = (peak.mz - adduct['f2']) / adduct['f1']
+                possible_masses.append(possible_mass)
+                possible_ranges.append((possible_mass - tolerance,
+                                        possible_mass + tolerance,
+                                        peak.name))
+
+        self.possible_masses = np.array(set(possible_masses))
+        self.possible_ranges = possible_ranges
 
     def find_db_hits(self, peak, db, adducts):
         """This function searches the database for matches of a peak given
