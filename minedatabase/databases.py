@@ -1,25 +1,27 @@
 """Databases.py: This file contains MINE database classes including database
-loading functions."""
+loading and writing functions."""
 import ast
 import datetime
+import multiprocessing
 import os
 import sys
 import platform
-from copy import copy
+from copy import copy, deepcopy
 from shutil import move
 from subprocess import call
 
 import pymongo
 from pymongo.errors import ServerSelectionTimeoutError
+from pymongo.operations import InsertOne
 from rdkit.Chem import AllChem
 
 # from minedatabase import utils
 # from minedatabase.NP_Score import npscorer as nps
 
 from minedatabase import utils
-from minedatabase.NP_Score import npscorer as nps
+# from minedatabase.NP_Score import npscorer as nps
 
-nps_model = nps.readNPModel()
+# nps_model = nps.readNPModel()
 
 def establish_db_client(con_string=None):
     """This establishes a mongo database client in various environments"""
@@ -52,7 +54,7 @@ class MINE:
         self.reactions = self._db.reactions
         self.operators = self._db.operators
         self.models = self._db.models
-        self.nps_model = nps.readNPModel()
+        # self.nps_model = nps.readNPModel()
         self._mass_cache = {}  # for rapid calculation of reaction mass change
 
     def add_rxn_pointers(self):
@@ -261,140 +263,6 @@ class MINE:
                     external_database, compound=comp, match_field=match_field,
                     fields_to_copy=fields_to_copy))
 
-
-    def insert_core_compound(self, compound_dict, requests=None):
-        """This method generates a mongo request to save a compound into the core database.
-        The necessary fields for the API are calculated.
-        If a list of requests are given the request is appended for later bulk writing.
-        Otherwise a single entry is made. If a compound is already in the core database
-        nothing is written.
-
-        :param compound_dict: Compound Dictionary
-        :type compound_dict: dict
-        :param requests: List of requests for bulk insert
-        :type requests: None
-        """
-        core_dict = copy(compound_dict)
-        cpd_id = core_dict['_id']
-        mol_object = AllChem.MolFromSmiles(core_dict['SMILES'])
-
-        if 'Generation' in core_dict:
-            del(core_dict['Generation'])
-        if 'Expand' in core_dict:
-            del(core_dict['Expand'])
-        if 'Type' in core_dict:
-            del(core_dict['Type'])
-        if 'Product_of' in core_dict:
-            del(core_dict['Product_of'])
-        if 'Reactant_in' in core_dict:
-            del(core_dict['Reactant_in'])
-        # Store all different representations of the molecule (SMILES, Formula,
-        #  InChI key, etc.) as well as its properties in a dictionary
-        if not 'SMILES' in core_dict:
-            core_dict['SMILES'] = AllChem.MolToSmiles(mol_object, True)
-        if not 'Inchi' in core_dict:
-            core_dict['Inchi'] = AllChem.MolToInchi(mol_object)
-        if not 'Inchikey' in core_dict:
-            core_dict['Inchikey'] = AllChem.InchiToInchiKey(
-                core_dict['Inchi'])
-        core_dict['Mass'] = AllChem.CalcExactMolWt(mol_object)
-        core_dict['Formula'] = AllChem.CalcMolFormula(mol_object)
-        core_dict['logP'] = AllChem.CalcCrippenDescriptors(mol_object)[0]
-        core_dict['NP_likeness'] = nps.scoreMol(mol_object, self.nps_model)
-        core_dict['Spectra'] = {}
-        # Record which expansion it's coming from
-        core_dict['MINES'] = []
-
-        if requests != None:
-            requests.append(pymongo.UpdateOne({'_id': cpd_id}, {'$setOnInsert': core_dict}, upsert=True))
-        else:
-            self.core_compounds.update_one({'_id': cpd_id}, {'$setOnInsert': core_dict}, upsert=True)
-            
-        return None
-    
-    def update_core_compound_MINES(self, compound_dict, requests=None):
-        """This method adds the current MINE to the core compound's MINES set.
-
-        :param compound_dict: RDKit object of the compound
-        :type compound_dict: dict
-        :param requests: List of requests for bulk insert
-        :type requests: None
-        """
-        cpd_id = compound_dict['_id']
-        if requests != None:
-            requests.append(pymongo.UpdateOne({'_id': cpd_id}, {'$addToSet': {'MINES': self.name}}))
-        else:
-            self.core_compounds.update_one({'_id': cpd_id}, {'$addToSet': {'MINES': self.name}})
-
-        return None
-
-    def insert_mine_compound(self, compound_dict=None, requests=None):
-        """This method saves a RDKit Molecule as a compound entry in the MINE.
-        Calculates necessary fields for API and includes additional
-        information passed in the compound dict. Overwrites preexisting
-        compounds in MINE on _id collision.
-
-        :param compound_dict: Information of compound to insert to database
-        :type compound_dict: dict
-        :param requests: A list of requests for pymongo bulk write
-        : type requests: list
-        """
-
-        if compound_dict is None:
-            return None
-
-        # Store all different representations of the molecule (SMILES, Formula,
-        #  InChI key, etc.) as well as its properties in a dictionary
-        if '_atom_count' in compound_dict:
-            del compound_dict['_atom_count']
-
-        if 'Inchikey' in compound_dict:
-            del compound_dict['Inchikey']
-
-        if 'ID' in compound_dict:
-            del compound_dict['ID']
-        # If the compound is a reactant, then make sure the reactant name is
-        # in a correct format.
-        if 'Reactant_in' in compound_dict and isinstance(
-                compound_dict['Reactant_in'], str) \
-                and compound_dict['Reactant_in']:
-            compound_dict['Reactant_in'] = ast.literal_eval(
-                compound_dict['Reactant_in'])
-        # If the compound is a product, then make sure the reactant name is
-        # in a correct format.
-        if 'Product_of' in compound_dict \
-                and isinstance(compound_dict['Product_of'], str) \
-                and compound_dict['Product_of']:
-            compound_dict['Product_of'] = ast.literal_eval(
-                compound_dict['Product_of'])
-
-        # If bulk insertion, upsert (insert and update) the database
-        if requests != None:
-            requests.append(pymongo.ReplaceOne({'_id': compound_dict['_id']}, compound_dict, upsert=True))
-        else:
-            self.compounds.replace_one({'_id':compound_dict['_id']}, compound_dict, upsert=True)
-
-        return None
-
-    def insert_reaction(self, reaction_dict, requests=None):
-        """Inserts a reaction into the MINE database and returns _id of the
-         reaction in the mine database.
-
-        :param reaction_dict: A dictionary containing 'Reactants' and
-         'Products' lists of StoichTuples
-        :type reaction_dict: dict        
-        :return: The hashed _id of the reaction
-        :rtype: str
-        """
-
-        reaction_dict = utils.convert_sets_to_lists(reaction_dict)
-        # If bulk insertion, upsert (insert and update) the database
-        if requests != None:
-            requests.append(pymongo.ReplaceOne({'_id':{'$eq':reaction_dict['_id']}}, reaction_dict, upsert=True))
-        else:
-            save_document(self.reactions, reaction_dict)
-        return reaction_dict['_id']
-
     def map_reactions(self, ext_db, match_field='_id'):
         """Update operators by adding the reactions they participate in.
 
@@ -439,113 +307,89 @@ def save_document(collection, doc):
         collection.replace_one({'_id': doc['_id']}, doc)
     else:
         collection.insert_one(doc)
+# Functions to write data to MINE
+# Reactions
+def write_reactions_to_mine(reactions: dict, db: MINE, chunk_size: int = 10000) -> None:
+    n_rxns = len(reactions)
+    for i, rxn_chunk in enumerate(utils.Chunks(reactions.values(), chunk_size)):
+        if i%20 == 0:
+            print(f"Writing Reactions: Chunk {i} of {int(n_rxns/chunk_size)}")
+        rxn_requests = [pymongo.InsertOne(utils.convert_sets_to_lists(rxn_dict)) for rxn_dict in rxn_chunk]
 
-def insert_mine_compound(compound_dict):
-        """This method saves a RDKit Molecule as a compound entry in the MINE.
-        Calculates necessary fields for API and includes additional
-        information passed in the compound dict.
+        db.reactions.bulk_write(rxn_requests, ordered=False)
 
-        :param compound_dict: Compound info to add to database
-        :type compound_dict: dict
-        :return: The mongo request
-        :rtype: pymongo.InsertOne
-        """
+# Compounds
+def write_compounds_to_mine(compounds: dict, db: MINE, chunk_size: int = 10000) -> None:
+    def _get_cpd_insert(cpd_dict: dict):
+        output_keys = ["_id", "ID", "SMILES", "Type", "Generation", "Reactant_in", "Product_of", "Expand"]
+        return pymongo.InsertOne({key: cpd_dict.get(key) for key in output_keys if cpd_dict.get(key) != None})
 
-        # Store all different representations of the molecule (SMILES, Formula,
-        #  InChI key, etc.) as well as its properties in a dictionary
-        if 'atom_count' in compound_dict:
-            del compound_dict['atom_count']
-        # if 'Inchikey' in compound_dict:
-        #     del compound_dict['Inchikey']
-        if 'ID' in compound_dict:
-            del compound_dict['ID']
+    n_cpds = len(compounds)
+    for i, cpd_chunk in enumerate(utils.Chunks(compounds.values(), chunk_size)):
+        if i%20 == 0:
+            print(f"Writing Compounds: Chunk {i} of {int(n_cpds/chunk_size)}")
+        cpd_requests = [_get_cpd_insert(cpd_dict) for cpd_dict in cpd_chunk]
+        db.compounds.bulk_write(cpd_requests, ordered=False)
 
-        # If the compound is a reactant, then make sure the reactant name is
-        # in a correct format.
-        if 'Reactant_in' in compound_dict and isinstance(
-                compound_dict['Reactant_in'], str) \
-                and compound_dict['Reactant_in']:
-            compound_dict['Reactant_in'] = ast.literal_eval(
-                compound_dict['Reactant_in'])
-        # If the compound is a product, then make sure the reactant name is
-        # in a correct format.
-        if 'Product_of' in compound_dict \
-                and isinstance(compound_dict['Product_of'], str) \
-                and compound_dict['Product_of']:
-            compound_dict['Product_of'] = ast.literal_eval(
-                compound_dict['Product_of'])
+# Core Compounds
+def write_core_compounds(compounds: dict, db: MINE, mine: str, chunk_size: int = 10000, processes = 1) -> None:
+    n_cpds = len(compounds)
+    pool = multiprocessing.Pool(processes)
 
-        return pymongo.InsertOne(compound_dict)
+    for i, cpd_chunk in enumerate(utils.Chunks(compounds.values(), chunk_size)):
+        if i%20 == 0:
+            print(f"Writing Compounds: Chunk {i} of {int(n_cpds/chunk_size)}")
+        cpd_chunk = [deepcopy(cpd) for cpd in cpd_chunk if cpd["_id"].startswith("C")]
+        core_requests = [req for req in pool.map(_get_core_cpd_insert, cpd_chunk)]
+        core_update_requests = [_get_core_cpd_update(cpd_dict, mine) for cpd_dict in cpd_chunk]
 
-def insert_core_compound(compound_dict):
-        """This method generates a mongo request to save a compound into the core database.
-        The necessary fields for the API are calculated.
-        If a list of requests are given the request is appended for later bulk writing.
-        Otherwise a single entry is made. If a compound is already in the core database
-        nothing is written.
+        # Need to write update (i.e. what keeps track of which mines the compound has been in)
+        # first to ensure cpd exists
+        db.core_compounds.bulk_write(core_requests)
+        db.core_compounds.bulk_write(core_update_requests)
 
-        :param compound_dict: Compound Dictionary
-        :type compound_dict: dict
-        :return requests: List of requests for bulk insert
-        :rtype requests: pymongo.UpdateOne
-        """
-        core_dict = copy(compound_dict)
-        cpd_id = core_dict['_id']
-        mol_object = AllChem.MolFromSmiles(core_dict['SMILES'])
+    pool.close()
 
-        if 'Generation' in core_dict:
-            del(core_dict['Generation'])
-        if 'Expand' in core_dict:
-            del(core_dict['Expand'])
-        if 'Type' in core_dict:
-            del(core_dict['Type'])
-        if 'Product_of' in core_dict:
-            del(core_dict['Product_of'])
-        if 'Reactant_in' in core_dict:
-            del(core_dict['Reactant_in'])
-        
-                     
-        # Store all different representations of the molecule (SMILES, Formula,
-        #  InChI key, etc.) as well as its properties in a dictionary
-        if not 'SMILES' in core_dict:
-            core_dict['SMILES'] = AllChem.MolToSmiles(mol_object, True)
-        if not 'Inchi' in core_dict:
-            core_dict['Inchi'] = AllChem.MolToInchi(mol_object)
-        if not 'Inchikey' in core_dict:
-            core_dict['Inchikey'] = AllChem.InchiToInchiKey(
-                core_dict['Inchi'])
-        core_dict['Mass'] = AllChem.CalcExactMolWt(mol_object)
-        core_dict['Formula'] = AllChem.CalcMolFormula(mol_object)
-        core_dict['logP'] = AllChem.CalcCrippenDescriptors(mol_object)[0]
-        core_dict['NP_likeness'] = nps.scoreMol(mol_object, nps_model)
-        core_dict['Spectra'] = {}
-        # Record which expansion it's coming from
-        core_dict['MINES'] = []   
-        
-        return pymongo.UpdateOne({'_id': cpd_id}, {'$setOnInsert': core_dict}, upsert=True)
 
-def update_core_compound_MINES(compound_dict, MINE):
-        """This method adds the current MINE to the core compound's MINES set.
+def _get_core_cpd_update(cpd_dict: dict, mine: str) -> pymongo.UpdateOne:
+    return pymongo.UpdateOne({'_id': cpd_dict['_id']}, {'$addToSet': {'MINES': mine}})
 
-        :param compound_dict: RDKit object of the compound
-        :type compound_dict: dict
-        :return requests: Request for bulk insert
-        :rtype requests: pymongo.UpdateOne
-        """
-        cpd_id = compound_dict['_id']
-        return pymongo.UpdateOne({'_id': cpd_id}, {'$addToSet': {'MINES': MINE}})
 
-def insert_reaction(reaction_dict):
-    """Inserts a reaction into the MINE database and returns _id of the
-        reaction in the mine database. 
+def _get_core_cpd_insert(cpd_dict: dict) -> pymongo.InsertOne:
+     # cpd_dict = deepcopy(cpd_dict)
+    core_keys = ["_id", "SMILES", "Inchi", "InchiKey", "Mass", "Formula"]
+    core_dict = {key: cpd_dict.get(key) for key in core_keys if cpd_dict.get(key) != None}
 
-    :param reaction_dict: A dictionary containing 'Reactants' and
-        'Products' lists of StoichTuples
-    :type reaction_dict: dict    
-    :return: Request for bulk insert
-    :rtype: pymongo.InsertOne
-    """
+    mol_object = AllChem.MolFromSmiles(core_dict['SMILES'])
+                   
+    # Store all different representations of the molecule (SMILES, Formula,
+    #  InChI key, etc.) as well as its properties in a dictionary
+    if not 'SMILES' in core_dict:
+        core_dict['SMILES'] = AllChem.MolToSmiles(mol_object, True)
+    if not 'Inchi' in core_dict:
+        core_dict['Inchi'] = AllChem.MolToInchi(mol_object)
+    if not 'Inchikey' in core_dict:
+        core_dict['Inchikey'] = AllChem.InchiToInchiKey(core_dict['Inchi'])
+
+    core_dict['Mass'] = AllChem.CalcExactMolWt(mol_object)
+    core_dict['Formula'] = AllChem.CalcMolFormula(mol_object)
+    core_dict['logP'] = AllChem.CalcCrippenDescriptors(mol_object)[0]
+    # core_dict['NP_likeness'] = nps.scoreMol(mol_object, nps_model)
+    core_dict['Spectra'] = {}
+    # Record which expansion it's coming from
+    core_dict['MINES'] = []   
     
-    reaction_dict = utils.convert_sets_to_lists(reaction_dict)
+    return pymongo.UpdateOne({'_id': core_dict["_id"]}, {'$setOnInsert': core_dict}, upsert=True)
+    
+# Target Compounds
+def write_targets_to_mine(targets: dict, db: MINE, chunk_size: int = 10000) -> None:
+    def _get_cpd_insert(cpd_dict: dict):
+        output_keys = ["_id", "ID", "SMILES"]
+        return pymongo.InsertOne({key: cpd_dict.get(key) for key in output_keys if cpd_dict.get(key) != None})
 
-    return pymongo.InsertOne(reaction_dict)
+    n_cpds = len(targets)
+    for i, target_chunk in enumerate(utils.Chunks(targets.values(), chunk_size)):
+        if i%20 == 0:
+            print(f"Writing Targets: Chunk {i} of {int(n_cpds/chunk_size)}")
+        cpd_requests = [_get_cpd_insert(cpd_dict) for cpd_dict in target_chunk]
+        db.target_compounds.bulk_write(cpd_requests, ordered=False)

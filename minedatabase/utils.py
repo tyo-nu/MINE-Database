@@ -4,13 +4,54 @@ import collections
 import csv
 import hashlib
 import json
-from os import path
 import re
+from collections.abc import Iterable, Iterator
+from itertools import chain, islice
+from os import path
 
 from rdkit.Chem import AllChem
 
 StoichTuple = collections.namedtuple("StoichTuple", 'stoich,c_id')
 
+class Chunks(Iterator):
+    """Chunks an iterator into defined sizes and acts as an iterator, returning
+    those chunks in order.
+    """
+
+    def __init__(self, it: Iterable, chunk_size: int = 1, return_list: bool = False):
+        self._it = iter(it)
+        self._chunk_size = chunk_size
+        self._return_list = return_list
+
+    def __iter__(self) -> Iterator:
+        return self
+
+    def __next__(self):
+        return self.next()
+
+    def next(self):
+        """Returns the next chunk from the iterable.
+        This method is not thread-safe.
+        :raises TimeoutError: if timeout is given and no value is acknowledged in the mean time.
+        """
+        def peek(iterable):
+            "peek at first element of iterable to determine if it is empty"
+            try:
+                first = next(iterable)
+            except StopIteration:
+                return None
+            return chain([first], iterable)
+
+        next_slice = islice(self._it, self._chunk_size)
+        next_slice = peek(next_slice)
+
+        if next_slice:
+            if self._return_list:
+                return list(next_slice)
+            else:
+                return next_slice
+        else:
+            raise StopIteration
 
 def file_to_dict_list(filepath):
     """Accept a path to a CSV, TSV or JSON file and return a dictionary list"""
@@ -456,3 +497,48 @@ def _getatom_count(mol, radical_check=False):
             if radical:
                 atoms['*'] += 1
         return atoms  
+
+# def _racemization(compound, max_centers=3, carbon_only=True):
+#     """Enumerates all possible stereoisomers for unassigned chiral centers.
+
+#     :param compound: A compound
+#     :type compound: rdMol object
+#     :param max_centers: The maximum number of unspecified stereocenters to
+#         enumerate. Sterioisomers grow 2^n_centers so this cutoff prevents lag
+#     :type max_centers: int
+#     :param carbon_only: Only enumerate unspecified carbon centers. (other
+#         centers are often not tautomeric artifacts)
+#     :type carbon_only: bool
+#     :return: list of stereoisomers
+#     :rtype: list of rdMol objects
+#     """
+#     new_comps = []
+#     # FindMolChiralCenters (rdkit) finds all chiral centers. We get all
+#     # unassigned centers (represented by '?' in the second element
+#     # of the function's return parameters).
+#     unassigned_centers = [c[0] for c in AllChem.FindMolChiralCenters(
+#         compound, includeUnassigned=True) if c[1] == '?']
+#     # Get only unassigned centers that are carbon (atomic number of 6) if
+#     # indicated
+#     if carbon_only:
+#         unassigned_centers = list(
+#             filter(lambda x: compound.GetAtomWithIdx(x).GetAtomicNum() == 6,
+#                 unassigned_centers))
+#     # Return original compound if no unassigned centers exist (or if above
+#     # max specified (to prevent lag))
+#     if not unassigned_centers or len(unassigned_centers) > max_centers:
+#         return [compound]
+#     for seq in itertools.product([1, 0], repeat=len(unassigned_centers)):
+#         for atomid, clockwise in zip(unassigned_centers, seq):
+#             # Get both cw and ccw chiral centers for each center. Used
+#             # itertools.product to get all combinations.
+#             if clockwise:
+#                 compound.GetAtomWithIdx(atomid).SetChiralTag(
+#                     AllChem.rdchem.ChiralType.CHI_TETRAHEDRAL_CW)
+#             else:
+#                 compound.GetAtomWithIdx(atomid).SetChiralTag(
+#                     AllChem.rdchem.ChiralType.CHI_TETRAHEDRAL_CCW)
+#         # Duplicate C++ object so that we don't get multiple pointers to
+#         # same object
+#         new_comps.append(deepcopy(compound))
+#     return new_comps
