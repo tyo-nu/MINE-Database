@@ -36,19 +36,14 @@ database_overwrite = True
 # database = "APAH_100Sam_50rule"
 database = "test_ADP1"
 # Message to insert into metadata
-message = ("Debugging filter. Should yield no orphans. 100 Sampling. Terminal,"
-           " Tani filtering.")
+message = ("Example run to show how pickaxe is ran.")
 
 # mongo DB information
 use_local = True
 if use_local:
     mongo_uri = 'mongodb://localhost:27017'
 else:
-    # load file of form user,pass
-    creds = open('credentials.csv').readline().split(',')
-    creds = [cred.strip('\n') for cred in creds]
-    # URI of remote mongo instance
-    mongo_uri = f"mongodb://{creds[0]}:{creds[1]}@minedatabase.ci.northwestern.edu:27017/?authSource=admin"
+    mongo_uri = open('mongo_uri.csv').readline().strip('\n')
 
 # Write output .csv files locally
 write_local = False
@@ -56,10 +51,9 @@ output_dir = '.'
 ###############################################################################
 
 ###############################################################################
-#    Cofactors, rules and inputs
-# Original rules derived from BNICE
-# coreactant_list = './minedatabase/data/EnzymaticCoreactants.tsv'
-# rule_list = './minedatabase/data/EnzymaticReactionRules.tsv'
+#    Starting Compounds, Cofactors, and Rules
+# Input compounds
+input_cpds = './example_data/starting_cpds_ten.csv'
 
 # Rules from Joseph Ni
 coreactant_list = './minedatabase/data/MetaCyc_Coreactants.tsv'
@@ -72,15 +66,16 @@ input_cpds = './local_data/ADP1_cpds_out_reduced.csv'
 
 # Partial operators
 # Partial operators allow use of multiple compounds in an any;any expansion
+# Currently uses a significant amount of memory
 partial_rules = False
-mapped_rxns = 'minedatabase/data/metacyc_mapped.tsv'
+mapped_rxns = './minedatabase/data/metacyc_rules/metacyc_mapped.tsv'
 ###############################################################################
 
 ###############################################################################
 # Core Pickaxe Run Options
 generations = 1
 num_workers = 4     # Number of processes for parallelization
-verbose = False      # Display RDKit warnings and errors
+verbose = False     # Display RDKit warnings and errors
 explicit_h = False
 kekulize = True
 neutralise = True
@@ -103,26 +98,29 @@ react_targets = True
 # Specify if network expansion is done in a retrosynthetic direction
 retrosynthesis = False
 
-# Prune results to only give expanded compounds/rxns
-prune_by_filter = True
+# Prune results to remove compounds not required to produce targets
+prune_to_targets = True
 
 # Filter final generation?
 filter_after_final_gen = True
 
 ##############################################################################
-# Tanimoto Filtering options
+# Tanimoto Filtering options.
+# Filters by tanimoto similarity score, using default RDKit fingerprints
 
 # Apply this filter?
 tani_filter = False
 
-# Tanimito filter threshold. Can be single number or a list of length, generations.
-crit_tani = [0, 0.2, 0.7]
+# Tanimito filter threshold. Can be single number or a list with length at least
+# equal to the number of generations (+1 if filtering after expansion)
+tani_threshold = [0, 0.2, 0.7]
 
 # Make sure tani increases each generation?
 increasing_tani = False
 
 ###############################################################################
 # Tanimoto-based Sampling Options
+# Samples by tanimoto similarity score, using default RDKit fingerprints
 
 # Apply this sampler?
 tani_sample = False
@@ -130,16 +128,20 @@ tani_sample = False
 # Number of compounds per generation to sample
 sample_size = 5
 
-# Give a function that accepts a single argument and returns a single result
-# Inputs are [0, 1]
-# weight = None will use a f(x) = x^4 to weight.
-weight = lambda T: T**4
+# weight is a function that specifies weighting of Tanimoto similarity
+# weight accepts one input
+# T : float in range 0-1
+# and returns
+# float in any range (will be rescaled later)
+# weight = None will use a T^4 to weight.
+def weight(T):
+    return T**4
 
-# What to call the above function in the database
-weight_for_db = "T^4"
+# How to represent the function in text
+weight_representation = "T^4"
 
 ###############################################################################
-# MCS Filter Options
+# Maximum common substructure (MCS) filter
 
 # Apply this filter?
 mcs_filter = False
@@ -158,7 +160,7 @@ metabolomics_filter = True
 # Peak1, 6.33, 74.0373, negative, propionic acid, CCC(=O)O, yes
 # Peak2, 26.31, 84.06869909, positive, , , no
 # ...
-met_data_path = '../Met_Data_Processed/ADP1_Metabolomics_PeakList_final.csv'
+met_data_path = './local_data/ADP1_Metabolomics_PeakList_final.csv'
 
 # Name of dataset
 met_data_name = 'ADP1_metabolomics'
@@ -173,11 +175,58 @@ mass_tolerance = 0.001
 ###############################################################################
 
 ###############################################################################
+# Verbose output
+print_parameters = True
+
+def print_run_parameters():
+    def print_parameter_list(plist):
+        for i in plist:
+            print(f"--{i}: {eval(i)}")
+
+    print('\n-------------Run Parameters-------------')
+
+    print ('\nRun Info')
+    print_parameter_list(['coreactant_list', 'rule_list', 'input_cpds'])
+
+    print('\nExpansion Options')
+    print_parameter_list(['generations', 'num_workers'])
+
+    print('\nGeneral Filter Options')
+    print_parameter_list(['filter_after_final_gen', 'react_targets',
+                    'prune_to_targets', 'react_targets'])
+    
+    if tani_sample:
+        print('\nTanimoto Sampling Filter Options')
+        print_parameter_list(['sample_size', 'weight_representation'])
+    
+    if tani_filter:
+        print('\nTanimoto Threshold Filter Options')
+        print_parameter_list(['tani_threshold', 'increasing_tani'])
+
+    if mcs_filter:
+        print('\nMaximum Common Substructure Filter Options')
+        print_parameter_list(['crit_mcs'])
+
+    if metabolomics_filter:
+        print('\nMetabolomics Filter Options')
+        print_parameter_list(['met_data_path', 'met_data_name',
+                              'possible_adducts', 'mass_tolerance'])
+    
+    print('\nPickaxe Options')
+    print_parameter_list(['verbose', 'explicit_h', 'kekulize', 'neutralise',
+                'image_dir', 'quiet', 'indexing'])
+    print('----------------------------------------\n')
+###############################################################################
+
+###############################################################################
 ##### Running pickaxe
 if __name__ == '__main__':  # required for parallelization on Windows
     # Initialize the Pickaxe class
     if write_db is False:
         database = None
+
+    if print_parameters:
+        print_run_parameters()
 
     pk = Pickaxe(coreactant_list=coreactant_list, rule_list=rule_list,
                  errors=verbose, explicit_h=explicit_h, kekulize=kekulize,
@@ -199,7 +248,7 @@ if __name__ == '__main__':  # required for parallelization on Windows
 
     # Apply filters
     if tani_filter:
-        taniFilter = TanimotoFilter(filter_name="Tani", crit_tani=crit_tani,
+        taniFilter = TanimotoFilter(filter_name="Tani", crit_tani=tani_threshold,
                                     increasing_tani=increasing_tani)
         pk.filters.append(taniFilter)
 
@@ -229,7 +278,7 @@ if __name__ == '__main__':  # required for parallelization on Windows
     pk.remove_cofactor_redundancy()
 
     if (tani_filter or mcs_filter or tani_sample):
-        if prune_by_filter:
+        if prune_to_targets:
             pk.prune_network_to_targets()
 
     # Write results to database
@@ -252,12 +301,12 @@ if __name__ == '__main__':  # required for parallelization on Windows
             db.meta_data.insert_one({"Timestamp": datetime.datetime.now(),
                                      "React Targets": react_targets,
                                      "Tanimoto Filter": tani_filter,
-                                     "Tanimoto Values": f"{crit_tani}",
+                                     "Tanimoto Values": f"{tani_threshold}",
                                      "MCS Filter": mcs_filter,
                                      "MCS Values": f"{crit_mcs}",
                                      "Sample By": tani_sample,
                                      "Sample Size": sample_size,
-                                     "Sample Weight": weight_for_db,
+                                     "Sample Weight": weight_representation,
                                      "Pruned": prune_by_filter
                                      })
 
@@ -269,3 +318,4 @@ if __name__ == '__main__':  # required for parallelization on Windows
     print('----------------------------------------')
     print(f'Overall run took {round(time.time() - start, 2)} seconds.')
     print('----------------------------------------')
+    

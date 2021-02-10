@@ -1,30 +1,29 @@
 """Pickaxe.py: This module generates new compounds from user-specified starting
    compounds using a set of SMARTS-based reaction rules."""
-import multiprocessing
-import collections
-import itertools
-import datetime
-import time
 import csv
+import datetime
 import os
-import pandas as pd
-
+import pickle
+import time
 from argparse import ArgumentParser
 from functools import partial
-from copy import deepcopy
 from sys import exit
 
-import minedatabase.databases as databases
-
-from minedatabase.databases import MINE
-from minedatabase import utils
-
-from rdkit.Chem.rdMolDescriptors import CalcMolFormula
-from rdkit.Chem.inchi import MolToInchiKey
-from rdkit.Chem.Draw import MolToFile, rdMolDraw2D
-from rdkit.Chem.rdmolfiles import MolFromSmiles
-from rdkit.Chem import AllChem
 from rdkit import RDLogger
+from rdkit.Chem.AllChem import (AddHs, GetMolFrags, Kekulize, MolFromInchi,
+                                MolFromSmiles, MolToInchiKey, MolToSmiles,
+                                RDKFingerprint, ReactionFromSmarts,
+                                SanitizeMol)
+from rdkit.Chem.Draw import MolToFile, rdMolDraw2D
+from rdkit.Chem.inchi import MolToInchiKey
+from rdkit.Chem.rdMolDescriptors import CalcMolFormula
+
+from minedatabase import utils
+from minedatabase.databases import (MINE, write_compounds_to_mine,
+                                    write_core_compounds,
+                                    write_reactions_to_mine,
+                                    write_targets_to_mine)
+from minedatabase.reactions import transform_all_compounds_with_full
 
 
 class Pickaxe:
@@ -166,16 +165,16 @@ class Pickaxe:
                 continue
             # Add compound to internal dictionary as a target
             # compound and store SMILES string to be returned
-            smi = AllChem.MolToSmiles(mol, True)
+            smi = MolToSmiles(mol, True)
             cpd_name = target_dict[id_field]
             # Only operate on organic compounds
             if 'c' in smi.lower():
-                AllChem.SanitizeMol(mol)
+                SanitizeMol(mol)
                 self._add_compound(cpd_name, smi, 'Target Compound', mol)
                 self.target_smiles.append(smi)
                 if calc_fp:
                     # Generate fingerprints for tanimoto filtering
-                    fp = AllChem.RDKFingerprint(mol)
+                    fp = RDKFingerprint(mol)
                     self.target_fps.append(fp)
 
         print(f"{len(self.target_smiles)} target compounds loaded\n")
@@ -209,11 +208,11 @@ class Pickaxe:
                     continue
                 # Add compound to internal dictionary as a starting
                 # compound and store SMILES string to be returned
-                smi = AllChem.MolToSmiles(mol, True)
+                smi = MolToSmiles(mol, True)
                 cpd_name = cpd_dict[id_field]
                 # Do not operate on inorganic compounds
                 if 'C' in smi or 'c' in smi:
-                    AllChem.SanitizeMol(mol)
+                    SanitizeMol(mol)
                     self._add_compound(cpd_name, smi,
                                        cpd_type='Starting Compound', mol=mol)
                     compound_smiles.append(smi)
@@ -240,24 +239,24 @@ class Pickaxe:
         # split_text[0] is compound name, split_text[1] is SMILES string
         # Generate a Mol object from the SMILES string if possible
         try:
-            mol = AllChem.MolFromSmiles(split_text[2])
+            mol = MolFromSmiles(split_text[2])
             if not mol:
                 raise ValueError
             # TODO: what do do about stereochemistry? Original comment is below
             # but stereochem was taken out (isn't it removed later anyway?)
             # # Generate SMILES string with stereochemistry taken into account
-            smi = AllChem.MolToSmiles(mol)
+            smi = MolToSmiles(mol)
         except (IndexError, ValueError):
             raise ValueError(f"Unable to load coreactant: {coreactant_text}")
         cpd_id = self._add_compound(split_text[0], smi, 'Coreactant', mol)
         # If hydrogens are to be explicitly represented, add them to the Mol
         # object
         if self.explicit_h:
-            mol = AllChem.AddHs(mol)
+            mol = AddHs(mol)
         # If kekulization is preferred (no aromatic bonds, just 3 C=C bonds
         # in a 6-membered aromatic ring for example)
         if self.kekulize:
-            AllChem.Kekulize(mol, clearAromaticFlags=True)
+            Kekulize(mol, clearAromaticFlags=True)
         # Store coreactant in a coreactants dictionary with the Mol object
         # and hashed id as values (coreactant name as key)
         self.coreactants[split_text[0]] = (mol, cpd_id,)
@@ -287,7 +286,7 @@ class Pickaxe:
                             raise ValueError("Undefined coreactant:"
                                              f"{coreactant_name}")
                     # Create ChemicalReaction object from SMARTS string
-                    rxn = AllChem.ReactionFromSmarts(rule['SMARTS'])
+                    rxn = ReactionFromSmarts(rule['SMARTS'])
                     rule.update({'_id': rule['Name'],
                                  'Reactions_predicted': 0,
                                  'SMARTS': rule['SMARTS']})
@@ -326,10 +325,10 @@ class Pickaxe:
             return
         # Generate Mol object from InChI code if present
         if 'InChI=' in input_dict[structure_field]:
-            mol = AllChem.MolFromInchi(input_dict[structure_field])
+            mol = MolFromInchi(input_dict[structure_field])
         # Otherwise generate Mol object from SMILES string
         else:
-            mol = AllChem.MolFromSmiles(input_dict[structure_field])
+            mol = MolFromSmiles(input_dict[structure_field])
         if not mol:
             if self.errors:
                 print(f"Unable to Parse {input_dict[structure_field]}")
@@ -339,7 +338,7 @@ class Pickaxe:
         # allowed (i.e. fragmented_mols == 1), then don't add to
         # internal dictionary. This is most common when compounds
         # are salts.
-        if not self.fragmented_mols and len(AllChem.GetMolFrags(mol)) > 1:
+        if not self.fragmented_mols and len(GetMolFrags(mol)) > 1:
             return
         # If specified remove charges (before applying reaction
         # rules later on)
@@ -357,7 +356,7 @@ class Pickaxe:
             # generation so we check with hashed id from above
             if cpd_id not in self.compounds:
                 if not mol:
-                    mol = AllChem.MolFromSmiles(smi)
+                    mol = MolFromSmiles(smi)
                 # expand only Predicted and Starting_compounds
                 expand = cpd_type in ['Predicted', 'Starting Compound']
                 cpd_dict = {'ID': cpd_name, '_id': cpd_id, 'SMILES': smi,
@@ -407,7 +406,7 @@ class Pickaxe:
                                       join(self.image_dir, cpd_id + '.svg'),
                                       'w') as outfile:
 
-                                mol = AllChem.MolFromSmiles(cpd_dict['SMILES'])
+                                mol = MolFromSmiles(cpd_dict['SMILES'])
                                 nmol = rdMolDraw2D.PrepareMolForDrawing(mol)
                                 d2d = rdMolDraw2D.MolDraw2DSVG(1000, 1000)
                                 d2d.DrawMolecule(nmol)
@@ -435,14 +434,14 @@ class Pickaxe:
             # Use print_on to print % completion roughly every 5 percent
             # Include max to print no more than once per compound (e.g. if
             # less than 20 compounds)
-            print_on = max(round(.05 * total), 1)
+            print_on = max(round(0.1 * total), 1)
             if not done % print_on:
                 print((f"Generation {self.generation}: "
                        f"{round(done / total * 100)} percent complete"))
 
         while self.generation < max_generations or (self.generation == max_generations and self.filter_after_final_gen):
 
-            for _filter in self.filters:                
+            for _filter in self.filters:
                 _filter.apply_filter(self, num_workers)
 
             if self.generation < max_generations:
@@ -481,7 +480,6 @@ class Pickaxe:
     def load_partial_operators(self, mapped_reactions):
         """Generate set of partial operators from a list of mapped reactions
         corresponding to the reaction rules being used.
-
         :param mapped_reactions: A .csv file with four columns: rule id,
         source, SMARTS, mapping info.
         :type mapped_reactions: file
@@ -621,25 +619,33 @@ class Pickaxe:
                 # '(1) NCCCNc1cc(C(=O)O)ccc1O + (1) O =>
                 #       (1) O + (1) NCCCNc1cc(C(=O)O)ccc1O'
                 # are possible. Filter out
-
-                def sort_by(x):
-                    return x[0]['_id']
                 sorted_reactants = sorted(reactants, key=lambda x: x[1]['_id'])
                 sorted_products = sorted(products, key=lambda x: x[1]['_id'])
 
+                # Update newly calculated reaction info in self.reactions.
+                # Three possibilites:
+                # 1. Reaction has same products as reactants -- Remove completely
+                # 2. Reaction exists already -- append to existing reaction
+                # 3. Reaction doesn't exist -- make new reaction
+
+                # After this, delete redudnant compounds and update
+                # other compounds in reaction
+
+                append_new = False
                 if sorted_reactants == sorted_products:
-                    # Remove reaction from all participants logs
-                    pass
+                    # Reaction is something like CoF + CoF -> Product + Product
+                    # Where products are actually just cofactors
+                    pass # No need to update anything in self.reactions
 
                 elif cofactor_rxn_id in self.reactions:
-                    # Update operators to
+                    # Reaction already exists, update reaction operators
                     ops = self.reactions[cofactor_rxn_id]['Operators']
                     ops = ops | self.reactions[rxn_id]['Operators']
                     self.reactions[cofactor_rxn_id]['Operators'] = ops
+                    append_new = True
 
                 else:
-                    # construct new reaction with cofactor replacements
-                    # and remove from all logs
+                    # Reaction does not exist, generate new reaction
                     cofactor_rxn = {
                         '_id': cofactor_rxn_id,
                         # give stoich and id of reactants/products
@@ -648,21 +654,30 @@ class Pickaxe:
                         'Operators': rxn['Operators'],
                         'SMILES_rxn': rxn_text
                         }
-                    par_ops = rxn.get('Partial Operators')
-                    if par_ops:
-                        cofactor_rxn['Partial Operators'] = par_ops
-                    self.reactions[cofactor_rxn_id] = cofactor_rxn
 
-                # Remove reaction from all participants logs
+                    # Assign reaction to reactions dict
+                    self.reactions[cofactor_rxn_id] = cofactor_rxn
+                    append_new = True
+
                 for _, cpd in rxn['Reactants']:
                     if cpd.startswith('C'):
                         if rxn_id in self.compounds[cpd]['Reactant_in']:
                             self.compounds[cpd]['Reactant_in'].remove(rxn_id)
 
+                        if (append_new
+                            and cofactor_rxn_id
+                                not in self.compounds[cpd]['Reactant_in']):
+                            self.compounds[cpd]['Reactant_in'].append(cofactor_rxn_id)
+
                 for _, cpd in rxn['Products']:
                     if cpd.startswith('C'):
                         if rxn_id in self.compounds[cpd]['Product_of']:
                             self.compounds[cpd]['Product_of'].remove(rxn_id)
+
+                        if (append_new
+                            and cofactor_rxn_id
+                                not in self.compounds[cpd]['Product_of']):
+                            self.compounds[cpd]['Product_of'].append(cofactor_rxn_id)
 
         if rxns_to_del:
             for rxn_id in rxns_to_del:
@@ -763,7 +778,7 @@ class Pickaxe:
                 # If we are not loading into the mine, we generate the image
                 # here.
                 if self.image_dir and not self.mine:
-                    mol = AllChem.MolFromSmiles(comp['SMILES'])
+                    mol = MolFromSmiles(comp['SMILES'])
                     try:
                         MolToFile(
                             mol,
@@ -800,8 +815,7 @@ class Pickaxe:
         columns = ('ID', 'Type', 'Generation', 'Formula', 'InChiKey',
                    'SMILES')
         for _id, val in self.compounds.items():
-            inchi_key = AllChem.\
-                MolToInchiKey(AllChem.MolFromSmiles(val['SMILES']))
+            inchi_key = MolToInchiKey(MolFromSmiles(val['SMILES']))
             self.compounds[_id]['InChiKey'] = inchi_key
 
         with open(path, 'w') as outfile:
@@ -829,7 +843,7 @@ class Pickaxe:
                                               ';'.join(rxn['Operators'])])
                               + '\n')
 
-    def save_to_mine(self, num_workers=1, indexing=True, insert_core=True,
+    def save_to_mine(self, num_workers=1, indexing=True, write_core=True,
                      insert_targets=True):
         """Save compounds to a MINE database.
 
@@ -840,22 +854,8 @@ class Pickaxe:
         :param insert_core: Should compounds be inserted into core.
         :type insert_core: bool
         """
-        def print_progress(done, total, section):
-            # Use print_on to print % completion roughly every 5 percent
-            # Include max to print no more than once per compound (e.g. if
-            # less than 20 compounds)
-            print_on = max(round(.05 * total), 1)
-            if not (done % print_on):
-                print(f"{section} {round(done / total*100)} percent complete")
-
-        def chunks(lst, n):
-            """Yield successive n-sized chunks from lst."""
-            n = max(n, 1)
-            for i in range(0, len(lst), n):
-                yield lst[i:i + n]
-
         print('\n----------------------------------------')
-        print(f'Saving results to {self.mine}')
+        print(f'Saving results to {self.mine} Database')
         print('----------------------------------------\n')
         start = time.time()
         db = MINE(self.mine, self.mongo_uri)
@@ -863,101 +863,38 @@ class Pickaxe:
         # Insert Reactions
         print('--------------- Reactions --------------')
         rxn_start = time.time()
-        # Due to memory concerns, reactions are chunked
-        # and processed that way. Each batch is calculated
-        # in parallel.
-        n_rxns = len(self.reactions)
-        chunk_size = max(int(n_rxns/(num_workers*100)), 10000)
-        print(f"Reaction chunk size writing: {chunk_size}")
-        n_loop = 1
-        for rxn_id_chunk in chunks(list(self.reactions.keys()), chunk_size):
-            print(f"Writing Reaction Chunk {n_loop} "
-                  f"of {round(n_rxns/chunk_size)+1}")
-            n_loop += 1
-            mine_rxn_requests = self._save_reactions(rxn_id_chunk,
-                                                     db, num_workers)
-            if mine_rxn_requests:
-                db.reactions.bulk_write(mine_rxn_requests, ordered=False)
-                del(mine_rxn_requests)
-        print("Finished Inserting Reactions in "
-              f" {time.time() - rxn_start} seconds.")
+        write_reactions_to_mine(self.reactions, db)
+        print(f"Finished Inserting Reactions in {time.time() - rxn_start} seconds.")
         print('----------------------------------------\n')
 
+        # Insert Reactions
         print('--------------- Compounds --------------')
         cpd_start = time.time()
-        # Due to memory concerns, compounds are chunked
-        # and processed that way. Each batch is calculated
-        # in parallel.
-        n_cpds = len(self.compounds)
-        chunk_size = max(int(n_cpds/(num_workers*100)), 10000)
-        print(f"Compound chunk size: {chunk_size}")
-        n_loop = 1
-        for cpd_id_chunk in chunks(list(self.compounds.keys()), chunk_size):
-            # Insert the three types of compounds
-            print(f"Writing Compound Chunk {n_loop} "
-                  f"of {round(n_cpds/chunk_size)+1}")
-            n_loop += 1
-            res = self._save_compounds(cpd_id_chunk, db, num_workers)
-            core_cpd_requests = res[0]
-            core_update_mine_requests = res[1]
-            mine_cpd_requests = res[2]
+        write_compounds_to_mine(self.compounds, db)
+        print(f"Finished Inserting Compounds in {time.time() - cpd_start} seconds.")
+        if write_core:
+            cpd_start = time.time()
+            print('\nWriting Core Compounds')
+            write_core_compounds(self.compounds, db, self.mine)
+            print(f"Finished Inserting Core Compounds in {time.time() - cpd_start} seconds.")
+        print('----------------------------------------\n')
 
-            if core_cpd_requests:
-                if insert_core:
-                    db.core_compounds.bulk_write(core_cpd_requests,
-                                                 ordered=False)
-                del(core_cpd_requests)
-            if core_update_mine_requests:
-                if insert_core:
-                    db.core_compounds.bulk_write(core_update_mine_requests,
-                                                 ordered=False)
-                del(core_update_mine_requests)
-            if mine_cpd_requests:
-                db.compounds.bulk_write(mine_cpd_requests, ordered=False)
-                del(mine_cpd_requests)
 
-        print("Finished inserting Compounds to the MINE in "
-              f"{time.time() - cpd_start} seconds.")
-        if insert_core:
-            db.meta_data.insert_one({"Timestamp": datetime.datetime.now(),
-                                     "Action": "Core Compounds Inserted"})
-        db.meta_data.insert_one({"Timestamp": datetime.datetime.now(),
-                                 "Action": "Mine Compounds Inserted"})
-        print("----------------------------------------\n")
-
-        # Insert target compounds
-        if insert_targets and self.targets:
-            target_start = time.time()
-            target_cpd_requests = []
-            # Write target compounds to target collection
-            # Target compounds are written as mine compounds
-            print("--------------- Targets ----------------")
-            # Insert target compounds
-            target_start = time.time()
-            # non-parallel insertion
-            for comp_dict in self.targets.values():
-                db.insert_mine_compound(comp_dict, target_cpd_requests)
-            print("Done with Target Prep--took "
-                  f"{time.time() - target_start} seconds.")
-            if target_cpd_requests:
+        if insert_targets:
+            if self.targets:
+                print("--------------- Targets ----------------")
                 target_start = time.time()
-                db.target_compounds.bulk_write(target_cpd_requests,
-                                               ordered=False)
-                print(f"Inserted {len(target_cpd_requests)}"
-                      f" Target Compounds in {time.time() - target_start}"
-                      " seconds.")
-                del(target_cpd_requests)
-                db.meta_data.insert_one({"Timestamp": datetime.datetime.now(),
-                                         "Action": "Target Compounds Inserted"}
-                                        )
+                write_targets_to_mine(self.targets, db)
+                print(f"Finished Inserting Target Compounds in {time.time() - target_start} seconds.")
             else:
-                print('No Target Compounds Inserted')
-            print("----------------------------------------\n")
-
+                print("No targets to write to mine!"
+                )
         # Save operators
-        operator_start = time.time()
+        # Operator values have to be calculated, so just do everything
+        # here instead of new fcn in databases.py        
         if self.operators:
             print("-------------- Operators ---------------")
+            operator_start = time.time()
             # update operator rxn count
             for rxn_dict in self.reactions.values():
                 for op in rxn_dict['Operators']:
@@ -981,65 +918,6 @@ class Pickaxe:
         print("-------------- Overall ---------------")
         print(f"Finished uploading everything in {time.time() - start} sec")
         print("----------------------------------------\n")
-
-    def _save_compounds(self, cpd_ids, db, num_workers=1):
-        # Function to save a given list of compound ids and then
-        # delete them from memory
-        core_cpd_requests = []
-        core_update_mine_requests = []
-        mine_cpd_requests = []
-
-        cpd_dicts = [self.compounds[cpd_id] for cpd_id in cpd_ids
-                     if not self.compounds[cpd_id]['_id'].startswith('T')]
-        _save_compound_helper_partial = partial(_save_compound_helper,
-                                                self.mine)
-        if num_workers > 1:
-            # parallel insertion
-            chunk_size = max(
-                [round(len(cpd_ids) / (num_workers * 4)), 1])
-            pool = multiprocessing.Pool(processes=num_workers)
-            for i, res in enumerate(pool.imap_unordered(
-                    _save_compound_helper_partial, cpd_dicts, chunk_size)):
-                if res:
-                    mine_cpd_requests.append(res[0])
-                    core_update_mine_requests.append(res[1])
-                    core_cpd_requests.append(res[2])
-        else:
-            # non-parallel insertion
-            # Write generated compounds to MINE and core compounds to core
-            for cpd_dict in cpd_dicts:
-                # These functions are in the MINE database class.
-                # The request list is passed and appended in the MINE method.
-                db.insert_mine_compound(cpd_dict, mine_cpd_requests)
-                db.update_core_compound_MINES(cpd_dict,
-                                              core_update_mine_requests)
-                db.insert_core_compound(cpd_dict, core_cpd_requests)
-        return core_cpd_requests, core_update_mine_requests, mine_cpd_requests
-
-    def _save_reactions(self, rxn_ids, db, num_workers=1):
-        # Function to save a given list of compound ids and then delete
-        # them from memory
-        mine_rxn_requests = []
-        rxns_to_write = [self.reactions[rxn_id] for rxn_id in rxn_ids]
-
-        if num_workers > 1:
-            # parallel insertion
-            chunk_size = max(
-                [round(len(rxn_ids) / (num_workers * 4)), 1])
-            pool = multiprocessing.Pool(processes=num_workers)
-            for i, res in enumerate(pool.imap_unordered(
-                    databases.insert_reaction, rxns_to_write, chunk_size)):
-                if res:
-                    mine_rxn_requests.append(res)
-
-        else:
-            # non-parallel insertion
-            # Write generated compounds to MINE and core compounds to core
-            for rxn_id in rxn_ids:
-                rxn = self.reactions[rxn_id]
-                db.insert_reaction(rxn, requests=mine_rxn_requests)
-
-        return mine_rxn_requests
 
     def _transform_helper(self, compound_smiles, num_workers):
         """Transforms compounds externally of class"""
@@ -1078,7 +956,7 @@ class Pickaxe:
         coreactant_dict = {co_key: self.compounds[co_key] for _, co_key in
                            self.coreactants.values()}
 
-        new_cpds, new_rxns = _transform_all_compounds_with_full(
+        new_cpds, new_rxns = transform_all_compounds_with_full(
                                     compound_smiles, self.coreactants,
                                     coreactant_dict, self.operators,
                                     self.generation + 1, self.explicit_h,
@@ -1087,457 +965,68 @@ class Pickaxe:
 
         update_cpds_rxns(new_cpds, new_rxns)
 
-        if self.partial_operators:
-            print("\nGenerating partial operators...")
-            partial_operators = self._filter_partial_operators()
-            if partial_operators:
-                print("Found partial operators, applying.")
-                # transform partial
-                new_cpds, new_rxns = _transform_all_compounds_with_partial(
-                                            compound_smiles, self.coreactants,
-                                            coreactant_dict, self.operators,
-                                            self.generation, self.explicit_h,
-                                            num_workers, partial_operators
-                                    )
+        # if self.partial_operators:
+        #     print("\nGenerating partial operators...")
+        #     partial_operators = self._filter_partial_operators()
+        #     if partial_operators:
+        #         print("Found partial operators, applying.")
+        #         # transform partial
+        #         new_cpds, new_rxns = _transform_all_compounds_with_partial(
+        #                                     compound_smiles, self.coreactants,
+        #                                     coreactant_dict, self.operators,
+        #                                     self.generation, self.explicit_h,
+        #                                     num_workers, partial_operators
+        #                             )
 
-                update_cpds_rxns(new_cpds, new_rxns)
-            else:
-                print("No partial operators could be generated.")
+        #         update_cpds_rxns(new_cpds, new_rxns)
+        #     else:
+        #         print("No partial operators could be generated.")
 
+    def pickle_pickaxe(self, fname):
+        """pickle key pickaxe items
 
-def _racemization(compound, max_centers=3, carbon_only=True):
-    """Enumerates all possible stereoisomers for unassigned chiral centers.
+        Pickle pickaxe object to be loaded in later
 
-    :param compound: A compound
-    :type compound: rdMol object
-    :param max_centers: The maximum number of unspecified stereocenters to
-        enumerate. Sterioisomers grow 2^n_centers so this cutoff prevents lag
-    :type max_centers: int
-    :param carbon_only: Only enumerate unspecified carbon centers. (other
-        centers are often not tautomeric artifacts)
-    :type carbon_only: bool
-    :return: list of stereoisomers
-    :rtype: list of rdMol objects
-    """
-    new_comps = []
-    # FindMolChiralCenters (rdkit) finds all chiral centers. We get all
-    # unassigned centers (represented by '?' in the second element
-    # of the function's return parameters).
-    unassigned_centers = [c[0] for c in AllChem.FindMolChiralCenters(
-        compound, includeUnassigned=True) if c[1] == '?']
-    # Get only unassigned centers that are carbon (atomic number of 6) if
-    # indicated
-    if carbon_only:
-        unassigned_centers = list(
-            filter(lambda x: compound.GetAtomWithIdx(x).GetAtomicNum() == 6,
-                unassigned_centers))
-    # Return original compound if no unassigned centers exist (or if above
-    # max specified (to prevent lag))
-    if not unassigned_centers or len(unassigned_centers) > max_centers:
-        return [compound]
-    for seq in itertools.product([1, 0], repeat=len(unassigned_centers)):
-        for atomid, clockwise in zip(unassigned_centers, seq):
-            # Get both cw and ccw chiral centers for each center. Used
-            # itertools.product to get all combinations.
-            if clockwise:
-                compound.GetAtomWithIdx(atomid).SetChiralTag(
-                    AllChem.rdchem.ChiralType.CHI_TETRAHEDRAL_CW)
-            else:
-                compound.GetAtomWithIdx(atomid).SetChiralTag(
-                    AllChem.rdchem.ChiralType.CHI_TETRAHEDRAL_CCW)
-        # Duplicate C++ object so that we don't get multiple pointers to
-        # same object
-        new_comps.append(deepcopy(compound))
-    return new_comps
+        Parameters
+        ----------
+        fname : str
+            filename to save (must be .pk)
+        """
+        d_to_pickle = {
+            "compounds": self.compounds,
+            "reactions": self.reactions,
+            "operators": self.operators,
+            "targets":   self.targets
+        }
 
+        with open(fname, "wb") as f:
+            pickle.dump(d_to_pickle, f)
 
-###############################################################################
-# Functions to run transformations
-# There are two distinct functions to transform two flavors of operators.
-#   1. Full Operators are the operators as loaded directly from the list
-#       of operatores. These operators use a single supplied molecule for all
-#       "Any" instances in the rule.
-#   2. Partial operators are operators for reactions with more than one
-#       "Any" in the reactants. These rules are derived from individually
-#       mapped reactions and are called partial because only one "Any" is
-#       allowed to be novel, the other "Any"s are determined by the
-#       mapped reactions.
+    def load_pickled_pickaxe(self, fname):
+        """load pickaxe from pickle
 
-# Both operators are preprocessed slightly differently, but yield the same
-# output format back to the pickaxe object.
+        Load pickled pickaxe object
 
-# there are way too many variables passed... switch to **kwargs?
-# Generic reaction implementation
-def _run_reaction(rule_name, rule, reactant_mols, coreactant_mols,
-                  coreactant_dict, local_cpds, local_rxns, generation,
-                  explicit_h):
-    """
-    Transform list of mols and a reaction rule into a half reaction
-    describing either the reactants or products.
-    """
-    def _make_half_rxn(mol_list, rules):
-        cpds = {}
-        cpd_counter = collections.Counter()
+        Parameters
+        ----------
+        fname : str
+            filename to read (must be .pk)
+        """
+        start_load = time.time()
+        print(f"Loading {fname} pickled data.")
+        with open(fname, "rb") as f:
+            pickle_d = pickle.load(f)
+            self.compounds = pickle_d["compounds"]
+            self.reactions = pickle_d["reactions"]
+            self.operators = pickle_d["operators"]
+            self.targets = pickle_d["targets"]
 
-        for mol, rule in zip(mol_list, rules):
-            if rule == 'Any':
-                cpd_dict = _gen_compound(mol)
-                # failed compound
-                if cpd_dict == None:
-                    return None, None
-            else:
-                cpd_id = coreactant_mols[rule][1]
-                cpd_dict = coreactant_dict[cpd_id]
-
-            cpds[cpd_dict['_id']] = cpd_dict
-            cpd_counter.update({cpd_dict['_id']:1})
-
-        atom_counts = collections.Counter()
-        for cpd_id, cpd_dict in cpds.items():
-            for atom_id, atom_count in cpd_dict['atom_count'].items():
-                atom_counts[atom_id] += atom_count*cpd_counter[cpd_id]
-
-        cpd_returns = [(stoich, cpds[cpd_id]) for
-                       cpd_id, stoich in cpd_counter.items()]
-
-        return cpd_returns, atom_counts
-
-    def _gen_compound(mol):
-        try:
-            if explicit_h:
-                mol = AllChem.RemoveHs(mol)
-            AllChem.SanitizeMol(mol)
-        except:
-            return None
-
-        mol_smiles = AllChem.MolToSmiles(mol, True)
-        if '.' in mol_smiles:
-            return None
-
-        cpd_id = utils.compound_hash(mol_smiles, 'Predicted')
-        if cpd_id:
-            if cpd_id not in local_cpds:
-                cpd_dict = {'ID': None, '_id': cpd_id, 'SMILES': mol_smiles,
-                                'Type': 'Predicted',
-                                'Generation': generation,
-                                'atom_count': utils._getatom_count(mol),
-                                'Reactant_in': [], 'Product_of': [],
-                                'Expand': True,
-                                'Formula': CalcMolFormula(mol),
-                                'last_tani': 0}
-            else:
-                cpd_dict = local_cpds[cpd_id]
-
-            return cpd_dict
-        else:
-            return None
-
-    try:
-        product_sets = rule[0].RunReactants(reactant_mols)
-        reactants, reactant_atoms = _make_half_rxn(reactant_mols,
-                                                   rule[1]['Reactants'])
-    except:
-        reactants = None
-
-    if not reactants:
-        return local_cpds, local_rxns
-
-    for product_mols in product_sets:
-        try:
-            products, product_atoms = _make_half_rxn(product_mols,
-                                                     rule[1]['Products'])
-            if not products:
-                continue
-
-            if (
-                reactant_atoms - product_atoms or
-                product_atoms - reactant_atoms
-               ):
-                is_atom_balanced = False
-            else:
-                is_atom_balanced = True
-
-            if is_atom_balanced:
-                for _, cpd_dict in products:
-                    if cpd_dict['_id'].startswith('C'):
-                        local_cpds.update({cpd_dict['_id']: cpd_dict})
-
-                rhash, rxn_text = utils.rxn2hash(reactants, products)
-                if rhash not in local_rxns:
-                    local_rxns[rhash] = {
-                            '_id': rhash,
-                            # give stoich and id of reactants/products
-                            'Reactants': [(s, r['_id']) for s, r in reactants],
-                            'Products': [(s, p['_id']) for s, p in products],
-                            'Operators': {rule_name},
-                            'SMILES_rxn': rxn_text
-                            }
-                else:
-                    local_rxns[rhash]['Operators'].add(rule_name)
-
-        except (ValueError, MemoryError) as e:
-            continue
-    # return compounds and reactions to be added into the local
-    return local_cpds, local_rxns
-
-
-# Full Operators
-def _transform_ind_compound_with_full(coreactant_mols, coreactant_dict,
-                                      operators, generation, explicit_h,
-                                      compound_smiles):
-    local_cpds = dict()
-    local_rxns = dict()
-
-    mol = AllChem.MolFromSmiles(compound_smiles)
-    mol = AllChem.RemoveHs(mol)
-    if not mol:
-        print(f"Unable to parse: {compound_smiles}")
-        return None
-    AllChem.Kekulize(mol, clearAromaticFlags=True)
-    if explicit_h:
-        mol = AllChem.AddHs(mol)
-    # Apply reaction rules to prepared compound
-
-    # run through the single compound operatores
-    for rule_name, rule in operators.items():
-        # Get RDKit Mol objects for reactants
-        reactant_mols = tuple([mol if x == 'Any'
-                               else coreactant_mols[x][0]
-                               for x in rule[1]['Reactants']])
-        # Perform chemical reaction on reactants for each rule
-        # try:
-        generated_cpds, generated_rxns = _run_reaction(
-            rule_name, rule, reactant_mols, coreactant_mols,
-            coreactant_dict, local_cpds, local_rxns, generation, explicit_h
-        )
-        # This error should be addressed in a new version of RDKit
-        # TODO: Check this claim
-        # except:
-        #     print("Runtime ERROR!" + rule_name)
-        #     print(compound_smiles)
-        #     continue
-        local_cpds.update(generated_cpds)
-        for rxn, vals in generated_rxns.items():
-            if rxn in local_rxns:
-                local_rxns[rxn]['Operators'].union(vals['Operators'])
-
-    return local_cpds, local_rxns
-
-
-def _transform_all_compounds_with_full(compound_smiles, coreactants,
-                                       coreactant_dict, operators, generation,
-                                       explicit_h, num_workers):
-    """
-    This function is made to reduce the memory load of parallelization.
-    This function accepts in a list of cpds (cpd_list) and runs the
-    transformation in parallel of these.
-    """
-    def print_progress(done, total):
-        # Use print_on to print % completion roughly every 2.5 percent
-        # Include max to print no more than once per compound (e.g. if
-        # less than 20 compounds)
-        print_on = max(round(.025 * total), 1)
-        if not done % print_on:
-            print(f"Generation {generation}: {round(done / total * 100)}"
-                  " percent complete")
-
-    # First transform
-    new_cpds_master = {}
-    new_rxns_master = {}
-
-    transform_compound_partial = partial(
-        _transform_ind_compound_with_full,
-        coreactants,
-        coreactant_dict,
-        operators,
-        generation,
-        explicit_h
-    )
-    # par loop
-    if num_workers > 1:
-        # TODO chunk size?
-        # chunk_size = max(
-        #         [round(len(compound_smiles) / (num_workers)), 1])
-        chunk_size = 1
-        # print(f'Chunk size = {chunk_size}')
-        pool = multiprocessing.Pool(processes=num_workers)
-        for i, res in enumerate(pool.imap_unordered(
-                            transform_compound_partial,
-                            compound_smiles,
-                            chunk_size)):
-            new_cpds, new_rxns = res
-            new_cpds_master.update(new_cpds)
-
-            # Need to check if reactions already exist to update operators list
-            for rxn, rxn_dict in new_rxns.items():
-                if rxn in new_rxns_master:
-                    ops_set = rxn_dict["Operators"]
-                    new_rxns_master[rxn]['Operators'].union(ops_set)
-                else:
-                    new_rxns_master.update({rxn: rxn_dict})
-            print_progress(i, len(compound_smiles))
-
-
-    else:
-        for i, smiles in enumerate(compound_smiles):
-            new_cpds, new_rxns = transform_compound_partial(smiles)
-            # new_cpds as cpd_id:cpd_dict
-            # new_rxns as rxn_id:rxn_dict
-            new_cpds_master.update(new_cpds)
-            # Need to check if reactions already exist to update operators list
-            for rxn, rxn_dict in new_rxns.items():
-                if rxn in new_rxns_master:
-                    ops_set = rxn_dict["Operators"]
-                    new_rxns_master[rxn]['Operators'].union(ops_set)
-                else:
-                    new_rxns_master.update({rxn: rxn_dict})
-            print_progress(i, len(compound_smiles))
-
-    return new_cpds_master, new_rxns_master
-
-
-def _save_compound_helper(mine, cpd_dict):
-    # Helper function to aid parallelization of saving compounds in
-    # save_to_mine
-    # These functions are outside of the MINE class in order to
-    # allow for parallelization. When in the MINE class it is not
-    # serializable with pickle. In comparison to the class functions,
-    # these return the requests instead of appending to a passed list.
-    mine_req = databases.insert_mine_compound(cpd_dict)
-    core_up_req = databases.update_core_compound_MINES(cpd_dict, mine)
-    core_in_req = databases.insert_core_compound(cpd_dict)
-    return [mine_req, core_up_req, core_in_req]
-
-
-# Partial Operators
-def _transform_ind_compound_with_partial(coreactant_mols, coreactant_dict,
-                                         operators, generation, explicit_h,
-                                         partial_rules, compound_smiles):
-    # 1. See if rule matches the compound passed
-    #   (rule from partial_rules dict keys)
-    # 2. If match apply transform_ind_compound_with_full to each
-    def generate_partial_mols(partial_rule):
-        def gen_mol(smi):
-            mol = AllChem.MolFromSmiles(smi)
-            mol = AllChem.RemoveHs(mol)
-            AllChem.Kekulize(mol, clearAromaticFlags=True)
-            if explicit_h:
-                mol = AllChem.AddHs(mol)
-            return mol
-
-        rule_reactants = operators[partial_rule['rule']][1]['Reactants']
-        cofactor = [False if r == 'Any' else True for r in rule_reactants]
-        reactant_mols = []
-        for is_cofactor, smi in zip(cofactor, partial_rule['reactants']):
-                if is_cofactor:
-                    reactant_mols.append(coreactant_mols[smi][0])
-                elif smi == 'SMARTS_match':
-                    reactant_mols.append(gen_mol(compound_smiles))
-                else:
-                    # These reactions already happen with any;any
-                    if (utils.compound_hash(smi) !=
-                            utils.compound_hash(compound_smiles)):
-                        reactant_mols.append(gen_mol(smi))
-                    else:
-                        return None
-        return reactant_mols
-
-    local_cpds = dict()
-    local_rxns = dict()
-
-    mol = AllChem.MolFromSmiles(compound_smiles)
-    mol = AllChem.RemoveHs(mol)
-    if not mol:
-        print(f"Unable to parse: {compound_smiles}")
-        return None
-    AllChem.Kekulize(mol, clearAromaticFlags=True)
-    if explicit_h:
-        mol = AllChem.AddHs(mol)
-    # Apply reaction rules to prepared compound
-
-    # run through the single compound operatores
-    for ind_SMARTS, rules in partial_rules.items():
-        # does mol match vs smiles match change things?
-        if AllChem.QuickSmartsMatch(compound_smiles, ind_SMARTS):
-            for partial_rule in rules:
-                # Perform chemical reaction on reactants for each rule
-                # try:
-                rule_name = partial_rule['rule_reaction'].split('_')[0]
-                rule = operators[partial_rule['rule']]
-                reactant_mols = generate_partial_mols(partial_rule)
-                if reactant_mols:
-                    generated_cpds, generated_rxns = _run_reaction(rule_name, rule,
-                        reactant_mols, coreactant_mols, coreactant_dict, local_cpds, local_rxns, generation, explicit_h)
-
-
-                    local_cpds.update(generated_cpds)
-                    for rxn, vals in generated_rxns.items():
-                        if rxn in local_rxns:
-                            if 'Partial Operators' in local_rxns[rxn]:
-                                local_rxns[rxn]['Partial Operators'].update([partial_rule['rule_reaction']])
-                            else:
-                                local_rxns[rxn]['Partial Operators'] = set([partial_rule['rule_reaction']])
-    return local_cpds,local_rxns
-
-
-def _transform_all_compounds_with_partial(compound_smiles, coreactants,
-                                          coreactant_dict, operators,
-                                          generation, explicit_h, num_workers,
-                                          partial_rules):
-    """
-    This function is made to reduce the memory load of parallelization.
-    This function accepts in a list of cpds (cpd_list) and runs the transformation in parallel of these.
-    """
-    def print_progress(done, total):
-            # Use print_on to print % completion roughly every 2.5 percent
-            # Include max to print no more than once per compound (e.g. if
-            # less than 20 compounds)
-            print_on = max(round(.025 * total), 1)
-            if not done % print_on:
-                print(f"Generation {generation}: {round(done / total * 100)} percent complete")
-
-    # First transform
-    new_cpds_master = {}
-    new_rxns_master = {}
-
-    transform_compound_partial = partial(_transform_ind_compound_with_partial, coreactants,
-                                            coreactant_dict, operators, generation, explicit_h, partial_rules)
-    # par loop
-    if num_workers > 1:
-        # TODO chunk size?
-        # chunk_size = max(
-        #         [round(len(compound_smiles) / (num_workers)), 1])
-        chunk_size = 1
-        # print(f'Chunk size = {chunk_size}')
-        pool = multiprocessing.Pool(processes=num_workers)
-        for i, res in enumerate(pool.imap_unordered(
-                            transform_compound_partial, compound_smiles, chunk_size)):
-            new_cpds, new_rxns = res
-            new_cpds_master.update(new_cpds)
-
-            # Need to check if reactions already exist to update operators list
-            for rxn, rxn_dict in new_rxns.items():
-                if rxn in new_rxns_master:
-                    new_rxns_master[rxn]['Operators'].union(rxn_dict['Operators'])
-                else:
-                    new_rxns_master.update({rxn:rxn_dict})
-            print_progress(i, len(compound_smiles))
-
-    else:
-        for i, smiles in enumerate(compound_smiles):
-            new_cpds, new_rxns = transform_compound_partial(smiles)
-            # new_cpds as cpd_id:cpd_dict
-            # new_rxns as rxn_id:rxn_dict
-            new_cpds_master.update(new_cpds)
-            # Need to check if reactions already exist to update operators list
-            for rxn, rxn_dict in new_rxns.items():
-                if rxn in new_rxns_master:
-                    new_rxns_master[rxn]['Partial Operators'] = new_rxns_master[rxn]['Partial Operators'].union(rxn_dict['Partial Operators'])
-                else:
-                    new_rxns_master.update({rxn:rxn_dict})
-            print_progress(i, len(compound_smiles))
-
-    return new_cpds_master, new_rxns_master
+            for key in pickle_d:
+                var = getattr(self, key)
+                if var:
+                    print(f"Loaded {len(var)} {key}")
+            
+            print(f"Took {time.time() - start_load}")
 
 
 if __name__ == "__main__":
