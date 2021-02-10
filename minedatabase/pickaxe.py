@@ -961,7 +961,7 @@ class Pickaxe:
             # update operator rxn count
             for rxn_dict in self.reactions.values():
                 for op in rxn_dict['Operators']:
-                    op = op.split("_")[0] # factor in bimolecular rxns
+                    #op = op.split("_")[0] # factor in bimolecular rxns
                     self.operators[op][1]['Reactions_predicted'] += 1
             db.operators.insert_many([op[1] for op in self.operators.values()])
             db.meta_data.insert_one({"Timestamp": datetime.datetime.now(),

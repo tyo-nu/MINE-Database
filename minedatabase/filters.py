@@ -452,6 +452,9 @@ class MetabolomicsFilter(Filter):
         self : Pickaxe
             Instance of Pickaxe class.
         """
+        if pickaxe.generation == 0:
+            return None
+
         # Get compounds eligible for expansion in the current generation
         compounds_to_check = []
         set_unreactive = True
@@ -462,6 +465,7 @@ class MetabolomicsFilter(Filter):
                     and cpd['Type'] not in ['Coreactant', 'Target Compound']):
 
                 cpd['Matched_Peak_IDs'] = []
+                cpd['Matched_Adducts'] = []
                 # Check for targets and only react if terminal
                 if pickaxe.react_targets or not pickaxe.targets:
                     compounds_to_check.append(cpd)
@@ -501,8 +505,10 @@ class MetabolomicsFilter(Filter):
                 if possible_range[0] < cpd_exact_mass < possible_range[1]:
                     c_id = cpd[0]
                     peak_id = possible_range[2]
+                    adduct = possible_range[3]
                     matched_ids.add(c_id)
                     pickaxe.compounds[c_id]['Matched_Peak_IDs'].append(peak_id)
+                    pickaxe.compounds[c_id]['Matched_Adducts'].append(adduct)
         return matched_ids
 
     def pre_print(self):

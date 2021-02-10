@@ -102,7 +102,8 @@ class MetabolomicsDataset:
                 possible_masses.append(possible_mass)
                 possible_ranges.append((possible_mass - tolerance,
                                         possible_mass + tolerance,
-                                        peak.name))
+                                        peak.name,
+                                        adduct['f0']))
 
         self.possible_masses = np.array(set(possible_masses))
         self.possible_ranges = possible_ranges
@@ -223,6 +224,23 @@ def jaccard(x, y, epsilon=0.01):
             intersect += 1
 
     return intersect / float((len(x) + len(y) - intersect))
+
+
+def pearsons_r(x, y, epsilon=0.01):
+    """Calculate the Pearson correlation between two spectra."""
+    binned_x, binned_y = list(approximate_matches(x, y, epsilon=epsilon))
+
+    x_mean = np.mean(binned_x)
+    y_mean = np.mean(binned_y)
+
+    x_std = np.std(binned_x)
+    y_std = np.std(binned_y)
+
+    r = 0
+    for x_val, y_val in zip(binned_x, binned_y):
+        r += ((x_val - x_mean) / x_std) * ((y_val - y_mean) / y_std)
+
+    return r
 
 
 def approximate_matches(list1, list2, epsilon=0.01):

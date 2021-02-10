@@ -86,3 +86,6 @@ credentials.csv
 local_data/
 .vscode/
 .DS_Store
+
+# MS2
+msrb-fragmenter/

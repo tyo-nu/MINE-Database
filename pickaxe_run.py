@@ -34,7 +34,7 @@ start = time.time()
 write_db = True
 database_overwrite = True
 # database = "APAH_100Sam_50rule"
-database = "test_apah_no_filter"
+database = "test_ADP1"
 # Message to insert into metadata
 message = ("Debugging filter. Should yield no orphans. 100 Sampling. Terminal,"
            " Tani filtering.")
@@ -65,9 +65,10 @@ output_dir = '.'
 coreactant_list = './minedatabase/data/MetaCyc_Coreactants.tsv'
 # rule_list = './minedatabase/data/intermediate_rules_uniprot.tsv'
 rule_list = './minedatabase/data/metacyc_272rules_90percentMapping.tsv'
+#rule_list = '../Operator_Filter/all_mapped_rules.tsv'
 
 # Input compounds
-input_cpds = './local_data/APAH.csv'
+input_cpds = './local_data/ADP1_cpds_out_reduced.csv'
 
 # Partial operators
 # Partial operators allow use of multiple compounds in an any;any expansion
@@ -77,7 +78,7 @@ mapped_rxns = 'minedatabase/data/metacyc_mapped.tsv'
 
 ###############################################################################
 # Core Pickaxe Run Options
-generations = 2
+generations = 1
 num_workers = 4     # Number of processes for parallelization
 verbose = False      # Display RDKit warnings and errors
 explicit_h = False
@@ -94,7 +95,7 @@ indexing = False
 # Global Filtering Options
 
 # Path to target cpds file (not required for metabolomics filter)
-target_cpds = './local_data/ADP1_cpds_out_reduced.csv'
+target_cpds = './local_data/ADP1_cpds_out_final.csv'
 
 # Should targets be flagged for reaction
 react_targets = True
@@ -150,7 +151,7 @@ crit_mcs = [0.3, 0.8, 0.95]
 # Metabolomics Filter Options
 
 # Apply this filter?
-metabolomics_filter = False
+metabolomics_filter = True
 
 # Path to csv with list of detected masses. For example:
 # Peak ID, Retention Time, Aggregate M/Z, Polarity, Compound Name, Predicted Structure (smile), ID
@@ -193,8 +194,8 @@ if __name__ == '__main__':  # required for parallelization on Windows
         pk.load_partial_operators(mapped_rxns)
 
     # Load target compounds for filters
-    if (tani_filter or mcs_filter or tani_sample):
-        pk.load_targets(target_cpds, structure_field="SMILES")
+    #if (tani_filter or mcs_filter or tani_sample):
+    pk.load_targets(target_cpds, structure_field="SMILES")
 
     # Apply filters
     if tani_filter:
