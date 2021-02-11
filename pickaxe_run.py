@@ -4,19 +4,22 @@ The general format of a script will be:
    1. Connect to mongoDB (if desired)
    2. Load reaction rules and cofactors
    3. Load starting compounds
-   4. Load Tanimoto filtering options
+   4. Load Filtering Options
    5. Transform Compounds
    6. Write results
 """
 
 import datetime
+import multiprocessing
 import time
 
 import pymongo
 
-from minedatabase.filters import (MCSFilter, MetabolomicsFilter, TanimotoFilter,
-                                  TanimotoSamplingFilter)
+from minedatabase.filters import (MCSFilter, MetabolomicsFilter,
+                                  TanimotoFilter, TanimotoSamplingFilter)
 from minedatabase.pickaxe import Pickaxe
+
+from minedatabase.databases import (write_targets_to_mine, write_reactions_to_mine, write_core_compounds, write_compounds_to_mine)
 
 # pylint: disable=invalid-name
 
@@ -63,16 +66,11 @@ coreactant_list = './minedatabase/data/metacyc_rules/MetaCyc_Coreactants.tsv'
 # the reactions being mapped are the reactions the rules are derived from.
 rule_list = './minedatabase/data/metacyc_rules/metacyc_27percent_10rules.tsv'
 
-# Partial operators
-# Partial operators allow use of multiple compounds in an any;any expansion
-# Currently uses a significant amount of memory
-partial_rules = False
-mapped_rxns = './minedatabase/data/metacyc_rules/metacyc_mapped.tsv'
 ###############################################################################
 
 ###############################################################################
 # Core Pickaxe Run Options
-generations = 2
+generations = 1
 num_workers = 4     # Number of processes for parallelization
 verbose = False     # Display RDKit warnings and errors
 explicit_h = False
@@ -85,7 +83,7 @@ indexing = False
 
 ###############################################################################
 ##### All Filter and Sampler Options
-##############################################################################
+###############################################################################
 # Global Filtering Options
 
 # Path to target cpds file (not required for metabolomics filter)
@@ -93,9 +91,6 @@ target_cpds = './example_data/target_list_single.csv'
 
 # Should targets be flagged for reaction
 react_targets = True
-
-# Specify if network expansion is done in a retrosynthetic direction
-retrosynthesis = False
 
 # Prune results to remove compounds not required to produce targets
 prune_to_targets = True
@@ -220,6 +215,8 @@ def print_run_parameters():
 ###############################################################################
 ##### Running pickaxe
 if __name__ == '__main__':  # required for parallelization on Windows
+    # Use 'spawn' for multiprocessing
+    multiprocessing.set_start_method('spawn')
     # Initialize the Pickaxe class
     if write_db is False:
         database = None
@@ -231,15 +228,15 @@ if __name__ == '__main__':  # required for parallelization on Windows
                  errors=verbose, explicit_h=explicit_h, kekulize=kekulize,
                  neutralise=neutralise, image_dir=image_dir, database=database,
                  database_overwrite=database_overwrite, mongo_uri=mongo_uri,
-                 quiet=quiet, retro=retrosynthesis, react_targets=react_targets,
+                 quiet=quiet, retro=False, react_targets=react_targets,
                  filter_after_final_gen=filter_after_final_gen)
 
     # Load compounds
     pk.load_compound_set(compound_file=input_cpds)
 
     # Load partial operators
-    if partial_rules:
-        pk.load_partial_operators(mapped_rxns)
+    # if partial_rules:
+    #     pk.load_partial_operators(mapped_rxns)
 
     # Load target compounds for filters
     if (tani_filter or mcs_filter or tani_sample):

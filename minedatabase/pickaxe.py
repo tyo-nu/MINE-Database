@@ -9,7 +9,7 @@ from argparse import ArgumentParser
 from functools import partial
 from sys import exit
 
-from rdkit import RDLogger
+from rdkit.RDLogger import logger
 from rdkit.Chem.AllChem import (AddHs, GetMolFrags, Kekulize, MolFromInchi,
                                 MolFromSmiles, MolToInchiKey, MolToSmiles,
                                 RDKFingerprint, ReactionFromSmarts,
@@ -25,6 +25,11 @@ from minedatabase.databases import (MINE, write_compounds_to_mine,
                                     write_targets_to_mine)
 from minedatabase.reactions import transform_all_compounds_with_full
 
+from typing import Set, Tuple
+
+# Default to no errors
+lg = logger()
+lg.setLevel(4)
 
 class Pickaxe:
     """This class generates new compounds from user-specified starting
@@ -130,9 +135,8 @@ class Pickaxe:
 
         # Use RDLogger to catch errors in log file. SetLevel indicates mode (
         # 0 - debug, 1 - info, 2 - warning, 3 - critical). Default is no errors
-        logger = RDLogger.logger()
-        if not errors:
-            logger.setLevel(4)
+        if errors:
+            lg.setLevel(0)
 
         # Load coreactants (if any) into Pickaxe object
         if coreactant_list:
@@ -477,65 +481,65 @@ class Pickaxe:
 
             self.generation += 1
 
-    def load_partial_operators(self, mapped_reactions):
-        """Generate set of partial operators from a list of mapped reactions
-        corresponding to the reaction rules being used.
-        :param mapped_reactions: A .csv file with four columns: rule id,
-        source, SMARTS, mapping info.
-        :type mapped_reactions: file
-        """
-        # generate partial operators as done in ipynb
-        if not self.operators:
-            print("Load reaction rules before loading partial operators")
-        else:
-            with open(mapped_reactions) as f:
-                for line in f.readlines():
-                    # Grab info from current mapped reaction
-                    rule, source, smiles, _ = line.strip('\n').split('\t')
-                    # There should be 2 or more reactants derived from
-                    # the mapping code The mapped code doesn't include
-                    # cofactors, so 2 or more means any;any*
-                    exact_reactants = smiles.split('>>')[0]\
-                                            .replace(';', '.').split('.')
+    # def load_partial_operators(self, mapped_reactions):
+    #     """Generate set of partial operators from a list of mapped reactions
+    #     corresponding to the reaction rules being used.
+    #     :param mapped_reactions: A .csv file with four columns: rule id,
+    #     source, SMARTS, mapping info.
+    #     :type mapped_reactions: file
+    #     """
+    #     # generate partial operators as done in ipynb
+    #     if not self.operators:
+    #         print("Load reaction rules before loading partial operators")
+    #     else:
+    #         with open(mapped_reactions) as f:
+    #             for line in f.readlines():
+    #                 # Grab info from current mapped reaction
+    #                 rule, source, smiles, _ = line.strip('\n').split('\t')
+    #                 # There should be 2 or more reactants derived from
+    #                 # the mapping code The mapped code doesn't include
+    #                 # cofactors, so 2 or more means any;any*
+    #                 exact_reactants = smiles.split('>>')[0]\
+    #                                         .replace(';', '.').split('.')
 
-                    base_rule = rule.split('_')[0]
-                    # base rule must be loaded for partial operator to be uused
-                    if base_rule in self.operators:
-                        op_reactants = self.operators[base_rule][1]['Reactants']
-                        if op_reactants.count('Any') >= 2:
-                            mapped_reactants = []
-                            for i, r in enumerate(op_reactants):
-                                if r == 'Any':
-                                    mapped_reactants.append(
-                                        exact_reactants.pop(0)
-                                        )
-                                else:
-                                    mapped_reactants.append(r)
+    #                 base_rule = rule.split('_')[0]
+    #                 # base rule must be loaded for partial operator to be uused
+    #                 if base_rule in self.operators:
+    #                     op_reactants = self.operators[base_rule][1]['Reactants']
+    #                     if op_reactants.count('Any') >= 2:
+    #                         mapped_reactants = []
+    #                         for i, r in enumerate(op_reactants):
+    #                             if r == 'Any':
+    #                                 mapped_reactants.append(
+    #                                     exact_reactants.pop(0)
+    #                                     )
+    #                             else:
+    #                                 mapped_reactants.append(r)
 
-                            ind_SMARTS = self.operators[base_rule][1]['SMARTS']
-                            ind_SMARTS = (ind_SMARTS.split('>>')[0].
-                                          split('>>')[0].replace('(', '').
-                                          replace(')', '').split('.'))
-                            # now loop through and generate dictionary entries
-                            for i, r in enumerate(op_reactants):
-                                if r != 'Any':
-                                    pass
-                                else:
-                                    # Build entries
-                                    fixed_reactants = [
-                                        fr if i != j else 'SMARTS_match'
-                                        for j, fr in enumerate(mapped_reactants)
-                                    ]
+    #                         ind_SMARTS = self.operators[base_rule][1]['SMARTS']
+    #                         ind_SMARTS = (ind_SMARTS.split('>>')[0].
+    #                                       split('>>')[0].replace('(', '').
+    #                                       replace(')', '').split('.'))
+    #                         # now loop through and generate dictionary entries
+    #                         for i, r in enumerate(op_reactants):
+    #                             if r != 'Any':
+    #                                 pass
+    #                             else:
+    #                                 # Build entries
+    #                                 fixed_reactants = [
+    #                                     fr if i != j else 'SMARTS_match'
+    #                                     for j, fr in enumerate(mapped_reactants)
+    #                                 ]
 
-                                    bi_rule =  {
-                                        'rule': base_rule,
-                                        'rule_reaction': rule,
-                                        'reactants': fixed_reactants
-                                    }
-                                    if ind_SMARTS[i] in self.partial_operators:
-                                        self.partial_operators[ind_SMARTS[i]].append(bi_rule)
-                                    else:
-                                        self.partial_operators[ind_SMARTS[i]] = [bi_rule]
+    #                                 bi_rule =  {
+    #                                     'rule': base_rule,
+    #                                     'rule_reaction': rule,
+    #                                     'reactants': fixed_reactants
+    #                                 }
+    #                                 if ind_SMARTS[i] in self.partial_operators:
+    #                                     self.partial_operators[ind_SMARTS[i]].append(bi_rule)
+    #                                 else:
+    #                                     self.partial_operators[ind_SMARTS[i]] = [bi_rule]
 
     def _filter_partial_operators(self):
         # generate the reactions to specifically expand
@@ -722,14 +726,20 @@ class Pickaxe:
         print(f"Pruning took {time.time() - prune_start}s")
         print('----------------------------------------\n')
 
-    def find_minimal_set(self, white_list):
-        """
-        Given a whitelist this function finds the minimal set of compound and
+
+    def find_minimal_set(self, white_list: Set[str]) -> Tuple[set, set]:
+        """Given a whitelist this function finds the minimal set of compound and
         reactions ids that comprise the set
-        :param white_list:  A list of compound_ids to include (if found)
-        :type white_list: set
-        :return: compound and reaction id sets
-        :rtype: tuple(set, set)
+
+        Parameters
+        ----------
+        white_list : Set[str]
+            List of compound_ids to use to filter reaction network to
+
+        Returns
+        -------
+        Tuple[sett, set]
+            The filtered compounds and reactions
         """
 
         queue = list(white_list)
@@ -863,19 +873,19 @@ class Pickaxe:
         # Insert Reactions
         print('--------------- Reactions --------------')
         rxn_start = time.time()
-        write_reactions_to_mine(self.reactions, db)
+        write_reactions_to_mine(self.reactions.values(), db)
         print(f"Finished Inserting Reactions in {time.time() - rxn_start} seconds.")
         print('----------------------------------------\n')
 
         # Insert Reactions
         print('--------------- Compounds --------------')
         cpd_start = time.time()
-        write_compounds_to_mine(self.compounds, db)
+        write_compounds_to_mine(self.compounds.values(), db)
         print(f"Finished Inserting Compounds in {time.time() - cpd_start} seconds.")
         if write_core:
             cpd_start = time.time()
             print('\nWriting Core Compounds')
-            write_core_compounds(self.compounds, db, self.mine)
+            write_core_compounds(self.compounds.values(), db, self.mine)
             print(f"Finished Inserting Core Compounds in {time.time() - cpd_start} seconds.")
         print('----------------------------------------\n')
 
@@ -884,7 +894,7 @@ class Pickaxe:
             if self.targets:
                 print("--------------- Targets ----------------")
                 target_start = time.time()
-                write_targets_to_mine(self.targets, db)
+                write_targets_to_mine(self.targets.values(), db)
                 print(f"Finished Inserting Target Compounds in {time.time() - target_start} seconds.")
             else:
                 print("No targets to write to mine!"

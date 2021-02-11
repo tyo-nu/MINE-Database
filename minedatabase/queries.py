@@ -23,7 +23,7 @@ def quick_search(db, query, search_projection=DEFAULT_PROJECTION.copy()):
     :return: Query results
     :rtype: list
     """
-
+    
     # Determine what kind of query was input (e.g. KEGG code, MINE id, etc.)
     # If it can't be determined to be an id or a key, assume it is the name
     # of a compound.

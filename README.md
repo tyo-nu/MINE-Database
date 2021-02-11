@@ -10,15 +10,17 @@ APIs can found in [the API Repository](https://github.com/tyo-nu/MINE-API)
 
 ## Repository Structure
 This repository primarily consists of the minedatabases python module 
-and it's 5 submodules:
+and its 8 submodules:
 - compound_io: Contains functions to load and export chemical structures 
 from MINE databases. Has command-line interface.
 - databases: Contains functions which impose a schema on the underlying 
 Mongo databases which store MINE data.
+-filters.py: Contains filters to apply while generating reaction network
 - pickaxe: Allows for the application of reaction rules to compound sets 
 and the annotation of the resulting compounds an reactions. Has command-line interface.
 - queries: Contains logic for text and chemical structure queries of the 
 MINE database.
+- reactions: Contains methods to apply reaction rules to compounds
 - utils: Various utility functions such as hashing & type conversions
 
 ### Compound_io command-line usage

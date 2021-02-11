@@ -22,6 +22,10 @@ import minedatabase
 from minedatabase.databases import establish_db_client
 from minedatabase.utils import score_compounds
 
+import pymongo
+from typing import Callable, Generator, List
+
+
 
 MINEDB_DIR = os.path.dirname(minedatabase.__file__)
 
@@ -201,7 +205,22 @@ class MetabolomicsDataset:
 
 
 def dot_product(x, y, epsilon=0.01):
-    """Calculate the dot_product of two spectra"""
+    """Calculate the dot_product of two spectra
+
+    Parameters
+    ----------
+    x : List[tuple]
+        [description]
+    y : List[tuple]
+        [description]
+    epsilon : float, optional
+        [description], by default 0.01
+
+    Returns
+    -------
+    float
+        Dot Product
+    """
     z = 0
     n_v1 = 0
     n_v2 = 0
@@ -214,8 +233,23 @@ def dot_product(x, y, epsilon=0.01):
     return z / (math.sqrt(n_v1) * math.sqrt(n_v2))
 
 
-def jaccard(x, y, epsilon=0.01):
-    """Calculate the Jaccard Index of two spectra"""
+def jaccard(x: List[tuple], y: List[tuple], epsilon=0.01):
+    """Calculate the Jaccard Index of two spectra
+
+    Parameters
+    ----------
+    x : List[tuple]
+        [description]
+    y : List[tuple]
+        [description]
+    epsilon : float, optional
+        [description], by default 0.01
+
+    Returns
+    -------
+    float
+        Jaccard Index
+    """
     intersect = 0
 
     for val1, val2 in approximate_matches(x, y, epsilon):
@@ -225,20 +259,27 @@ def jaccard(x, y, epsilon=0.01):
     return intersect / float((len(x) + len(y) - intersect))
 
 
-def approximate_matches(list1, list2, epsilon=0.01):
-    """
+def approximate_matches(list1: List[tuple], list2: List[tuple], epsilon: float=0.01) -> Generator:
+    """Find approximate matches between two lists of tuples
+
     Takes two list of tuples and searches for matches of tuples first value
     within the supplied epsilon. Emits tuples with the tuples second values
     where found. if a value in one dist does not match the other list, it is
     emitted alone.
-    :param list1: first list of tuples
-    :type list1: list
-    :param list2: second list of tuples
-    :type list2: list
-    :param epsilon: maximum difference in
-    :type epsilon: float
-    :return: second values of tuples
-    :rtype: generator
+
+    Parameters
+    ----------
+    list1 : list
+        First list of tuples
+    list2 : list
+        Second list of tuples
+    epsilon : float, optional
+        Maximum difference, by default 0.01
+
+    Yields
+    -------
+    Generator 
+        Generator that yields found matches
     """
     list1.sort()
     list2.sort()
@@ -292,23 +333,29 @@ class Peak:
     def __str__(self):
         return self.name
 
-    def score_isomers(self, metric=dot_product, energy_level=20,
-                      tolerance=0.005):
-        """
+    def score_isomers(self, metric: Callable[[list, list], float]=dot_product, energy_level: int=20,
+                      tolerance: float=0.005):
+        """Scores and sorts isomers based on mass spectra data.
+
         Calculates the cosign similarity score between the provided ms2 peak
         list and pre-calculated CFM-spectra and sorts the isomer list
         according to this metric.
-        :param metric: The scoring metric to use for the spectra. Function
-         must accept 2 lists of (mz,intensity) tuples and return a score.
-         Defaults to dot_product.
-        :type energy_level: function
-        :param energy_level: The Fragmentation energy level to use. May be 10,
-         20 or 40. Defaults to 20
-        :type energy_level: int
-        :param tolerance: The precision to use for matching m/z in mDa
-        :type energy_level: float
-        :return:
-        :rtype:
+
+        Parameters
+        ----------
+        metric : function, optional
+            The scoring metric to use for the spectra. Function must accept 2 
+            lists of (mz, intensity) tuples and return a score, by default dot_product
+        energy_level : int, optional
+            The Fragmentation energy level to use. May be 10,
+            20 or 40., by default 20
+        tolerance : float, optional
+            The precision to use for matching m/z in mDa, by default 0.005
+
+        Raises
+        ------
+        ValueError
+            Empty ms2 peak
         """
         if not self.ms2peaks:
             raise ValueError('The ms2 peak list is empty')
@@ -329,8 +376,21 @@ class Peak:
         self.isomers.sort(key=lambda x: x['Spectral_score'], reverse=True)
 
 
-def get_modelseed_comps(kb_db, model_ids):
-    """Get MongoIDs from KBase database for compounds in model(s)."""
+def get_modelseed_comps(kb_db: pymongo.database.Database, model_ids: list):
+    """Get MongoIDs from KBase database for compounds in model(s).
+
+    Parameters
+    ----------
+    kb_db : pymongo.database.Database
+        KBase database
+    model_ids : list
+        List of model ids
+
+    Returns
+    -------
+    set
+        Set of MongoIDs
+    """
     comp_ids, _ids = set(), set()
     for model_id in model_ids:
         comp_ids = kb_db.models.find_one({'_id': model_id},
@@ -344,8 +404,23 @@ def get_modelseed_comps(kb_db, model_ids):
     return _ids
 
 
-def get_KEGG_comps(db, kegg_db, model_ids):
-    """Get KEGG IDs from KEGG MINE database for compounds in model(s)."""
+def get_KEGG_comps(db, kegg_db, model_ids: List[str]):
+    """Get KEGG IDs from KEGG MINE database for compounds in model(s).
+
+    Parameters
+    ----------
+    db : [type]
+        [description]
+    kegg_db : [type]
+        [description]
+    model_ids : List[str]
+        [description]
+
+    Returns
+    -------
+    [type]
+        [description]
+    """
     kegg_ids, _ids = set(), set()
     for model_id in model_ids:
         comp_ids = kegg_db.models.find_one({'_id': model_id},
@@ -358,8 +433,19 @@ def get_KEGG_comps(db, kegg_db, model_ids):
     return _ids
 
 
-def sort_nplike(dic_list):
-    """Sort in descending order of natural product likeness."""
+def sort_nplike(dic_list: List[dict]) -> List[dict]:
+    """Sort in descending order of natural product likeness.
+
+    Parameters
+    ----------
+    dic_list : List[dict]
+        List of dictionaries to sort
+
+    Returns
+    -------
+    List[dict]
+        Sorted list of dictionaries
+    """
     return sorted(dic_list, key=lambda x: float(x['NP_likeness']),
                   reverse=True)
 
@@ -385,8 +471,22 @@ def read_adduct_names(filepath):
     return adducts
 
 
-def read_mgf(input_string, charge):
-    """Parse mgf metabolomics data file."""
+def read_mgf(input_string: str, charge) -> List[Peak]:
+    """Parse mgf metabolomics data file.
+
+    Parameters
+    ----------
+    input_string : str
+        Metabolomics input data file
+    charge : [type]
+        [description]
+
+    Returns
+    -------
+    List[Peak]
+        A list of peaks
+        
+    """
     peaks = []
     ms2 = []
     for line in input_string.split('\n'):
@@ -409,8 +509,22 @@ def read_mgf(input_string, charge):
     return peaks
 
 
-def read_msp(input_string, charge):
-    """Parse msp metabolomics data file."""
+def read_msp(input_string: str, charge) -> List[Peak]:
+    """Parse msp metabolomics data file.
+
+    Parameters
+    ----------
+    input_string : str
+        Metabolomics input data file
+    charge : [type]
+        [description]
+
+    Returns
+    -------
+    List[Peak]
+        A list of peaks
+        
+    """
     peaks = []
     for spec in input_string.strip().split('\n\n'):
         ms2 = []
@@ -440,8 +554,22 @@ def read_msp(input_string, charge):
     return peaks
 
 
-def read_mzxml(input_string, charge):
-    """Parse mzXML metabolomics data file."""
+def read_mzxml(input_string: str, charge) -> List[Peak]:
+    """Parse mzXML metabolomics data file.
+
+    Parameters
+    ----------
+    input_string : str
+        Metabolomics input data file
+    charge : [type]
+        [description]
+
+    Returns
+    -------
+    List[Peak]
+        A list of peaks
+        
+    """
     peaks = []
     root = ET.fromstring(input_string)
     prefix = root.tag.strip('mzXML')
