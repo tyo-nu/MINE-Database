@@ -77,17 +77,18 @@ def _run_reaction(rule_name: str, rule: tuple, reactant_mols: dict, coreactant_m
         if '.' in mol_smiles:
             return None
 
-        cpd_id = utils.compound_hash(mol_smiles, 'Predicted')
+        cpd_id, inchi_key = utils.compound_hash(mol_smiles, 'Predicted')
         if cpd_id:
             if cpd_id not in local_cpds:
                 cpd_dict = {'ID': None, '_id': cpd_id, 'SMILES': mol_smiles,
-                                'Type': 'Predicted',
-                                'Generation': generation,
-                                'atom_count': utils._getatom_count(mol),
-                                'Reactant_in': [], 'Product_of': [],
-                                'Expand': True,
-                                'Formula': CalcMolFormula(mol),
-                                'last_tani': 0}
+                            'InChi_key': inchi_key,
+                            'Type': 'Predicted',
+                            'Generation': generation,
+                            'atom_count': utils._getatom_count(mol),
+                            'Reactant_in': [], 'Product_of': [],
+                            'Expand': True,
+                            'Formula': CalcMolFormula(mol),
+                            'last_tani': 0}
             else:
                 cpd_dict = local_cpds[cpd_id]
 

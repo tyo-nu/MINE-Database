@@ -6,20 +6,18 @@ import multiprocessing
 import os
 import platform
 import sys
-from copy import copy, deepcopy
+from copy import deepcopy
 from shutil import move
 from subprocess import call
+from typing import List
 
 import pymongo
 from pymongo.errors import ServerSelectionTimeoutError
-from pymongo.operations import InsertOne
-from rdkit import RDLogger
 from rdkit.Chem import AllChem
 from rdkit.RDLogger import logger
 
 from minedatabase import utils
 
-from typing import List
 # from minedatabase import utils
 # from minedatabase.NP_Score import npscorer as nps
 
@@ -29,7 +27,6 @@ from typing import List
 
 lg = logger()
 lg.setLevel(4)
-
 
 def establish_db_client(uri: str=None)->pymongo.MongoClient:
     """ Establish a connection to a mongo database given a URI
@@ -379,7 +376,7 @@ def write_compounds_to_mine(compounds: List[dict], db: MINE, chunk_size: int = 1
         Size of chunks to break compounds into when writing, by default 10000
     """
     def _get_cpd_insert(cpd_dict: dict):
-        output_keys = ["_id", "ID", "SMILES", "Type", "Generation", "Reactant_in", 
+        output_keys = ["_id", "ID", "SMILES", "InChi_key", "Type", "Generation", "Reactant_in", 
                        "Product_of", "Expand", "Matched_Peak_IDs", "Matched_Adducts"]
         return pymongo.InsertOne({key: cpd_dict.get(key) for key in output_keys if cpd_dict.get(key) != None})
 
@@ -478,7 +475,7 @@ def write_targets_to_mine(targets: List[dict], db: MINE, chunk_size: int = 10000
         [description], by default 10000
     """
     def _get_cpd_insert(cpd_dict: dict):
-        output_keys = ["_id", "ID", "SMILES"]
+        output_keys = ["_id", "ID", "SMILES", "InChi_key"]
         return pymongo.InsertOne({key: cpd_dict.get(key) for key in output_keys if cpd_dict.get(key) != None})
 
     n_cpds = len(targets)

@@ -100,16 +100,8 @@ def get_fp(smi: str) -> AllChem.RDKFingerprint:
     fp = AllChem.RDKFingerprint(mol)
     return fp
 
-"""Creates hash string for given compound
 
-    :param smi: The smiles of the to-be-hashed compound
-    :type compound: str
-    :param cofactor: is the compound a cofactor
-    :type cofactor: bool
-    :return: A hashed compound _id
-    :rtype: str
-    """
-def compound_hash(smi: str, cpd_type: str='Predicted') -> str:
+def compound_hash(smi: str, cpd_type: str='Predicted', inchi_blocks: int=1) -> str:
     """Creates a hash string for a given compound
 
     This function generates an unique identifier for a compound, ensuring a
@@ -132,29 +124,34 @@ def compound_hash(smi: str, cpd_type: str='Predicted') -> str:
     -------
     str
         Compound hash
+    str
+        Inchi key (if calculable)
     """
 
     # The ID is generated from a hash of either the InChI key (partial) or SMILES
     # The InChI key is used if the SMILES does not contain '*'
+    inchi_key = None
     if '*' not in smi:
         try:
             compound = AllChem.MolFromSmiles(smi)
+            inchi_key = AllChem.MolToInchiKey(compound)
             # Take the first part of the InChIKey as it contains structural information only
-            compound = ''.join(AllChem.MolToInchiKey(compound).split('-')[0])
+            compound = inchi_key.rsplit('-', 3 - inchi_blocks)[0]
         except:
             return None
     else:
         compound = smi
 
-    # Create hash string using hashlib module
+    # Create standard length hash string using hashlib module
     chash = hashlib.sha1(compound.encode('utf-8')).hexdigest()
+    
     # Mark cofactors with an X at the beginning, targets with a T, all else with a C
     if cpd_type == 'Coreactant':
-        return "X" + chash
+        return "X" + chash, compound
     elif cpd_type == 'Target Compound':
-        return "T" + chash
+        return "T" + chash, inchi_key
     else:
-        return "C" + chash 
+        return "C" + chash , inchi_key
 
 
 def convert_sets_to_lists(obj: dict) -> dict:
@@ -242,14 +239,7 @@ def memoize(func: Callable):
             return ret
     return MemoDict().__getitem__
 
-"""Prevents overwrite of existing output files by appending "_new" when
-    needed
 
-    :param write_path: potential write path
-    :type write_path: string
-    :return: new write path
-    :rtype: str
-    """
 def prevent_overwrite(write_path: str) -> str:
     """Prevents overwrite of existing output files by appending "_new" when
     needed

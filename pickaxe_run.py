@@ -19,8 +19,6 @@ from minedatabase.filters import (MCSFilter, MetabolomicsFilter,
                                   TanimotoFilter, TanimotoSamplingFilter)
 from minedatabase.pickaxe import Pickaxe
 
-from minedatabase.databases import (write_targets_to_mine, write_reactions_to_mine, write_core_compounds, write_compounds_to_mine)
-
 # pylint: disable=invalid-name
 
 start = time.time()
@@ -71,7 +69,8 @@ rule_list = './minedatabase/data/metacyc_rules/metacyc_27percent_10rules.tsv'
 ###############################################################################
 # Core Pickaxe Run Options
 generations = 1
-num_workers = 4     # Number of processes for parallelization
+processes = 1     # Number of processes for parallelization
+inchikey_blocks_for_cid = 1 # Number of blocks of the inchi key to use for the compound id
 verbose = False     # Display RDKit warnings and errors
 explicit_h = False
 kekulize = True
@@ -87,13 +86,13 @@ indexing = False
 # Global Filtering Options
 
 # Path to target cpds file (not required for metabolomics filter)
-target_cpds = './example_data/target_list_single.csv'
+target_cpds = './example_data/target_list_many.csv'
 
 # Should targets be flagged for reaction
-react_targets = True
+react_targets = False
 
 # Prune results to remove compounds not required to produce targets
-prune_to_targets = True
+prune_to_targets = False
 
 # Filter final generation?
 filter_after_final_gen = True
@@ -117,10 +116,10 @@ increasing_tani = False
 # Samples by tanimoto similarity score, using default RDKit fingerprints
 
 # Apply this sampler?
-tani_sample = False
+tani_sample = True
 
 # Number of compounds per generation to sample
-sample_size = 5
+sample_size = 100
 
 # weight is a function that specifies weighting of Tanimoto similarity
 # weight accepts one input
@@ -183,7 +182,7 @@ def print_run_parameters():
     print_parameter_list(['coreactant_list', 'rule_list', 'input_cpds'])
 
     print('\nExpansion Options')
-    print_parameter_list(['generations', 'num_workers'])
+    print_parameter_list(['generations', 'processes'])
 
     print('\nGeneral Filter Options')
     print_parameter_list(['filter_after_final_gen', 'react_targets',
@@ -226,9 +225,10 @@ if __name__ == '__main__':  # required for parallelization on Windows
 
     pk = Pickaxe(coreactant_list=coreactant_list, rule_list=rule_list,
                  errors=verbose, explicit_h=explicit_h, kekulize=kekulize,
-                 neutralise=neutralise, image_dir=image_dir, database=database,
+                 neutralise=neutralise, image_dir=image_dir,
+                 inchikey_blocks_for_cid=inchikey_blocks_for_cid, database=database,
                  database_overwrite=database_overwrite, mongo_uri=mongo_uri,
-                 quiet=quiet, retro=False, react_targets=react_targets,
+                 quiet=quiet, react_targets=react_targets,
                  filter_after_final_gen=filter_after_final_gen)
 
     # Load compounds
@@ -267,7 +267,7 @@ if __name__ == '__main__':  # required for parallelization on Windows
         pk.filters.append(metFilter)
 
     # Transform compounds (the main step)
-    pk.transform_all(num_workers, generations)
+    pk.transform_all(processes, generations)
 
     # Remove cofactor redundancies
     # Eliminates cofactors that are being counted as compounds
@@ -279,7 +279,7 @@ if __name__ == '__main__':  # required for parallelization on Windows
 
     # Write results to database
     if write_db:
-        pk.save_to_mine(num_workers=num_workers, indexing=indexing)
+        pk.save_to_mine(processes=processes, indexing=indexing)
         client = pymongo.MongoClient(mongo_uri)
         db = client[database]
         db.meta_data.insert_one({"Timestamp": datetime.datetime.now(),
@@ -303,7 +303,7 @@ if __name__ == '__main__':  # required for parallelization on Windows
                                      "Sample By": tani_sample,
                                      "Sample Size": sample_size,
                                      "Sample Weight": weight_representation,
-                                     "Pruned": prune_by_filter
+                                     "Pruned": prune_to_targets
                                      })
 
     if write_local:
