@@ -7,7 +7,7 @@ from functools import partial
 
 from rdkit import RDLogger
 from rdkit.Chem.AllChem import (AddHs, Kekulize, MolFromSmiles, MolToSmiles,
-                                RemoveHs, SanitizeMol)
+                                RemoveHs, SanitizeMol, CalcMolFormula)
 
 from minedatabase import utils
 

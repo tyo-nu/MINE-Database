@@ -23,6 +23,11 @@ from minedatabase import utils
 
 # nps_model = nps.readNPModel()
 
+from rdkit.RDLogger import logger
+lg = logger()
+lg.setLevel(4)
+
+
 def establish_db_client(con_string=None):
     """This establishes a mongo database client in various environments"""
     # If a connection string is given use that, otherwise go to local
@@ -321,7 +326,7 @@ def write_reactions_to_mine(reactions: dict, db: MINE, chunk_size: int = 10000) 
 # Compounds
 def write_compounds_to_mine(compounds: dict, db: MINE, chunk_size: int = 10000) -> None:
     def _get_cpd_insert(cpd_dict: dict):
-        output_keys = ["_id", "ID", "SMILES", "Type", "Generation", "Reactant_in", "Product_of", "Expand"]
+        output_keys = ["_id", "ID", "SMILES", "Type", "Generation", "Reactant_in", "Product_of", "Expand", "Matched_Peak_IDs", "Matched_Adducts"]
         return pymongo.InsertOne({key: cpd_dict.get(key) for key in output_keys if cpd_dict.get(key) != None})
 
     n_cpds = len(compounds)
