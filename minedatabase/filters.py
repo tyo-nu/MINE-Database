@@ -399,8 +399,6 @@ def _calc_max_T(t_df, min_T, df):
     return df
 
     
-
-
 # End Tanimoto Sampling Filter
 ###############################################################################
 

@@ -5,11 +5,15 @@ import copy
 import multiprocessing
 from functools import partial
 
-from rdkit import RDLogger
+from rdkit.RDLogger import logger
 from rdkit.Chem.AllChem import (AddHs, Kekulize, MolFromSmiles, MolToSmiles,
-                                RemoveHs, SanitizeMol, CalcMolFormula)
+                                RemoveHs, SanitizeMol, CalcMolFormula) 
 
 from minedatabase import utils
+
+from typing import Tuple
+lg = logger()
+lg.setLevel(0)
 
 ###############################################################################
 # Functions to run transformations
@@ -28,11 +32,10 @@ from minedatabase import utils
 
 # there are way too many variables passed... switch to **kwargs?
 # Generic reaction implementation
-def _run_reaction(rule_name, rule, reactant_mols, coreactant_mols,
-                  coreactant_dict, local_cpds, local_rxns, generation,
-                  explicit_h):
-    """
-    Transform list of mols and a reaction rule into a half reaction
+def _run_reaction(rule_name: str, rule: tuple, reactant_mols: dict, coreactant_mols: dict,
+                  coreactant_dict: dict, local_cpds: dict, local_rxns: dict, generation: int,
+                  explicit_h: bool) -> None:
+    """Transform list of mols and a reaction rule into a half reaction
     describing either the reactants or products.
     """
     def _make_half_rxn(mol_list, rules):
@@ -74,17 +77,18 @@ def _run_reaction(rule_name, rule, reactant_mols, coreactant_mols,
         if '.' in mol_smiles:
             return None
 
-        cpd_id = utils.compound_hash(mol_smiles, 'Predicted')
+        cpd_id, inchi_key = utils.compound_hash(mol_smiles, 'Predicted')
         if cpd_id:
             if cpd_id not in local_cpds:
                 cpd_dict = {'ID': None, '_id': cpd_id, 'SMILES': mol_smiles,
-                                'Type': 'Predicted',
-                                'Generation': generation,
-                                'atom_count': utils._getatom_count(mol),
-                                'Reactant_in': [], 'Product_of': [],
-                                'Expand': True,
-                                'Formula': CalcMolFormula(mol),
-                                'last_tani': 0}
+                            'InChi_key': inchi_key,
+                            'Type': 'Predicted',
+                            'Generation': generation,
+                            'atom_count': utils._getatom_count(mol),
+                            'Reactant_in': [], 'Product_of': [],
+                            'Expand': True,
+                            'Formula': CalcMolFormula(mol),
+                            'last_tani': 0}
             else:
                 cpd_dict = local_cpds[cpd_id]
 
@@ -142,11 +146,9 @@ def _run_reaction(rule_name, rule, reactant_mols, coreactant_mols,
 
 
 # Full Operators
-def _transform_ind_compound_with_full(coreactant_mols, coreactant_dict,
-                                      operators, generation, explicit_h,
-                                      compound_smiles):
-    logger = RDLogger.logger()
-    logger.setLevel(4)
+def _transform_ind_compound_with_full(coreactant_mols: dict, coreactant_dict: dict,
+                                      operators: list, generation: int, explicit_h: bool,
+                                      compound_smiles: list):
     local_cpds = dict()
     local_rxns = dict()
 
@@ -181,13 +183,35 @@ def _transform_ind_compound_with_full(coreactant_mols, coreactant_dict,
     return local_cpds, local_rxns
 
 
-def transform_all_compounds_with_full(compound_smiles, coreactants,
-                                       coreactant_dict, operators, generation,
-                                       explicit_h, num_workers):
-    """
-    This function is made to reduce the memory load of parallelization.
-    This function accepts in a list of cpds (cpd_list) and runs the
-    transformation in parallel of these.
+def transform_all_compounds_with_full(compound_smiles: list, coreactants: dict,
+                                       coreactant_dict: dict, operators: dict, generation: int,
+                                       explicit_h: bool, processes: int) -> Tuple[dict, dict]:
+    """Transform compounds given a list of rules
+
+    Carry out the transformation of a list of compounds given operators. 
+    Generates new products and returns them to be processed by pickaxe.
+
+    Parameters
+    ----------
+    compound_smiles : list
+        List of SMILES to react
+    coreactants : dict
+        Dictionary of correactants RDKit Mols defined in rules
+    coreactant_dict : dict
+        Dictionary of correactant compoudnds defined in rules
+    operators : dict
+        Dictionary of reaction rules
+    generation : int
+        Value of generation to expand
+    explicit_h : bool
+        Whether or not to have explicit Hs in reactions
+    processes : int
+        Number of processors being used
+
+    Returns
+    -------
+    Tuple[dict, dict]
+        Returns a tuple of New Compounds and New Reactants
     """
     def print_progress(done, total):
         # Use print_on to print % completion roughly every 2.5 percent
@@ -204,20 +228,20 @@ def transform_all_compounds_with_full(compound_smiles, coreactants,
 
     transform_compound_partial = partial(
         _transform_ind_compound_with_full,
-        copy.copy(coreactants),
-        copy.copy(coreactant_dict),
-        copy.copy(operators),
-        copy.copy(generation),
-        copy.copy(explicit_h)
+        coreactants,
+        coreactant_dict,
+        operators,
+        generation,
+        explicit_h
     )
     # par loop
-    if num_workers > 1:
+    if processes > 1:
         # TODO chunk size?
         # chunk_size = max(
-        #         [round(len(compound_smiles) / (num_workers)), 1])
+        #         [round(len(compound_smiles) / (processes)), 1])
         chunk_size = 1
         # print(f'Chunk size = {chunk_size}')
-        pool = multiprocessing.Pool(processes=num_workers)
+        pool = multiprocessing.Pool(processes=processes)
         for i, res in enumerate(pool.imap_unordered(
                             transform_compound_partial,
                             compound_smiles,
@@ -252,9 +276,9 @@ def transform_all_compounds_with_full(compound_smiles, coreactants,
     return new_cpds_master, new_rxns_master
 
 # Partial Operators
-def _transform_ind_compound_with_partial(coreactant_mols, coreactant_dict,
-                                         operators, generation, explicit_h,
-                                         partial_rules, compound_smiles):
+def _transform_ind_compound_with_partial(coreactant_mols: dict, coreactant_dict: dict,
+                                         operators: dict, generation: int, explicit_h: bool,
+                                         partial_rules: dict, compound_smiles: list):
     # 1. See if rule matches the compound passed
     #   (rule from partial_rules dict keys)
     # 2. If match apply transform_ind_compound_with_full to each
@@ -324,7 +348,7 @@ def _transform_ind_compound_with_partial(coreactant_mols, coreactant_dict,
 
 def _transform_all_compounds_with_partial(compound_smiles, coreactants,
                                           coreactant_dict, operators,
-                                          generation, explicit_h, num_workers,
+                                          generation, explicit_h, processes,
                                           partial_rules):
     """
     This function is made to reduce the memory load of parallelization.
@@ -345,13 +369,13 @@ def _transform_all_compounds_with_partial(compound_smiles, coreactants,
     transform_compound_partial = partial(_transform_ind_compound_with_partial, coreactants,
                                             coreactant_dict, operators, generation, explicit_h, partial_rules)
     # par loop
-    if num_workers > 1:
+    if processes > 1:
         # TODO chunk size?
         # chunk_size = max(
-        #         [round(len(compound_smiles) / (num_workers)), 1])
+        #         [round(len(compound_smiles) / (processes)), 1])
         chunk_size = 1
         # print(f'Chunk size = {chunk_size}')
-        pool = multiprocessing.Pool(processes=num_workers)
+        pool = multiprocessing.Pool(processes=processes)
         for i, res in enumerate(pool.imap_unordered(
                             transform_compound_partial, compound_smiles, chunk_size)):
             new_cpds, new_rxns = res

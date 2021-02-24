@@ -4,18 +4,19 @@ The general format of a script will be:
    1. Connect to mongoDB (if desired)
    2. Load reaction rules and cofactors
    3. Load starting compounds
-   4. Load Tanimoto filtering options
+   4. Load Filtering Options
    5. Transform Compounds
    6. Write results
 """
 
 import datetime
+import multiprocessing
 import time
 
 import pymongo
 
-from minedatabase.filters import (MCSFilter, MetabolomicsFilter, TanimotoFilter,
-                                  TanimotoSamplingFilter)
+from minedatabase.filters import (MCSFilter, MetabolomicsFilter,
+                                  TanimotoFilter, TanimotoSamplingFilter)
 from minedatabase.pickaxe import Pickaxe
 
 # pylint: disable=invalid-name
@@ -64,17 +65,13 @@ rule_list = './minedatabase/data/metacyc_272rules_90percentMapping.tsv'
 # Input compounds
 input_cpds = './local_data/ADP1_cpds_out_reduced.csv'
 
-# Partial operators
-# Partial operators allow use of multiple compounds in an any;any expansion
-# Currently uses a significant amount of memory
-partial_rules = False
-mapped_rxns = './minedatabase/data/metacyc_rules/metacyc_mapped.tsv'
 ###############################################################################
 
 ###############################################################################
 # Core Pickaxe Run Options
 generations = 1
-num_workers = 4     # Number of processes for parallelization
+processes = 1     # Number of processes for parallelization
+inchikey_blocks_for_cid = 1 # Number of blocks of the inchi key to use for the compound id
 verbose = False     # Display RDKit warnings and errors
 explicit_h = False
 kekulize = True
@@ -86,20 +83,17 @@ indexing = False
 
 ###############################################################################
 ##### All Filter and Sampler Options
-##############################################################################
+###############################################################################
 # Global Filtering Options
 
 # Path to target cpds file (not required for metabolomics filter)
 target_cpds = './local_data/ADP1_cpds_out_final.csv'
 
 # Should targets be flagged for reaction
-react_targets = True
-
-# Specify if network expansion is done in a retrosynthetic direction
-retrosynthesis = False
+react_targets = False
 
 # Prune results to remove compounds not required to produce targets
-prune_to_targets = True
+prune_to_targets = False
 
 # Filter final generation?
 filter_after_final_gen = True
@@ -123,10 +117,10 @@ increasing_tani = False
 # Samples by tanimoto similarity score, using default RDKit fingerprints
 
 # Apply this sampler?
-tani_sample = False
+tani_sample = True
 
 # Number of compounds per generation to sample
-sample_size = 5
+sample_size = 100
 
 # weight is a function that specifies weighting of Tanimoto similarity
 # weight accepts one input
@@ -189,7 +183,7 @@ def print_run_parameters():
     print_parameter_list(['coreactant_list', 'rule_list', 'input_cpds'])
 
     print('\nExpansion Options')
-    print_parameter_list(['generations', 'num_workers'])
+    print_parameter_list(['generations', 'processes'])
 
     print('\nGeneral Filter Options')
     print_parameter_list(['filter_after_final_gen', 'react_targets',
@@ -221,6 +215,8 @@ def print_run_parameters():
 ###############################################################################
 ##### Running pickaxe
 if __name__ == '__main__':  # required for parallelization on Windows
+    # Use 'spawn' for multiprocessing
+    multiprocessing.set_start_method('spawn')
     # Initialize the Pickaxe class
     if write_db is False:
         database = None
@@ -230,17 +226,18 @@ if __name__ == '__main__':  # required for parallelization on Windows
 
     pk = Pickaxe(coreactant_list=coreactant_list, rule_list=rule_list,
                  errors=verbose, explicit_h=explicit_h, kekulize=kekulize,
-                 neutralise=neutralise, image_dir=image_dir, database=database,
+                 neutralise=neutralise, image_dir=image_dir,
+                 inchikey_blocks_for_cid=inchikey_blocks_for_cid, database=database,
                  database_overwrite=database_overwrite, mongo_uri=mongo_uri,
-                 quiet=quiet, retro=retrosynthesis, react_targets=react_targets,
+                 quiet=quiet, react_targets=react_targets,
                  filter_after_final_gen=filter_after_final_gen)
 
     # Load compounds
     pk.load_compound_set(compound_file=input_cpds)
 
     # Load partial operators
-    if partial_rules:
-        pk.load_partial_operators(mapped_rxns)
+    # if partial_rules:
+    #     pk.load_partial_operators(mapped_rxns)
 
     # Load target compounds for filters
     #if (tani_filter or mcs_filter or tani_sample):
@@ -271,7 +268,7 @@ if __name__ == '__main__':  # required for parallelization on Windows
         pk.filters.append(metFilter)
 
     # Transform compounds (the main step)
-    pk.transform_all(num_workers, generations)
+    pk.transform_all(processes, generations)
 
     # Remove cofactor redundancies
     # Eliminates cofactors that are being counted as compounds
@@ -283,7 +280,7 @@ if __name__ == '__main__':  # required for parallelization on Windows
 
     # Write results to database
     if write_db:
-        pk.save_to_mine(num_workers=num_workers, indexing=indexing)
+        pk.save_to_mine(processes=processes, indexing=indexing)
         client = pymongo.MongoClient(mongo_uri)
         db = client[database]
         db.meta_data.insert_one({"Timestamp": datetime.datetime.now(),
@@ -307,7 +304,7 @@ if __name__ == '__main__':  # required for parallelization on Windows
                                      "Sample By": tani_sample,
                                      "Sample Size": sample_size,
                                      "Sample Weight": weight_representation,
-                                     "Pruned": prune_by_filter
+                                     "Pruned": prune_to_targets
                                      })
 
     if write_local:

@@ -6,10 +6,9 @@ import os
 import pickle
 import time
 from argparse import ArgumentParser
-from functools import partial
 from sys import exit
+from typing import Set, Tuple
 
-from rdkit import RDLogger
 from rdkit.Chem.AllChem import (AddHs, GetMolFrags, Kekulize, MolFromInchi,
                                 MolFromSmiles, MolToInchiKey, MolToSmiles,
                                 RDKFingerprint, ReactionFromSmarts,
@@ -17,6 +16,7 @@ from rdkit.Chem.AllChem import (AddHs, GetMolFrags, Kekulize, MolFromInchi,
 from rdkit.Chem.Draw import MolToFile, rdMolDraw2D
 from rdkit.Chem.inchi import MolToInchiKey
 from rdkit.Chem.rdMolDescriptors import CalcMolFormula
+from rdkit.RDLogger import logger
 
 from minedatabase import utils
 from minedatabase.databases import (MINE, write_compounds_to_mine,
@@ -25,57 +25,64 @@ from minedatabase.databases import (MINE, write_compounds_to_mine,
                                     write_targets_to_mine)
 from minedatabase.reactions import transform_all_compounds_with_full
 
+# Default to no errors
+lg = logger()
+lg.setLevel(4)
 
 class Pickaxe:
     """This class generates new compounds from user-specified starting
     compounds using a set of SMARTS-based reaction rules. It may be initialized
     with a text file containing the reaction rules and coreactants or this may
     be done on an ad hoc basis."""
-    def __init__(self, rule_list=None, coreactant_list=None, explicit_h=True,
-                 kekulize=True, neutralise=True, errors=True,
-                 racemize=False, database=None, database_overwrite=False,
-                 mongo_uri='mongodb://localhost:27017',
-                 image_dir=None, quiet=False, retro=False, react_targets=True,
-                 filter_after_final_gen=True):
+    def __init__(self, rule_list: str, coreactant_list: str, explicit_h: bool=True,
+                 kekulize: bool=True, neutralise: bool=True, errors: bool=True,
+                 inchikey_blocks_for_cid: int=1, database: str=None,
+                 database_overwrite: bool=False, mongo_uri: bool='mongodb://localhost:27017',
+                 image_dir: str=None, quiet: bool=False,
+                 react_targets: bool=True, filter_after_final_gen: bool=True):
+        """Pickaxe class init
+
+        Parameters
+        ----------
+        rule_list : str
+            Filepath of rules
+        coreactant_list : str
+            Filepath of coreactants
+        explicit_h : bool, optional
+            Whether rules utilize explicit hydrogens, by default True
+        kekulize : bool, optional
+            Whether or not to kekulize compounds before reaction, by default True
+        neutralise : bool, optional
+            Whether or not to neutralise compounds, by default True
+        errors : bool, optional
+            Whether or not to print errors to stdout, by default True
+        inchikey_blocks_for_cid : int, optional
+            How many blocks of the InChi key to use for the compound id, by default 1
+        database : str, optional
+            Name of the database where to save results, by default None
+        database_overwrite : bool, optional
+            Whether or not to erase existing database in event of a collision, by default False
+        mongo_uri : bool, optional
+            uri for the mongo client, by default 'mongodb://localhost:27017'
+        image_dir : str, optional
+            Filepath where images should be saved, by default None
+        quiet : bool, optional
+            Whether to silence warnings, by default False
+        react_targets : bool, optional
+            Whether or not to apply reactions to generated compounds that match targets, by default True
+        filter_after_final_gen : bool, optional
+            Whether to apply filters after final expansion, by default True
         """
-        :param rule_list: Path to a list of reaction rules in TSV form
-        :type rule_list: str
-        :param coreactant_list: Path to list of coreactants in TSV form
-        :type coreactant_list: str
-        :param explicit_h: Explicitly represent bound hydrogen atoms
-        :type explicit_h: bool
-        :param kekulize: Kekulize structures before applying reaction rules
-        :type kekulize: bool
-        :param neutralise: Remove charges on structure before applying reaction
-            rules
-        :type neutralise: bool
-        :param errors: Print underlying RDKit warnings and halt on error
-        :type errors: bool
-        :param racemize: Enumerate all possible chiral forms of a molecule if
-            unspecified stereocenters exist
-        :type racemize: bool
-        :param database: Name of desired Mongo Database
-        :type database: str
-        :param database_overwrite: Force overwrite of existing DB
-        :type database_overwrite: bool
-        :param mongo_uri: URI of mongo deployment
-        :type mongo_uri: str
-        :param image_dir: Path to desired image folder
-        :type image_dir: str
-        :param quiet: Silence unbalenced reaction warnings
-        :type quiet: bool
-        """
+        
         # Main pickaxe properties
         self.operators = {}
         self.coreactants = {}
-        self._raw_compounds = {}
         self.compounds = {}
         self.reactions = {}
         self.generation = 0
         # Chemistry options
         self.explicit_h = explicit_h
         self.kekulize = kekulize
-        self.racemize = racemize
         self.neutralise = neutralise
         self.fragmented_mols = False
         self.radical_check = False
@@ -89,7 +96,6 @@ class Pickaxe:
         self.targets = dict()
         self.target_smiles = []
         self.target_fps = []
-        self.retro = retro
         self.react_targets = react_targets
         self.filter_after_final_gen = filter_after_final_gen
         # database info
@@ -97,6 +103,8 @@ class Pickaxe:
         # partial_operators
         self.use_partial = False
         self.partial_operators = dict()
+        # cid options
+        self.cid_num_inchi_blocks = inchikey_blocks_for_cid
 
         print("----------------------------------------")
         print("Intializing pickaxe object")
@@ -130,9 +138,8 @@ class Pickaxe:
 
         # Use RDLogger to catch errors in log file. SetLevel indicates mode (
         # 0 - debug, 1 - info, 2 - warning, 3 - critical). Default is no errors
-        logger = RDLogger.logger()
-        if not errors:
-            logger.setLevel(4)
+        if errors:
+            lg.setLevel(0)
 
         # Load coreactants (if any) into Pickaxe object
         if coreactant_list:
@@ -146,10 +153,7 @@ class Pickaxe:
 
         print("\nDone intializing pickaxe object")
         print("----------------------------------------\n")
-
-    def load_targets(self, target_compound_file, structure_field=None,
-                     id_field='id', calc_fp=True):
-        """Loads the target list into an list of fingerprints to later compare to
+    """Loads the target list into an list of fingerprints to later compare to
         compounds to determine if those compounds should be expanded.
 
         :param structure_field: the name of the column containing the
@@ -158,6 +162,21 @@ class Pickaxe:
         :param id_field: the name of the column containing the desired
             compound ID (Default: 'id)
         :type id_field: str
+        """
+    def load_targets(self, target_compound_file: str, structure_field: str=None,
+                     id_field: str='id', calc_fp: bool=True):
+        """load targets into pickaxe
+
+        Parameters
+        ----------
+        target_compound_file : str
+            Filepath of target compounds
+        structure_field : str, optional
+            Structure type used in the input file, by default None
+        id_field : str, optional
+            Header value of compound id in input file, by default 'id'
+        calc_fp : bool, optional
+            Whether or not to calculate fingerprints of targets for use with filters, by default True
         """
         for target_dict in utils.file_to_dict_list(target_compound_file):
             mol = self._mol_from_dict(target_dict, structure_field)
@@ -179,21 +198,27 @@ class Pickaxe:
 
         print(f"{len(self.target_smiles)} target compounds loaded\n")
 
-    def load_compound_set(self, compound_file=None, id_field='id'):
-        """If a compound file is provided, this function loads the compounds
-        into its internal dictionary.
 
-        :param compound_file: Path to a file containing compounds as tsv
-        :type compound_file: basestring
-        :param id_field: the name of the column containing the desired
-            compound ID (Default: 'id)
-        :type id_field: str
+    def load_compound_set(self, compound_file: str=None, id_field: str='id'):
+        """load compounds for expansion into pickaxe
 
-        :return: compound SMILES
-        :rtype: list
+        Parameters
+        ----------
+        compound_file : str, optional
+            Filepath of compounds, by default None
+        id_field : str, optional
+            Header value of compound id in input file, by default 'id'
+
+        Returns
+        -------
+        str
+            List of SMILES that were succesfully loaded into pickaxe
+
+        Raises
+        ------
+        ValueError
+            No file specified for loading
         """
-        # TODO: support for multiple sources?
-        # For example, loading from MINE and KEGG
 
         # Set structure field to None otherwise value determined by
         # load_targets can interfere
@@ -226,11 +251,12 @@ class Pickaxe:
         return compound_smiles
 
     def _load_coreactant(self, coreactant_text):
-        """
-        Loads a coreactant into the coreactant dictionary from a tab-delimited
-            string
-        :param coreactant_text: tab-delimited string with the compound name and
-            SMILES
+        """Load coreactants into pickaxe
+
+        Parameters
+        ----------
+        coreactant_text : str
+            text read in from the coreactant file
         """
         # If coreactant is commented out (with '#') then don't import
         if coreactant_text[0] == '#':
@@ -262,10 +288,13 @@ class Pickaxe:
         self.coreactants[split_text[0]] = (mol, cpd_id,)
 
     def _load_operators(self, rule_path):
-        """Loads all reaction rules from file_path into rxn_rule dict.
+        """Load reaction rules into pickaxe
 
-        :param rule_path: path to file
-        :type rule_path: str
+        Parameters
+        ----------
+        rule_path : str
+            Filepath of reaction rules
+
         """
         skipped = 0
         with open(rule_path) as infile:
@@ -310,7 +339,8 @@ class Pickaxe:
             print("WARNING: {skipped} rules skipped")
 
     def _mol_from_dict(self, input_dict, structure_field=None):
-        # detect structure field as needed
+        """Generate an RDKit mol object from a dictionary 
+        """
         if not structure_field:
             if not self.structure_field:
                 for field in input_dict:
@@ -349,9 +379,8 @@ class Pickaxe:
     def _gen_compound(self, cpd_name, smi, cpd_type, mol=None):
         """Generates a compound"""
         cpd_dict = {}
-        cpd_id = utils.compound_hash(smi, cpd_type)
+        cpd_id, inchi_key = utils.compound_hash(smi, cpd_type, self.cid_num_inchi_blocks)
         if cpd_id:
-            self._raw_compounds[smi] = cpd_id
             # We don't want to overwrite the same compound from a prior
             # generation so we check with hashed id from above
             if cpd_id not in self.compounds:
@@ -360,6 +389,7 @@ class Pickaxe:
                 # expand only Predicted and Starting_compounds
                 expand = cpd_type in ['Predicted', 'Starting Compound']
                 cpd_dict = {'ID': cpd_name, '_id': cpd_id, 'SMILES': smi,
+                            'InChi_key': inchi_key,
                             'Type': cpd_type,
                             'Generation': self.generation,
                             'atom_count': utils._getatom_count(
@@ -382,53 +412,43 @@ class Pickaxe:
             return
 
     def _add_compound(self, cpd_name, smi, cpd_type, mol=None):
-        """Adds a compound to the internal compound dictionary"""
-        cpd_id = utils.compound_hash(smi, cpd_type)
+        """Adds a compound to the internal compound dictionary"""      
+        # We don't want to overwrite the same compound from a prior
+        # generation so we check with hashed id from above
+        cpd_id, cpd_dict = self._gen_compound(cpd_name, smi, cpd_type, mol)
         if cpd_id:
-            self._raw_compounds[smi] = cpd_id
-            # We don't want to overwrite the same compound from a prior
-            # generation so we check with hashed id from above
-            if cpd_type == 'Target Compound':
-                if cpd_id not in self.targets:
-                    _, cpd_dict = self._gen_compound(cpd_name,
-                                                     smi, cpd_type, mol)
-                    self.targets[cpd_id] = cpd_dict
+            if (cpd_type == 'Target Compound') and (cpd_id not in self.targets):
+                self.targets[cpd_id] = cpd_dict
+            elif cpd_id not in self.compounds:
+                self.compounds[cpd_id] = cpd_dict
 
-            else:
-                if cpd_id not in self.compounds:
-                    _, cpd_dict = self._gen_compound(cpd_name,
-                                                     smi, cpd_type, mol)
-                    self.compounds[cpd_id] = cpd_dict
+                if self.image_dir and self.mine:
+                    try:
+                        with open(os.path.
+                                    join(self.image_dir, cpd_id + '.svg'),
+                                    'w') as outfile:
 
-                    if self.image_dir and self.mine:
-                        try:
-                            with open(os.path.
-                                      join(self.image_dir, cpd_id + '.svg'),
-                                      'w') as outfile:
+                            mol = MolFromSmiles(cpd_dict['SMILES'])
+                            nmol = rdMolDraw2D.PrepareMolForDrawing(mol)
+                            d2d = rdMolDraw2D.MolDraw2DSVG(1000, 1000)
+                            d2d.DrawMolecule(nmol)
+                            d2d.FinishDrawing()
+                            outfile.write(d2d.GetDrawingText())
+                    except OSError:
+                        print("Unable to generate image for "
+                                f"{cpd_dict['SMILES']}")
+            
+        return cpd_id
 
-                                mol = MolFromSmiles(cpd_dict['SMILES'])
-                                nmol = rdMolDraw2D.PrepareMolForDrawing(mol)
-                                d2d = rdMolDraw2D.MolDraw2DSVG(1000, 1000)
-                                d2d.DrawMolecule(nmol)
-                                d2d.FinishDrawing()
-                                outfile.write(d2d.GetDrawingText())
-                        except OSError:
-                            print("Unable to generate image for "
-                                  f"{cpd_dict['SMILES']}")
+    def transform_all(self, processes=1, generations=1):
+        """Apply reaction rules to compounds and generate a specified number of new generations
 
-                return cpd_id
-        else:
-            return None
-
-    def transform_all(self, num_workers=1, max_generations=1):
-        """This function applies all of the reaction rules to all the compounds
-        until the generation cap is reached.
-
-        :param num_workers: The number of CPUs to for the expansion process.
-        :type num_workers: int
-        :param max_generations: The maximum number of times a reaction rule
-            may be applied
-        :type max_generations: int
+        Parameters
+        ----------
+        processes : int, optional
+            Number of processes to run in parallel, by default 1
+        max_generations : int, optional
+            Number of generations to create, by default 1
         """
         def print_progress(done, total):
             # Use print_on to print % completion roughly every 5 percent
@@ -439,12 +459,12 @@ class Pickaxe:
                 print((f"Generation {self.generation}: "
                        f"{round(done / total * 100)} percent complete"))
 
-        while self.generation < max_generations or (self.generation == max_generations and self.filter_after_final_gen):
+        while self.generation < generations or (self.generation == generations and self.filter_after_final_gen):
 
             for _filter in self.filters:
-                _filter.apply_filter(self, num_workers)
+                _filter.apply_filter(self, processes)
 
-            if self.generation < max_generations:
+            if self.generation < generations:
                 print('----------------------------------------')
                 print(f'Expanding Generation {self.generation + 1}\n')
 
@@ -466,7 +486,7 @@ class Pickaxe:
                         f"{self.generation + 1}. Finished expanding.")
                     return None
 
-                self._transform_helper(compound_smiles, num_workers)
+                self._transform_helper(compound_smiles, processes)
 
                 print(f"Generation {self.generation + 1} finished in {time.time()-time_init} "
                     "s and contains:")
@@ -477,106 +497,107 @@ class Pickaxe:
 
             self.generation += 1
 
-    def load_partial_operators(self, mapped_reactions):
-        """Generate set of partial operators from a list of mapped reactions
-        corresponding to the reaction rules being used.
-        :param mapped_reactions: A .csv file with four columns: rule id,
-        source, SMARTS, mapping info.
-        :type mapped_reactions: file
-        """
-        # generate partial operators as done in ipynb
-        if not self.operators:
-            print("Load reaction rules before loading partial operators")
-        else:
-            with open(mapped_reactions) as f:
-                for line in f.readlines():
-                    # Grab info from current mapped reaction
-                    rule, source, smiles, _ = line.strip('\n').split('\t')
-                    # There should be 2 or more reactants derived from
-                    # the mapping code The mapped code doesn't include
-                    # cofactors, so 2 or more means any;any*
-                    exact_reactants = smiles.split('>>')[0]\
-                                            .replace(';', '.').split('.')
+    # def load_partial_operators(self, mapped_reactions):
+    #     """Generate set of partial operators from a list of mapped reactions
+    #     corresponding to the reaction rules being used.
+    #     :param mapped_reactions: A .csv file with four columns: rule id,
+    #     source, SMARTS, mapping info.
+    #     :type mapped_reactions: file
+    #     """
+    #     # generate partial operators as done in ipynb
+    #     if not self.operators:
+    #         print("Load reaction rules before loading partial operators")
+    #     else:
+    #         with open(mapped_reactions) as f:
+    #             for line in f.readlines():
+    #                 # Grab info from current mapped reaction
+    #                 rule, source, smiles, _ = line.strip('\n').split('\t')
+    #                 # There should be 2 or more reactants derived from
+    #                 # the mapping code The mapped code doesn't include
+    #                 # cofactors, so 2 or more means any;any*
+    #                 exact_reactants = smiles.split('>>')[0]\
+    #                                         .replace(';', '.').split('.')
 
-                    base_rule = rule.split('_')[0]
-                    # base rule must be loaded for partial operator to be uused
-                    if base_rule in self.operators:
-                        op_reactants = self.operators[base_rule][1]['Reactants']
-                        if op_reactants.count('Any') >= 2:
-                            mapped_reactants = []
-                            for i, r in enumerate(op_reactants):
-                                if r == 'Any':
-                                    mapped_reactants.append(
-                                        exact_reactants.pop(0)
-                                        )
-                                else:
-                                    mapped_reactants.append(r)
+    #                 base_rule = rule.split('_')[0]
+    #                 # base rule must be loaded for partial operator to be uused
+    #                 if base_rule in self.operators:
+    #                     op_reactants = self.operators[base_rule][1]['Reactants']
+    #                     if op_reactants.count('Any') >= 2:
+    #                         mapped_reactants = []
+    #                         for i, r in enumerate(op_reactants):
+    #                             if r == 'Any':
+    #                                 mapped_reactants.append(
+    #                                     exact_reactants.pop(0)
+    #                                     )
+    #                             else:
+    #                                 mapped_reactants.append(r)
 
-                            ind_SMARTS = self.operators[base_rule][1]['SMARTS']
-                            ind_SMARTS = (ind_SMARTS.split('>>')[0].
-                                          split('>>')[0].replace('(', '').
-                                          replace(')', '').split('.'))
-                            # now loop through and generate dictionary entries
-                            for i, r in enumerate(op_reactants):
-                                if r != 'Any':
-                                    pass
-                                else:
-                                    # Build entries
-                                    fixed_reactants = [
-                                        fr if i != j else 'SMARTS_match'
-                                        for j, fr in enumerate(mapped_reactants)
-                                    ]
+    #                         ind_SMARTS = self.operators[base_rule][1]['SMARTS']
+    #                         ind_SMARTS = (ind_SMARTS.split('>>')[0].
+    #                                       split('>>')[0].replace('(', '').
+    #                                       replace(')', '').split('.'))
+    #                         # now loop through and generate dictionary entries
+    #                         for i, r in enumerate(op_reactants):
+    #                             if r != 'Any':
+    #                                 pass
+    #                             else:
+    #                                 # Build entries
+    #                                 fixed_reactants = [
+    #                                     fr if i != j else 'SMARTS_match'
+    #                                     for j, fr in enumerate(mapped_reactants)
+    #                                 ]
 
-                                    bi_rule =  {
-                                        'rule': base_rule,
-                                        'rule_reaction': rule,
-                                        'reactants': fixed_reactants
-                                    }
-                                    if ind_SMARTS[i] in self.partial_operators:
-                                        self.partial_operators[ind_SMARTS[i]].append(bi_rule)
-                                    else:
-                                        self.partial_operators[ind_SMARTS[i]] = [bi_rule]
+    #                                 bi_rule =  {
+    #                                     'rule': base_rule,
+    #                                     'rule_reaction': rule,
+    #                                     'reactants': fixed_reactants
+    #                                 }
+    #                                 if ind_SMARTS[i] in self.partial_operators:
+    #                                     self.partial_operators[ind_SMARTS[i]].append(bi_rule)
+    #                                 else:
+    #                                     self.partial_operators[ind_SMARTS[i]] = [bi_rule]
 
-    def _filter_partial_operators(self):
-        # generate the reactions to specifically expand
-        # based on current compounds
-        def partial_reactants_exist(partial_rule):
-            try:
-                rule_reactants = self.operators[partial_rule['rule']][1]['Reactants']
-                cofactor = [False if r == 'Any' else True
-                            for r in rule_reactants]
+    # def _filter_partial_operators(self):
+    #     # generate the reactions to specifically expand
+    #     # based on current compounds
+    #     def partial_reactants_exist(partial_rule):
+    #         try:
+    #             rule_reactants = self.operators[partial_rule['rule']][1]['Reactants']
+    #             cofactor = [False if r == 'Any' else True
+    #                         for r in rule_reactants]
 
-                reactant_ids = []
-                for is_cofactor, smi in zip(cofactor, partial_rule['reactants']):
-                    if is_cofactor:
-                        reactant_ids.append(self.coreactants[smi][1])
-                    elif smi == 'SMARTS_match':
-                        continue
-                    else:
-                        reactant_ids.append(utils.compound_hash(smi))
+    #             reactant_ids = []
+    #             for is_cofactor, smi in zip(cofactor, partial_rule['reactants']):
+    #                 if is_cofactor:
+    #                     reactant_ids.append(self.coreactants[smi][1])
+    #                 elif smi == 'SMARTS_match':
+    #                     continue
+    #                 else:
+    #                     reactant_ids.append(utils.compound_hash(smi))
 
-                reactants_exist = [r in self.compounds for r in reactant_ids]
-                if all(reactants_exist):
-                    return True
-                else:
-                    return False
-            except:
-                return False
+    #             reactants_exist = [r in self.compounds for r in reactant_ids]
+    #             if all(reactants_exist):
+    #                 return True
+    #             else:
+    #                 return False
+    #         except:
+    #             return False
 
-        filtered_partials = dict()
-        for SMARTS_match, rules in self.partial_operators.items():
-            for rule in rules:
-                if partial_reactants_exist(rule):
-                    if SMARTS_match in filtered_partials:
-                        filtered_partials[SMARTS_match].append(rule)
-                    else:
-                        filtered_partials[SMARTS_match] = [rule]
+    #     filtered_partials = dict()
+    #     for SMARTS_match, rules in self.partial_operators.items():
+    #         for rule in rules:
+    #             if partial_reactants_exist(rule):
+    #                 if SMARTS_match in filtered_partials:
+    #                     filtered_partials[SMARTS_match].append(rule)
+    #                 else:
+    #                     filtered_partials[SMARTS_match] = [rule]
 
-        return filtered_partials
+    #     return filtered_partials
 
     def remove_cofactor_redundancy(self):
         """Checks for cofactors in rxns that were generated by an any;any rules
-        and are specified as generated compounds. Removes redundant reactions.
+        and are specified as generated compounds. Removes redundant reactions and ensures
+        cofactors are all labeled as cofactors.
         """
         # Identify compounds who are really cofactors
         cofactors_as_cpds = []
@@ -685,15 +706,21 @@ class Pickaxe:
 
             for cpd_id in cofactors_as_cpds:
                 del(self.compounds[cpd_id])
-
-    def prune_network(self, white_list):
-        """
-        Prune the predicted reaction network to only compounds and reactions
-        that terminate in a specified white list of compounds.
+    """
+        
 
         :param white_list: A list of compound_ids to include (if found)
         :type white_list: list
         :return: None
+        """
+    def prune_network(self, white_list: list):
+        """Prune the predicted reaction network to only compounds and reactions
+        that terminate in a specified white list of compounds.
+
+        Parameters
+        ----------
+        white_list : list
+            A list of compound ids to filter the network to.
         """
         n_white = len(white_list)
         cpd_set, rxn_set = self.find_minimal_set(white_list)
@@ -722,14 +749,19 @@ class Pickaxe:
         print(f"Pruning took {time.time() - prune_start}s")
         print('----------------------------------------\n')
 
-    def find_minimal_set(self, white_list):
-        """
-        Given a whitelist this function finds the minimal set of compound and
+    def find_minimal_set(self, white_list: Set[str]) -> Tuple[set, set]:
+        """Given a whitelist this function finds the minimal set of compound and
         reactions ids that comprise the set
-        :param white_list:  A list of compound_ids to include (if found)
-        :type white_list: set
-        :return: compound and reaction id sets
-        :rtype: tuple(set, set)
+
+        Parameters
+        ----------
+        white_list : Set[str]
+            List of compound_ids to use to filter reaction network to
+
+        Returns
+        -------
+        Tuple[set, set]
+            The filtered compounds and reactions
         """
 
         queue = list(white_list)
@@ -801,14 +833,15 @@ class Pickaxe:
             i += 1
             self.reactions[rxn['_id']] = rxn
 
-    def write_compound_output_file(self, path, dialect='excel-tab'):
-        """Writes all compound data to the specified path.
+    def write_compound_output_file(self, path: str, dialect: str='excel-tab'):
+        """Write compounds to an output file.
 
-        :param path: path to output
-        :type path: str
-        :param dialect: the output format for the file. Choose excel for csv
-            excel-tab for tsv.
-        :type dialect: str
+        Parameters
+        ----------
+        path : str
+            Path to write data
+        dialect : str, optional
+            Dialect of the output, by default 'excel-tab'
         """
         path = utils.prevent_overwrite(path)
 
@@ -825,13 +858,15 @@ class Pickaxe:
             writer.writerows(sorted(self.compounds.values(),
                                     key=lambda x: x['ID']))
 
-    def write_reaction_output_file(self, path, delimiter='\t'):
+    def write_reaction_output_file(self, path: str, delimiter: str='\t'):
         """Writes all reaction data to the specified path.
 
-        :param path: path to output
-        :type path: basestring
-        :param delimiter: the character with which to separate data entries
-        :type delimiter: basestring
+        Parameters
+        ----------
+        path : str
+            Path to write data
+        delimiter : str, optional
+            Delimiter for the output file, by default '\t'
         """
         path = utils.prevent_overwrite(path)
         with open(path, 'w') as outfile:
@@ -843,16 +878,17 @@ class Pickaxe:
                                               ';'.join(rxn['Operators'])])
                               + '\n')
 
-    def save_to_mine(self, num_workers=1, indexing=True, write_core=True,
-                     insert_targets=True):
-        """Save compounds to a MINE database.
+    def save_to_mine(self, processes: int=1, indexing: bool=True, write_core: bool=True):
+        """Save pickaxe run to MINE database
 
-        :param num_workers: Number of processors to use.
-        :type num_workers: int
-        :param indexing: Should mongo indices be made.
-        :type indexing: bool
-        :param insert_core: Should compounds be inserted into core.
-        :type insert_core: bool
+        Parameters
+        ----------
+        processes : int, optional
+            Number of processes to use, by default 1
+        indexing : bool, optional
+            Whether or not to add indexes, by default True
+        write_core : bool, optional
+            Whether or not to write to core database, by default True
         """
         print('\n----------------------------------------')
         print(f'Saving results to {self.mine} Database')
@@ -863,32 +899,32 @@ class Pickaxe:
         # Insert Reactions
         print('--------------- Reactions --------------')
         rxn_start = time.time()
-        write_reactions_to_mine(self.reactions, db)
+        write_reactions_to_mine(self.reactions.values(), db)
         print(f"Finished Inserting Reactions in {time.time() - rxn_start} seconds.")
         print('----------------------------------------\n')
 
         # Insert Reactions
         print('--------------- Compounds --------------')
         cpd_start = time.time()
-        write_compounds_to_mine(self.compounds, db)
+        write_compounds_to_mine(self.compounds.values(), db)
         print(f"Finished Inserting Compounds in {time.time() - cpd_start} seconds.")
         if write_core:
             cpd_start = time.time()
             print('\nWriting Core Compounds')
-            write_core_compounds(self.compounds, db, self.mine)
+            write_core_compounds(self.compounds.values(), db, self.mine, processes=processes)
             print(f"Finished Inserting Core Compounds in {time.time() - cpd_start} seconds.")
         print('----------------------------------------\n')
 
 
-        if insert_targets:
-            if self.targets:
-                print("--------------- Targets ----------------")
-                target_start = time.time()
-                write_targets_to_mine(self.targets, db)
-                print(f"Finished Inserting Target Compounds in {time.time() - target_start} seconds.")
-            else:
-                print("No targets to write to mine!"
-                )
+        
+        if self.targets:
+            print("--------------- Targets ----------------")
+            target_start = time.time()
+            write_targets_to_mine(self.targets.values(), db)
+            print(f"Finished Inserting Target Compounds in {time.time() - target_start} seconds.")
+        else:
+            print("No targets to write to mine!"
+            )
         # Save operators
         # Operator values have to be calculated, so just do everything
         # here instead of new fcn in databases.py        
@@ -919,8 +955,8 @@ class Pickaxe:
         print(f"Finished uploading everything in {time.time() - start} sec")
         print("----------------------------------------\n")
 
-    def _transform_helper(self, compound_smiles, num_workers):
-        """Transforms compounds externally of class"""
+    def _transform_helper(self, compound_smiles, processes):
+        """Helps to stage expansions externally of pickaxe class"""
         def update_cpds_rxns(new_cpds, new_rxns):
             # Save results to self.compounds / self.reactions
             # ensuring there are no collisions and updating information
@@ -960,7 +996,7 @@ class Pickaxe:
                                     compound_smiles, self.coreactants,
                                     coreactant_dict, self.operators,
                                     self.generation + 1, self.explicit_h,
-                                    num_workers
+                                    processes
                             )
 
         update_cpds_rxns(new_cpds, new_rxns)
@@ -975,14 +1011,14 @@ class Pickaxe:
         #                                     compound_smiles, self.coreactants,
         #                                     coreactant_dict, self.operators,
         #                                     self.generation, self.explicit_h,
-        #                                     num_workers, partial_operators
+        #                                     processes, partial_operators
         #                             )
 
         #         update_cpds_rxns(new_cpds, new_rxns)
         #     else:
         #         print("No partial operators could be generated.")
 
-    def pickle_pickaxe(self, fname):
+    def pickle_pickaxe(self, fname: str):
         """pickle key pickaxe items
 
         Pickle pickaxe object to be loaded in later
@@ -1002,7 +1038,7 @@ class Pickaxe:
         with open(fname, "wb") as f:
             pickle.dump(d_to_pickle, f)
 
-    def load_pickled_pickaxe(self, fname):
+    def load_pickled_pickaxe(self, fname: str):
         """load pickaxe from pickle
 
         Load pickled pickaxe object
@@ -1100,7 +1136,7 @@ if __name__ == "__main__":
     else:
         pk.load_compound_set(compound_file=OPTIONS.compound_file)
     # Generate reaction network
-    pk.transform_all(num_workers=OPTIONS.max_workers,
+    pk.transform_all(processes=OPTIONS.max_workers,
                      max_generations=OPTIONS.generations)
     if OPTIONS.pruning_whitelist:
         # pylint: disable=invalid-name,protected-access
