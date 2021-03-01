@@ -36,9 +36,9 @@ start = time.time()
 write_db = True
 database_overwrite = True
 # database = "APAH_100Sam_50rule"
-database = "test_ADP1_CV"
+database = "Example_Run"
 # Message to insert into metadata
-message = ("Cross-validation for ADP1 GEM MINE pipeline")
+message = ("Example run to show how pickaxe is run.")
 
 # mongo DB information
 use_local = True
@@ -55,15 +55,15 @@ output_dir = '.'
 ###############################################################################
 #    Starting Compounds, Cofactors, and Rules
 # Input compounds
-#input_cpds = './example_data/starting_cpds_ten.csv'
-#input_cpds = './local_data/ADP1_cpds_out_CV.csv'
-input_cpds = './local_data/APAH.csv'
+input_cpds = './example_data/starting_cpds_ten.csv'
 
 # Rules from Joseph Ni
 coreactant_list = './minedatabase/data/metacyc_rules/metacyc_coreactants.tsv'
-# rule_list = './minedatabase/data/intermediate_rules_uniprot.tsv'
-#rule_list = './minedatabase/data/metacyc_272rules_90percentMapping.tsv'
-rule_list = '../Operator_Filter/all_mapped_rules.tsv'
+
+# See ./example_data/metacyc_rule_selection/rule_selection.ipynb
+# to generate sets of rules from metacyc based on reaction mapping, where
+# the reactions being mapped are the reactions the rules are derived from.
+rule_list = './minedatabase/data/metacyc_rules/metacyc_27percent_10rules.tsv'
 
 ###############################################################################
 
@@ -87,7 +87,7 @@ indexing = False
 # Global Filtering Options
 
 # Path to target cpds file (not required for metabolomics filter)
-target_cpds = './local_data/ADP1_cpds_out_final.csv'
+target_cpds = './example_data/target_list_many.csv'
 
 # Should targets be flagged for reaction
 react_targets = False
@@ -147,14 +147,14 @@ crit_mcs = [0.3, 0.8, 0.95]
 # Metabolomics Filter Options
 
 # Apply this filter?
-metabolomics_filter = True
+metabolomics_filter = False
 
 # Path to csv with list of detected masses (and optionally, retention times). For example:
 # Peak ID, Retention Time, Aggregate M/Z, Polarity, Compound Name, Predicted Structure (smile), ID
 # Peak1, 6.33, 74.0373, negative, propionic acid, CCC(=O)O, yes
 # Peak2, 26.31, 84.06869909, positive, , , no
 # ...
-met_data_path = '../Met_Data_Processed/ADP1_Metabolomics_PeakList_final.csv'
+met_data_path = './local_data/ADP1_Metabolomics_PeakList_final.csv'
 
 # Name of dataset
 met_data_name = 'ADP1_metabolomics'
@@ -252,8 +252,8 @@ if __name__ == '__main__':  # required for parallelization on Windows
     #     pk.load_partial_operators(mapped_rxns)
 
     # Load target compounds for filters
-    #if (tani_filter or mcs_filter or tani_sample):
-    pk.load_targets(target_cpds, structure_field="SMILES")
+    if (tani_filter or mcs_filter or tani_sample):
+        pk.load_targets(target_cpds, structure_field="SMILES")
 
     # Apply filters
     if tani_filter:
