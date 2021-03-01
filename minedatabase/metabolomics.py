@@ -26,7 +26,6 @@ import pymongo
 from typing import Callable, Generator, List
 
 
-
 MINEDB_DIR = os.path.dirname(minedatabase.__file__)
 
 
@@ -111,6 +110,14 @@ class MetabolomicsDataset:
 
         self.possible_masses = np.array(set(possible_masses))
         self.possible_ranges = possible_ranges
+
+    def get_rt(self, peak_id):
+        """Return retention time for peak with given ID. If not found, returns
+        None."""
+        for peak in self.unk_peaks + self.known_peaks:
+            if peak_id == peak.name:
+                return peak.r_time
+        return None
 
     def find_db_hits(self, peak, db, adducts):
         """This function searches the database for matches of a peak given

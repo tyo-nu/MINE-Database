@@ -57,19 +57,33 @@ def pk():
 
 
 @pytest.fixture
+def pk_single_rule(smiles_dict, coreactant_dict):
+    """Create default Pickaxe object with a single rule."""
+    pk = pickaxe.Pickaxe(database='MINE_test',
+                         coreactant_list=DATA_DIR + '/test_coreactants.tsv',
+                         rule_list=DATA_DIR + '/test_single_reaction_rule.tsv')
+    return pk
+
+
+@pytest.fixture
+def pk_single_rule_cpds_loaded(pk_single_rule, smiles_dict, coreactant_dict):
+    """Load compounds into Pickaxe object."""
+    pk_single_rule._add_compound("Start", smi=smiles_dict['FADH'], cpd_type='Starting Compound')
+    pk_single_rule._load_coreactant(coreactant_dict['ATP'])
+    pk_single_rule._load_coreactant(coreactant_dict['ADP'])
+    return pk_single_rule
+
+
+@pytest.fixture
 def default_rule(pk):
     """Default operator to use for testing is set here."""
     return pk.operators['2.7.1.a']
 
 
 @pytest.fixture
-def pk_transformed(default_rule, smiles_dict, coreactant_dict):
+def pk_transformed(pk_single_rule_cpds_loaded):
     """Create Pickaxe object with a few predicted reactions."""
-    pk_transformed = pickaxe.Pickaxe()
-    pk_transformed._add_compound("Start", smi=smiles_dict['FADH'], cpd_type='Starting Compound')
-    pk_transformed._load_coreactant(coreactant_dict['ATP'])
-    pk_transformed._load_coreactant(coreactant_dict['ADP'])
-    pk_transformed.operators['2.7.1.a'] = default_rule
+    pk_transformed = pk_single_rule_cpds_loaded
     pk_transformed.transform_all()
     pk_transformed.assign_ids()
     return pk_transformed
@@ -88,7 +102,7 @@ def multiprocess(pk, smiles_dict, coreactant_dict):
     pk._load_coreactant(coreactant_dict['ADP'])
     pk._add_compound('FADH', smiles_dict['FADH'],
                      cpd_type='Starting Compound')
-    pk.transform_all(max_generations=2, num_workers=2)
+    pk.transform_all(generations=2, processes=2)
     return pk
     
 def delete_database(name):
@@ -97,18 +111,19 @@ def delete_database(name):
     mine.client.close()
     
 
-def test_cofactor_loading(pk):
-    """
-    GIVEN a default Pickaxe object
-    WHEN cofactors are loaded into the Pickaxe object in its creation
-    THEN make sure those cofactors were loaded correctly
-    """
-    assert "O=C=O" in pk._raw_compounds
-    c_id = pk._raw_compounds['O=C=O']
-    assert c_id in pk.compounds
-    assert pk.compounds[c_id]['Type'] == 'Coreactant'
-    assert isinstance(pk.coreactants['ATP'][0], AllChem.Mol)
-    assert pk.coreactants['ATP'][1][0] == "X"
+# TODO: update this for current pickaxe which doesnt have _raw_compounds field
+# def test_cofactor_loading(pk):
+#     """
+#     GIVEN a default Pickaxe object
+#     WHEN cofactors are loaded into the Pickaxe object in its creation
+#     THEN make sure those cofactors were loaded correctly
+#     """
+#     assert "O=C=O" in pk._raw_compounds
+#     c_id = pk._raw_compounds['O=C=O']
+#     assert c_id in pk.compounds
+#     assert pk.compounds[c_id]['Type'] == 'Coreactant'
+#     assert isinstance(pk.coreactants['ATP'][0], AllChem.Mol)
+#     assert pk.coreactants['ATP'][1][0] == "X"
 
 
 def test_reaction_rule_loading(default_rule):
@@ -130,8 +145,7 @@ def test_compound_loading(pk):
     WHEN compounds are loaded
     THEN check that they are loaded correctly
     """
-    compound_smiles = pk.load_compound_set(
-        compound_file=DATA_DIR + '/test_compounds.tsv')
+    compound_smiles = pk.load_compound_set(compound_file=DATA_DIR + '/test_compounds.tsv')
     assert len(compound_smiles) == 14
 
 # TODO : Do we allow single compound expansions?
@@ -157,8 +171,7 @@ def test_compound_output_writing(pk_transformed):
     """
     with open(DATA_DIR + '/testcompoundsout.tsv', 'rb') as infile:
         expected = hashlib.sha256(infile.read()).hexdigest()
-    pk_transformed.write_compound_output_file(DATA_DIR
-                                              + '/testcompoundsout.tsv')
+    pk_transformed.write_compound_output_file(DATA_DIR + '/testcompoundsout.tsv')
     assert os.path.exists(DATA_DIR + '/testcompoundsout_new.tsv')
     try:
         with open(DATA_DIR + '/testcompoundsout_new.tsv', 'rb') as infile:
@@ -187,19 +200,13 @@ def test_reaction_output_writing(pk_transformed):
         os.remove(DATA_DIR + '/testreactionsout_new.tsv')
 
 
-def test_transform_all(default_rule, smiles_dict, coreactant_dict):
+def test_transform_all(pk_single_rule_cpds_loaded):
     """
     GIVEN a set of rules and starting compounds
     WHEN we run pickaxe to predict potential transformations
     THEN make sure all expected transformations are predicted
     """
-    pk = pickaxe.Pickaxe(errors=False)
-    pk._load_coreactant(coreactant_dict['ATP'])
-    pk._load_coreactant(coreactant_dict['ADP'])
-    pk._add_compound(smiles_dict['FADH'], smiles_dict['FADH'],
-                     cpd_type='Starting Compound')
-    pk.operators['2.7.1.a'] = default_rule
-    pk.transform_all(max_generations=2)
+    pk_single_rule_cpds_loaded.transform_all(max_generations=2)
     assert len(pk.compounds) == 31
     assert len(pk.reactions) == 49
     comp_gens = set([x['Generation'] for x in pk.compounds.values()])
@@ -219,16 +226,13 @@ def test_multiprocessing(pk, smiles_dict, coreactant_dict):
     assert comp_gens == {0, 1, 2}
 
 
-def test_pruning(default_rule, smiles_dict, coreactant_dict):
+def test_pruning(pk_single_rule, smiles_dict, coreactant_dict):
     """
     GIVEN a Pickaxe expansion
     WHEN that expansion is pruned via Pickaxe.prune_network()
     THEN make sure that the pruned compounds no longer exist in the network
     """
-
-    pk = pickaxe.Pickaxe(database=None, image_dir=None)
-    pk.operators['2.7.1.a'] = default_rule
-    pk = multiprocess(pk, smiles_dict, coreactant_dict)
+    pk = multiprocess(pk_single_rule, smiles_dict, coreactant_dict)
     ids = ['C89d19c432cbe8729c117cfe50ff6ae4704a4e6c1',
            'C750e93db23dd3f796ffdf9bdefabe32b10710053', 'C41']
     pk.prune_network(ids)
@@ -244,17 +248,16 @@ def test_pruning(default_rule, smiles_dict, coreactant_dict):
         os.remove(DATA_DIR + '/pruned_comps_new')
         os.remove(DATA_DIR + '/pruned_rxns_new')
 
-def test_save_as_mine(default_rule, smiles_dict, coreactant_dict):
+def test_save_as_mine(pk_single_rule, smiles_dict, coreactant_dict):
     """
     GIVEN a Pickaxe expansion
     WHEN that expansion is saved as a MINE DB in the MongoDB
     THEN make sure that all features are saved in the MongoDB as expected
     """
     delete_database('MINE_test')
-    pk = pickaxe.Pickaxe(database='MINE_test', image_dir=DATA_DIR)
-    pk.operators['2.7.1.a'] = default_rule
+    pk = pk_single_rule
     pk = multiprocess(pk, smiles_dict, coreactant_dict)
-    pk.save_to_mine(num_workers=1)
+    pk.save_to_mine(processes=1)
     mine_db = MINE('MINE_test')
 
     try:
@@ -277,17 +280,16 @@ def test_save_as_mine(default_rule, smiles_dict, coreactant_dict):
         delete_database('MINE_test')
         purge(DATA_DIR, r".*\.svg$")
 
-def test_save_as_mine_multiprocess(default_rule, smiles_dict, coreactant_dict):
+def test_save_as_mine_multiprocess(pk_single_rule, smiles_dict, coreactant_dict):
     """
     GIVEN a Pickaxe expansion
     WHEN that expansion is saved as a MINE DB in the MongoDB
     THEN make sure that all features are saved in the MongoDB as expected
     """
     delete_database('MINE_test')
-    pk = pickaxe.Pickaxe(database='MINE_test', image_dir=DATA_DIR)
-    pk.operators['2.7.1.a'] = default_rule
+    pk = pk_single_rule
     pk = multiprocess(pk, smiles_dict, coreactant_dict)
-    pk.save_to_mine(num_workers=2)
+    pk.save_to_mine(processes=2)
     mine_db = MINE('MINE_test')
     try:
         assert mine_db.compounds.estimated_document_count() == 31
@@ -308,21 +310,22 @@ def test_save_as_mine_multiprocess(default_rule, smiles_dict, coreactant_dict):
         delete_database('MINE_test')
         purge(DATA_DIR, r".*\.svg$")
 
-def test_database_already_exists(default_rule, smiles_dict, coreactant_dict):
+def test_database_already_exists(pk_single_rule, smiles_dict, coreactant_dict):
     """
     GIVEN an existing MINE
     WHEN a new pickaxe object is defined
     THEN make sure program exits with database collision
     """
     delete_database('MINE_test')
-    pk = pickaxe.Pickaxe(database='MINE_test')
-    pk.operators['2.7.1.a'] = default_rule
+    pk = pk_single_rule
     pk = multiprocess(pk, smiles_dict, coreactant_dict)
-    pk.save_to_mine(num_workers=1)
+    pk.save_to_mine(processes=1)
 
     try:     
         with pytest.raises(SystemExit) as pytest_wrapped_e:
-                pk = pickaxe.Pickaxe(database='MINE_test')
+            pk = pickaxe.Pickaxe(database='MINE_test',
+                                 coreactant_list=DATA_DIR + '/test_coreactants.tsv',
+                                 rule_list=DATA_DIR + '/test_single_reaction_rule.tsv')
         assert pytest_wrapped_e.type == SystemExit
         assert pytest_wrapped_e.value.code == 'Exiting due to database name collision.'
     finally:
@@ -339,7 +342,7 @@ def test_database_already_exists(default_rule, smiles_dict, coreactant_dict):
 #     pk = pickaxe.Pickaxe(database='MINE_test')
 #     pk.operators['2.7.1.a'] = default_rule
 #     pk = multiprocess(pk, smiles_dict, coreactant_dict)
-#     pk.save_to_mine(num_workers=1)
+#     pk.save_to_mine(processes=1)
 #     del(pk)
 #     try:
 #         pk = pickaxe.Pickaxe()
@@ -348,16 +351,16 @@ def test_database_already_exists(default_rule, smiles_dict, coreactant_dict):
 #     finally:
 #         delete_database('MINE_test')        
 
-def test_save_no_rxn_mine():
+def test_save_no_rxn_mine(pk_single_rule):
     """
     GIVEN a Pickaxe object with no expansion
     WHEN that Pickaxe object is saved into a MINE DB in the MongoDB
     THEN check that starting compounds are present and that no reactions exist
     """
     delete_database('MINE_test')
-    pk = pickaxe.Pickaxe(database='MINE_test')
+    pk = pk_single_rule
     pk.load_compound_set(compound_file=DATA_DIR + '/test_compounds.tsv')
-    pk.save_to_mine(num_workers=1)
+    pk.save_to_mine(processes=1)
     mine_db = MINE('MINE_test')
     try:
         assert mine_db.compounds.estimated_document_count() == 14

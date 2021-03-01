@@ -138,7 +138,7 @@ def compound_hash(smi: str, cpd_type: str='Predicted', inchi_blocks: int=1) -> s
             # Take the first part of the InChIKey as it contains structural information only
             compound = inchi_key.rsplit('-', 3 - inchi_blocks)[0]
         except:
-            return None
+            return None, None
     else:
         compound = smi
 

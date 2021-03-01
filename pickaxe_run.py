@@ -11,6 +11,7 @@ The general format of a script will be:
 
 import datetime
 import multiprocessing
+import pickle
 import time
 
 import pymongo
@@ -35,9 +36,9 @@ start = time.time()
 write_db = True
 database_overwrite = True
 # database = "APAH_100Sam_50rule"
-database = "test_ADP1"
+database = "test_ADP1_CV"
 # Message to insert into metadata
-message = ("Example run to show how pickaxe is ran.")
+message = ("Cross-validation for ADP1 GEM MINE pipeline")
 
 # mongo DB information
 use_local = True
@@ -54,23 +55,22 @@ output_dir = '.'
 ###############################################################################
 #    Starting Compounds, Cofactors, and Rules
 # Input compounds
-input_cpds = './example_data/starting_cpds_ten.csv'
+#input_cpds = './example_data/starting_cpds_ten.csv'
+#input_cpds = './local_data/ADP1_cpds_out_CV.csv'
+input_cpds = './local_data/APAH.csv'
 
 # Rules from Joseph Ni
-coreactant_list = './minedatabase/data/MetaCyc_Coreactants.tsv'
+coreactant_list = './minedatabase/data/metacyc_rules/metacyc_coreactants.tsv'
 # rule_list = './minedatabase/data/intermediate_rules_uniprot.tsv'
-rule_list = './minedatabase/data/metacyc_272rules_90percentMapping.tsv'
-#rule_list = '../Operator_Filter/all_mapped_rules.tsv'
-
-# Input compounds
-input_cpds = './local_data/ADP1_cpds_out_reduced.csv'
+#rule_list = './minedatabase/data/metacyc_272rules_90percentMapping.tsv'
+rule_list = '../Operator_Filter/all_mapped_rules.tsv'
 
 ###############################################################################
 
 ###############################################################################
 # Core Pickaxe Run Options
-generations = 1
-processes = 1     # Number of processes for parallelization
+generations = 2
+processes = 4     # Number of processes for parallelization
 inchikey_blocks_for_cid = 1 # Number of blocks of the inchi key to use for the compound id
 verbose = False     # Display RDKit warnings and errors
 explicit_h = False
@@ -117,7 +117,7 @@ increasing_tani = False
 # Samples by tanimoto similarity score, using default RDKit fingerprints
 
 # Apply this sampler?
-tani_sample = True
+tani_sample = False
 
 # Number of compounds per generation to sample
 sample_size = 100
@@ -149,12 +149,12 @@ crit_mcs = [0.3, 0.8, 0.95]
 # Apply this filter?
 metabolomics_filter = True
 
-# Path to csv with list of detected masses. For example:
+# Path to csv with list of detected masses (and optionally, retention times). For example:
 # Peak ID, Retention Time, Aggregate M/Z, Polarity, Compound Name, Predicted Structure (smile), ID
 # Peak1, 6.33, 74.0373, negative, propionic acid, CCC(=O)O, yes
 # Peak2, 26.31, 84.06869909, positive, , , no
 # ...
-met_data_path = './local_data/ADP1_Metabolomics_PeakList_final.csv'
+met_data_path = '../Met_Data_Processed/ADP1_Metabolomics_PeakList_final.csv'
 
 # Name of dataset
 met_data_name = 'ADP1_metabolomics'
@@ -165,6 +165,18 @@ possible_adducts = ['[M+H]+', '[M-H]-']
 
 # Tolerance in Da
 mass_tolerance = 0.001
+
+# Retention Time Filter Options (optional but included in metabolomics filter)
+
+# Path to pickled machine learning predictor (SMILES => RT)
+rt_predictor_pickle_path = '../RT_Prediction/final_RT_model.pickle'
+
+# Allowable deviation in predicted RT (units just have to be consistent with dataset)
+rt_threshold = 4.5
+
+# Mordred descriptors to use as input to model (must be in same order as in trained model)
+# If None, will try to use all (including 3D) mordred descriptors
+rt_important_features = ['nAcid', 'ETA_dEpsilon_D', 'NsNH2', 'MDEO-11']
 
 ###############################################################################
 
@@ -260,11 +272,20 @@ if __name__ == '__main__':  # required for parallelization on Windows
         pk.filters.append(mcsFilter)
 
     if metabolomics_filter:
+        if rt_predictor_pickle_path:
+            with open(rt_predictor_pickle_path, 'rb') as infile:
+                rt_predictor = pickle.load(infile) 
+        else:
+            rt_predictor = None
+
         metFilter = MetabolomicsFilter(filter_name="ADP1_Metabolomics_Data",
                                        met_data_name=met_data_name,
                                        met_data_path=met_data_path,
                                        possible_adducts=possible_adducts,
-                                       mass_tolerance=mass_tolerance)
+                                       mass_tolerance=mass_tolerance,
+                                       rt_predictor=rt_predictor,
+                                       rt_threshold=rt_threshold,
+                                       rt_important_features=rt_important_features)
         pk.filters.append(metFilter)
 
     # Transform compounds (the main step)

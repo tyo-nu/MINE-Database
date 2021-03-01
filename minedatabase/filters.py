@@ -14,7 +14,8 @@ from functools import partial
 
 import numpy as np
 import pandas as pd
-from rdkit.Chem import AllChem, CanonSmiles
+from mordred import Calculator, descriptors
+from rdkit.Chem import AddHs, AllChem, CanonSmiles
 from rdkit.Chem import rdFMCS as mcs
 from rdkit.Chem.Descriptors import ExactMolWt
 from rdkit.Chem.inchi import MolToInchiKey
@@ -406,14 +407,34 @@ def _calc_max_T(t_df, min_T, df):
 # Metabolomics data filter
 
 
+class Options:
+    """Just need an object with an adducts property to pass to
+    MetabolomicsDataset for initialization. Must be outside of
+    MetabolomicsFilter class for parallelization reasons."""
+    def __init__(self, adducts):
+        self.adducts = adducts
+
+
 class MetabolomicsFilter(Filter):
 
     def __init__(self, filter_name, met_data_name, met_data_path,
-                 possible_adducts, mass_tolerance):
+                 possible_adducts, mass_tolerance, rt_predictor=None,
+                 rt_threshold=None, rt_important_features=None):
         """Load metabolomics data into a MetabolomicsDataset object."""
 
         self._filter_name = filter_name
         self.met_data_name = met_data_name
+
+        self.rt_predictor = rt_predictor
+        self.rt_threshold = rt_threshold
+        self.rt_important_features = rt_important_features
+
+        if self.rt_predictor and self.rt_threshold:
+            self.filter_by_rt = True
+            self.fp_calculator = Calculator(descriptors, ignore_3D=False)
+        else:
+            self.filter_by_rt = False
+            self.fp_calculator = None
 
         if met_data_path:
             self.met_df = pd.read_csv(met_data_path).fillna("")
@@ -422,12 +443,6 @@ class MetabolomicsFilter(Filter):
 
         self.possible_adducts = possible_adducts
         self.mass_tolerance = mass_tolerance
-
-        class Options:
-            """Just need an object with an adducts property to pass to
-            MetabolomicsDataset for initialization."""
-            def __init__(self, adducts):
-                self.adducts = adducts
 
         options = Options(possible_adducts)
         self.metabolomics_dataset = MetabolomicsDataset(self.met_data_name, options)
@@ -482,8 +497,7 @@ class MetabolomicsFilter(Filter):
 
         for cpd in pickaxe.compounds.values():
             # Compounds are in generation and correct type
-            if (cpd['Generation'] == pickaxe.generation
-                    and cpd['Type'] not in ['Coreactant', 'Target Compound']):
+            if (cpd['Generation'] == pickaxe.generation and cpd['Type'] not in ['Coreactant', 'Target Compound']):
 
                 cpd['Matched_Peak_IDs'] = []
                 cpd['Matched_Adducts'] = []
@@ -506,7 +520,35 @@ class MetabolomicsFilter(Filter):
         cpd_info = [(cpd['_id'], cpd['SMILES']) for cpd in compounds_to_check]
 
         possible_ranges = self.metabolomics_dataset.possible_ranges
-        mass_matched_ids = self._filter_by_mass(pickaxe, cpd_info, possible_ranges)
+
+        filter_by_mass_and_rt_partial = partial(self._filter_by_mass_and_rt, possible_ranges)
+
+        mass_matched_ids = set()
+        cpd_met_dict = {}
+
+        if num_workers > 1:
+            # Set up parallel computing
+            chunk_size = max([round(len(cpd_info) / (num_workers * 4)), 1])
+            pool = multiprocessing.Pool(num_workers)
+
+            for res in pool.imap_unordered(filter_by_mass_and_rt_partial, cpd_info, chunk_size):
+                if res[0]:
+                    this_cpd_id = res[0]
+                    mass_matched_ids.add(this_cpd_id)
+                    this_cpd_met_dict = res[1]
+                    cpd_met_dict[this_cpd_id] = this_cpd_met_dict
+
+        else:
+            for cpd in cpd_info:
+                res = filter_by_mass_and_rt_partial(cpd)
+                if res[0]:
+                    mass_matched_ids.add(res[0])
+                    cpd_met_dict[res[0]] = res[1]
+
+        for c_id in mass_matched_ids:
+            pickaxe.compounds[c_id]['Matched_Peak_IDs'] += cpd_met_dict[c_id]['Matched_Peak_IDs']
+            pickaxe.compounds[c_id]['Matched_Adducts'] += cpd_met_dict[c_id]['Matched_Adducts']
+            pickaxe.compounds[c_id]['Predicted_RT'] = cpd_met_dict[c_id]['Predicted_RT']
 
         # Get compounds to remove
         ids = set(i[0] for i in cpd_info)
@@ -517,20 +559,57 @@ class MetabolomicsFilter(Filter):
 
         return cpds_remove_set
 
-    def _filter_by_mass(self, pickaxe, cpd_info, possible_ranges):
-        """Check to see if compound masses each lie in any possible mass ranges."""
-        matched_ids = set()
-        for cpd in cpd_info:
-            cpd_exact_mass = ExactMolWt(MolFromSmiles(cpd[1]))
-            for possible_range in possible_ranges:
-                if possible_range[0] < cpd_exact_mass < possible_range[1]:
-                    c_id = cpd[0]
-                    peak_id = possible_range[2]
-                    adduct = possible_range[3]
-                    matched_ids.add(c_id)
-                    pickaxe.compounds[c_id]['Matched_Peak_IDs'].append(peak_id)
-                    pickaxe.compounds[c_id]['Matched_Adducts'].append(adduct)
-        return matched_ids
+    def _filter_by_mass_and_rt(self, possible_ranges, cpd_info):
+        """Check to see if compound masses  (and optionally, retention time)
+        each lie in any possible mass ranges."""
+        c_id_if_matched = None
+        cpd_dict = {'Predicted_RT': None,
+                    'Matched_Peak_IDs': [],
+                    'Matched_Adducts': []}
+
+        cpd_exact_mass = ExactMolWt(MolFromSmiles(cpd_info[1]))
+        for possible_range in possible_ranges:
+            if possible_range[0] < cpd_exact_mass < possible_range[1]:
+                c_id = cpd_info[0]
+                smiles = cpd_info[1]
+                peak_id = possible_range[2]
+                adduct = possible_range[3]
+
+                if self.filter_by_rt:
+                    predicted_rt = self._predict_rt(smiles)
+                    if not predicted_rt:
+                        continue  # sometimes can't predict RT due to missing vals in fingerprint
+
+                    expt_rt = self.metabolomics_dataset.get_rt(peak_id)
+                    if not expt_rt:
+                        raise ValueError(f'No retention time found for peak, {peak_id}')
+
+                    cpd_dict['Predicted_RT'] = predicted_rt
+                    if abs(expt_rt - predicted_rt) > self.rt_threshold:
+                        continue  # if outside threshold, don't add to matched peaks
+
+                c_id_if_matched = c_id
+                cpd_dict['Matched_Peak_IDs'].append(peak_id)
+                cpd_dict['Matched_Adducts'].append(adduct)
+
+        return c_id_if_matched, cpd_dict
+
+    def _predict_rt(self, smiles):
+        """Predict Retention Time from SMILES string using provided predictor."""
+        mol = MolFromSmiles(smiles)
+        mol = AddHs(mol)
+
+        fp = self.fp_calculator(mol)
+        # Transform dict into array of values (fingerprint)
+        if self.rt_important_features:
+            fp = np.array([fp[feature] for feature in self.rt_important_features]).reshape(1, -1)
+
+        if all([isinstance(val, float) for val in fp[0]]):
+            predicted_rt = self.rt_predictor.predict(fp)[0]
+        else:
+            return None
+
+        return predicted_rt
 
     def pre_print(self):
         print(f"Filtering compounds based on match with metabolomics data.")
