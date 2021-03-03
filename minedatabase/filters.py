@@ -1,4 +1,5 @@
-"""filters.py
+"""Definitions of filters for pickaxe.
+
 Use this module to define your own filter classes. All filter classes must
 subclass Filter. See Filter docstring for more information.
 
@@ -31,22 +32,26 @@ from minedatabase.utils import get_fp
 
 
 class Filter(metaclass=abc.ABCMeta):
-    """ABC for all Filter subclasses. All subclasses must implement properties
-    and methods decorated with @abc.abstractmethod. Feel free to override other
-    non-private methods as well, such as pre_print() and post_print()."""
+    """ABC for all Filter subclasses.
+
+    All subclasses must implement properties and methods decorated with
+    @abc.abstractmethod. Feel free to override other non-private methods as
+    well, such as pre_print() and post_print().
+    """
 
     @property
     @abc.abstractmethod
     def filter_name(self):
+        """Obtain name of filter."""
         pass
 
     @abc.abstractmethod
     def _choose_cpds_to_filter(self, pickaxe, num_workers):
-        """Should return list of compounds to remove from pickaxe object."""
+        """Return list of compounds to remove from pickaxe object."""
         pass
 
     def apply_filter(self, pickaxe, num_workers=1, print_on=True):
-        """Method called in pickaxe.py to apply this filter."""
+        """Apply filter from Pickaxe object."""
         time_sample = time.time()
 
         if print_on:
@@ -54,7 +59,9 @@ class Filter(metaclass=abc.ABCMeta):
             self.pre_print_header(pickaxe)
             self.pre_print()
 
-        compound_ids_to_check = self._choose_cpds_to_filter(pickaxe, num_workers)
+        compound_ids_to_check = self._choose_cpds_to_filter(
+            pickaxe, num_workers
+        )
 
         if compound_ids_to_check:
             self._apply_filter_results(pickaxe, compound_ids_to_check)
@@ -65,22 +72,27 @@ class Filter(metaclass=abc.ABCMeta):
             self.post_print_footer(pickaxe)
 
     def pre_print_header(self, pickaxe):
-        print(f"----------------------------------------")
+        """Print header before filtering."""
+        print("----------------------------------------")
         print(f"Filtering Generation {pickaxe.generation}\n")
 
     def pre_print(self):
+        """Print filter being applied."""
         print(f"Applying filter: {self.filter_name}")
 
     def post_print(self, pickaxe, n_total, n_filtered, time_sample):
+        """Print results of filtering."""
         print(f"{n_filtered} of {n_total} compounds remain after applying "
               f"filter: {self.filter_name}"
               f"--took {round(time.time() - time_sample, 2)}s.\n")
 
     def post_print_footer(self, pickaxe):
+        """Print end of filtering."""
         print(f"Done filtering Generation {pickaxe.generation}")
-        print(f"----------------------------------------\n")
+        print("----------------------------------------\n")
 
     def _get_n(self, pickaxe, n_type):
+        """Get current number of compounds to be filtered."""
         n = 0
         for cpd_dict in pickaxe.compounds.values():
             is_in_current_gen = (cpd_dict['Generation'] == pickaxe.generation)
@@ -93,7 +105,8 @@ class Filter(metaclass=abc.ABCMeta):
         return n
 
     def _apply_filter_results(self, pickaxe, compound_ids_to_check):
-        """
+        """Apply filter results to Pickaxe object.
+
         Remove compounds and reactions that can be removed
         For a compound to be removed it must:
             1. Not be flagged for expansion
@@ -114,8 +127,10 @@ class Filter(metaclass=abc.ABCMeta):
                 if cpd['_id'] in cpd_ids_to_check:
                     cpds_to_check.append(cpd)
             return cpds_to_check
-        
-        compounds_to_check = get_compounds_to_check_from_ids(pickaxe, compound_ids_to_check)
+
+        compounds_to_check = get_compounds_to_check_from_ids(
+            pickaxe, compound_ids_to_check
+        )
 
         cpds_to_remove = set()
         rxns_to_check = set()
@@ -142,7 +157,9 @@ class Filter(metaclass=abc.ABCMeta):
                 for _, c_id in pickaxe.reactions[rxn_id]['Reactants']:
                     if c_id.startswith('C'):
                         if rxn_id in pickaxe.compounds[c_id]['Reactant_in']:
-                            pickaxe.compounds[c_id]['Reactant_in'].remove(rxn_id)
+                            pickaxe.compounds[c_id][
+                                'Reactant_in'
+                            ].remove(rxn_id)
 
                 del pickaxe.reactions[rxn_id]
             else:
@@ -164,8 +181,22 @@ class Filter(metaclass=abc.ABCMeta):
 # Tanimoto Sampling Filter
 
 class TanimotoSamplingFilter(Filter):
+    """Filter that samples randomly from weighted tanimoto."""
 
-    def __init__(self, filter_name, sample_size, weight):
+    def __init__(
+        self, filter_name: str, sample_size: int, weight = None
+    ):
+        """Initialize filtering class.
+
+        Parameters
+        ----------
+        filter_name : [type]
+            [description]
+        sample_size : [type]
+            [description]
+        weight : [type]
+            [description]
+        """
         self._filter_name = filter_name
         self.sample_size = sample_size
         self.sample_weight = weight
@@ -173,7 +204,7 @@ class TanimotoSamplingFilter(Filter):
     @property
     def filter_name(self):
         return self._filter_name
-    
+
     def pre_print(self):
         print((f"Sampling {self.sample_size} Compounds Based on a "
                f"Weighted Tanimoto Distribution"))
@@ -189,7 +220,10 @@ class TanimotoSamplingFilter(Filter):
         Samples N compounds to expand based on the weighted Tanimoto
         distribution.
         """
-        print(f'Filtering Generation {pickaxe.generation} via Tanimoto Sampling.')
+        print(
+            f'Filtering Generation {pickaxe.generation}'
+            ' via Tanimoto Sampling.'
+        )
 
         if not pickaxe.target_fps:
             print("No targets to filter for. Can\'t expand.")
@@ -222,10 +256,15 @@ class TanimotoSamplingFilter(Filter):
         # Get compounds to keep
         cpd_info = [(cpd['_id'], cpd['SMILES']) for cpd in compounds_to_check]
 
-        sampled_ids = self.sample_by_tanimoto(cpd_info, pickaxe.target_fps,
-                                              self.sample_size, min_T=0.15,
-                                              weighting=self.sample_weight,
-                                              max_iter=None, n_cores=num_workers)
+        sampled_ids = self.sample_by_tanimoto(
+            cpd_info,
+            pickaxe.target_fps,
+            self.sample_size,
+            min_T=0.15,
+            weighting=self.sample_weight,
+            max_iter=None,
+            n_cores=num_workers
+        )
 
         # Get compounds to remove
         ids = set(i[0] for i in cpd_info)
@@ -270,7 +309,9 @@ class TanimotoSamplingFilter(Filter):
             return ids
 
         # Get pandas df and ids
-        df = self._gen_df_from_tanimoto(mol_info, t_fp, min_T=min_T, n_cores=n_cores)
+        df = self._gen_df_from_tanimoto(
+            mol_info, t_fp, min_T=min_T, n_cores=n_cores
+        )
 
         if len(df) <= n_cpds:
             ids = set(df['_id'])
@@ -312,12 +353,16 @@ class TanimotoSamplingFilter(Filter):
     def _gen_rv_from_df(self, df, chosen=[], weighting=None):
         """Genderate a scipy.rv object to sample from."""
         if weighting is None:
-            def weighting(T): return T**4
+            def weighting(T):
+                return T**4
 
         # TODO Make more memory efficient... maybe use np directly instead?
+        # Could be due to spawn vs fork
         rescale_df = copy.copy(df[~df['_id'].isin(chosen)])
         rescale_df.loc[:, 'T_trans'] = rescale_df['T'].map(weighting)
-        rescale_df.loc[:, 'T_pdf'] = rescale_df['T_trans'] / sum(rescale_df['T_trans'])
+        rescale_df.loc[:, 'T_pdf'] = (
+            rescale_df['T_trans'] / sum(rescale_df['T_trans'])
+        )
 
         # Generate CDF
         rescale_df.reset_index(inplace=True, drop=True)
@@ -351,7 +396,9 @@ class TanimotoSamplingFilter(Filter):
 
             # Construct targets to sample df
             temp_df = pd.DataFrame(mol_chunk, columns=['_id', 'SMILES'])
-            df = df.append(_parallelize_dataframe(temp_df, partial_T_calc, n_cores))
+            df = df.append(_parallelize_dataframe(
+                temp_df, partial_T_calc, n_cores)
+            )
 
         # Reset index for CDF calculation
         df.reset_index(inplace=True, drop=True)
@@ -359,14 +406,16 @@ class TanimotoSamplingFilter(Filter):
 
         return df
 
+
 def _parallelize_dataframe(df, func, n_cores=1):
-    """
+    """Parallelize mapping a function to a dataframe.
+
     Applies a function to a dataframe in parallel by chunking it up over
     the specified number of cores.
     """
     # Require minimum number of compounds to parallelize
-    if len(df) <= n_cores*4:
-            n_cores = 1
+    if len(df) <= n_cores * 4:
+        n_cores = 1
 
     if n_cores > 1:
         df_split = np.array_split(df, n_cores)
@@ -378,8 +427,10 @@ def _parallelize_dataframe(df, func, n_cores=1):
         df = func(df)
     return df
 
+
 def _calc_max_T(t_df, min_T, df):
-    """
+    """Calculate maximum tanimoto.
+
     Generate the tanimoto to use to generate the PMF to sample from.
     For each compound a list of tanimoito values are obtained by a generated
     compound to every target compound and the max is taken.
@@ -398,7 +449,7 @@ def _calc_max_T(t_df, min_T, df):
 
     return df
 
-    
+
 # End Tanimoto Sampling Filter
 ###############################################################################
 
@@ -594,17 +645,22 @@ class TanimotoFilter(Filter):
         # Run the filtering code to get a list of compounds to ignore
         print(f"Filtering Generation {pickaxe.generation} "
               f"with Tanimoto > {crit_tani}.")
-        # Get input to filter code, c_id and smiles (to be turned into fingerprint)
+        # Get input to filter code, c_id and smiles (to be
+        # turned into fingerprint)
         cpd_info = [(cpd['_id'], cpd['SMILES']) for cpd in compounds_to_check]
         this_gen_crit_tani = self.crit_tani[pickaxe.generation]
-        cpd_filters = self._filter_by_tani_helper(cpd_info, pickaxe.target_fps,
-                                                  num_workers, this_gen_crit_tani)
+        cpd_filters = self._filter_by_tani_helper(
+            cpd_info, pickaxe.target_fps, num_workers, this_gen_crit_tani
+        )
 
         # Process filtering results
         cpds_remove_set = set()
         for c_id, current_tani in cpd_filters:
             # Check if tani is increasing
-            if self.increasing_tani and current_tani >= pickaxe.compounds[c_id]['last_tani']:
+            if (
+                self.increasing_tani
+                and current_tani >= pickaxe.compounds[c_id]['last_tani']
+            ):
                 pickaxe.compounds[c_id]['last_tani'] = current_tani
             if current_tani < this_gen_crit_tani:
                 pickaxe.compounds[c_id]['Expand'] = False
@@ -624,13 +680,15 @@ class TanimotoFilter(Filter):
 
         # compound_info = [(smiles, id)]
         cpds_to_filter = list()
-        compare_target_fps_partial = partial(self._compare_target_fps, 
+        compare_target_fps_partial = partial(self._compare_target_fps,
                                              target_fps,
                                              this_crit_tani)
 
         if num_workers > 1:
             # Set up parallel computing of compounds to
-            chunk_size = max([round(len(compounds_info) / (num_workers * 4)), 1])
+            chunk_size = max(
+                [round(len(compounds_info) / (num_workers * 4)), 1]
+            )
             pool = multiprocessing.Pool(num_workers)
             for i, res in enumerate(pool.imap_unordered(
                     compare_target_fps_partial, compounds_info, chunk_size)):
@@ -639,14 +697,18 @@ class TanimotoFilter(Filter):
                 # specify expansion
                 if res:
                     cpds_to_filter.append(res)
-                print_progress(i, len(compounds_info), 'Tanimoto filter progress:')
+                print_progress(
+                    i, len(compounds_info), 'Tanimoto filter progress:'
+                )
 
         else:
             for i, cpd in enumerate(compounds_info):
                 res = compare_target_fps_partial(cpd)
                 if res:
                     cpds_to_filter.append(res)
-                print_progress(i, len(compounds_info), 'Tanimoto filter progress:')
+                print_progress(
+                    i, len(compounds_info), 'Tanimoto filter progress:'
+                )
         print("Tanimoto filter progress: 100 percent complete")
 
         return cpds_to_filter
@@ -672,7 +734,8 @@ class TanimotoFilter(Filter):
                 elif tani >= max_tani:
                     max_tani = tani
             return (compound_info[0], max_tani)
-        except:
+            # TODO what except to use here?
+        except:  # noqa
             return (compound_info[0], -1)
 
     def preprint(self, pickaxe):
@@ -735,12 +798,20 @@ class MCSFilter(Filter):
                             pickaxe.compounds[cpd['_id']]['Expand'] = False
 
         # Run the filtering code to get a list of compounds to ignore
-        print(f"Filtering Generation {pickaxe.generation} with MCS > {crit_mcs}.")
-        # Get input to filter code, c_id and smiles (to be turned into fingerprint)
+        print(
+            f"Filtering Generation {pickaxe.generation}"
+            " with MCS > {crit_mcs}."
+        )
+        # Get input to filter code, c_id and smiles
+        # (to be turned into fingerprint)
         cpd_info = [(cpd['_id'], cpd['SMILES']) for cpd in compounds_to_check]
-        this_gen_crit_mcs = self.crit_mcs[pickaxe.generation]
-        cpd_filters = self._filter_by_mcs_helper(cpd_info, pickaxe.target_smiles,
-                                                 num_workers, this_gen_crit_mcs)
+        this_gen_crit_mcs = crit_mcs
+        cpd_filters = self._filter_by_mcs_helper(
+            cpd_info,
+            pickaxe.target_smiles,
+            num_workers,
+            this_gen_crit_mcs
+        )
 
         # Process filtering results
         keep_ids = [cpd[0] for cpd in cpd_filters]
@@ -764,14 +835,24 @@ class MCSFilter(Filter):
 
         # compound_info = [(smiles, id)]
         cpds_to_filter = list()
-        compare_target_mcs_partial = partial(self._compare_target_mcs, target_smiles, retro)
+        compare_target_mcs_partial = partial(
+            self._compare_target_mcs,
+            target_smiles,
+            retro
+        )
 
         if num_workers > 1:
             # Set up parallel computing of compounds to
-            chunk_size = max([round(len(compounds_info) / (num_workers * 4)), 1])
+            chunk_size = max(
+                [round(len(compounds_info) / (num_workers * 4)), 1]
+            )
             pool = multiprocessing.Pool(num_workers)
-            for i, res in enumerate(pool.imap_unordered(
-                    compare_target_mcs_partial, compounds_info, this_crit_mcs, chunk_size)):
+            for i, res in enumerate(
+                pool.imap_unordered(
+                    compare_target_mcs_partial,
+                    compounds_info, this_crit_mcs, chunk_size
+                )
+            ):
 
                 if res:
                     cpds_to_filter.append(res)
@@ -785,12 +866,18 @@ class MCSFilter(Filter):
                     cpds_to_filter.append(res)
                 print_progress(i, len(compounds_info),
                                'Maximum Common Substructure filter progress:')
- 
-        print("Maximum Common Substructure filter progress: 100 percent complete")
+
+        print(
+            "Maximum Common Substructure filter progress:"
+            " 100 percent complete"
+        )
         return cpds_to_filter
 
-    def _compare_target_mcs(self, target_smiles, retro, compound_info, this_crit_mcs):
-        """
+    def _compare_target_mcs(
+        self, target_smiles, retro, compound_info, this_crit_mcs
+    ):
+        """Compare target MCS.
+
         Helper function to allow parallel computation of MCS filtering.
         Works with _filter_by_tani_helper
 
@@ -827,7 +914,8 @@ class MCSFilter(Filter):
                     print("pause")
                 if mcs_overlap >= this_crit_mcs:
                     return (compound_info[0], mcs_overlap)
-        except:
+        # TODO what except to use here?
+        except: # noqa
             return (compound_info[0], -1)
 
     def preprint(self, pickaxe):

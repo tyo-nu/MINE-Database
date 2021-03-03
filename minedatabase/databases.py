@@ -58,7 +58,8 @@ def establish_db_client(uri: str=None)->pymongo.MongoClient:
     except ServerSelectionTimeoutError:
         raise IOError("Failed to load database client. Please verify that "
                       "mongod is running")
-    return client  
+    return client
+
 
 class MINE:
     """
@@ -74,7 +75,7 @@ class MINE:
         self.name = name
         self.meta_data = self._db.meta_data
         self.compounds = self._db.compounds
-        self.target_compounds = self._db.target_compounds        
+        self.target_compounds = self._db.target_compounds
         self.reactions = self._db.reactions
         self.operators = self._db.operators
         self.models = self._db.models
@@ -194,7 +195,7 @@ class MINE:
             Query to limit number of files generated, by default None
         dir_depth : int, optional
             The number of directory levels to split the compounds
-            into for files system efficiency. Ranges from 0 (all in top 
+            into for files system efficiency. Ranges from 0 (all in top
             level directory) to the length of the file name (40 for MINE hashes), by default 0
         img_type : str, optional
             Type of image file to be generated. See molconvert
@@ -325,7 +326,7 @@ class MINE:
 
 
 def save_document(collection: pymongo.collection.Collection, doc) -> None:
-    """Saves document to given MongoDB collection.
+    """Save document to given MongoDB collection.
 
     If document _id already exists, replaces it. Else, inserts it.
 
@@ -341,6 +342,7 @@ def save_document(collection: pymongo.collection.Collection, doc) -> None:
     else:
         collection.insert_one(doc)
 # Functions to write data to MINE
+
 # Reactions
 def write_reactions_to_mine(reactions: List[dict], db: MINE, chunk_size: int = 10000) -> None:
     """Write reactions to reaction collection of MINE.
@@ -362,6 +364,7 @@ def write_reactions_to_mine(reactions: List[dict], db: MINE, chunk_size: int = 1
 
         db.reactions.bulk_write(rxn_requests, ordered=False)
 
+
 # Compounds
 def write_compounds_to_mine(compounds: List[dict], db: MINE, chunk_size: int = 10000) -> None:
     """Write compounds to reaction collection of MINE.
@@ -376,7 +379,7 @@ def write_compounds_to_mine(compounds: List[dict], db: MINE, chunk_size: int = 1
         Size of chunks to break compounds into when writing, by default 10000
     """
     def _get_cpd_insert(cpd_dict: dict):
-        output_keys = ["_id", "ID", "SMILES", "InChi_key", "Type", "Generation", "Reactant_in", 
+        output_keys = ["_id", "ID", "SMILES", "InChi_key", "Type", "Generation", "Reactant_in",
                        "Product_of", "Expand", "Matched_Peak_IDs", "Matched_Adducts"]
         return pymongo.InsertOne({key: cpd_dict.get(key) for key in output_keys if cpd_dict.get(key) != None})
 
@@ -386,6 +389,7 @@ def write_compounds_to_mine(compounds: List[dict], db: MINE, chunk_size: int = 1
             print(f"Writing Compounds: Chunk {i} of {int(n_cpds/chunk_size) + 1}")
         cpd_requests = [_get_cpd_insert(cpd_dict) for cpd_dict in cpd_chunk]
         db.compounds.bulk_write(cpd_requests, ordered=False)
+
 
 # Core Compounds
 def write_core_compounds(compounds: List[dict], db: MINE, mine: str, chunk_size: int = 10000, processes = 1) -> None:
@@ -403,7 +407,7 @@ def write_core_compounds(compounds: List[dict], db: MINE, mine: str, chunk_size:
     db : MINE
         MINE object to write core compounds with.
     mine : str
-        Name of the MINE. 
+        Name of the MINE.
     chunk_size : int, optional
         Size of chunks to break compounds into when writing, by default 10000
     processes : int, optional
@@ -411,7 +415,7 @@ def write_core_compounds(compounds: List[dict], db: MINE, mine: str, chunk_size:
     """
     n_cpds = len(compounds)
     pool = multiprocessing.Pool(processes)
-    
+
     for i, cpd_chunk in enumerate(utils.Chunks(compounds, chunk_size)):
         if i%20 == 0:
             print(f"Writing Compounds: Chunk {i} of {int(n_cpds/chunk_size) + 1}")
@@ -441,7 +445,7 @@ def _get_core_cpd_insert(cpd_dict: dict) -> pymongo.InsertOne:
     core_dict = {key: cpd_dict.get(key) for key in core_keys if cpd_dict.get(key) != None}
 
     mol_object = AllChem.MolFromSmiles(core_dict['SMILES'])
-                
+
     # Store all different representations of the molecule (SMILES, Formula,
     #  InChI key, etc.) as well as its properties in a dictionary
     if not 'SMILES' in core_dict:
@@ -457,10 +461,10 @@ def _get_core_cpd_insert(cpd_dict: dict) -> pymongo.InsertOne:
     # core_dict['NP_likeness'] = nps.scoreMol(mol_object, nps_model)
     core_dict['Spectra'] = {}
     # Record which expansion it's coming from
-    core_dict['MINES'] = []   
-    
+    core_dict['MINES'] = []
+
     return pymongo.UpdateOne({'_id': core_dict["_id"]}, {'$setOnInsert': core_dict}, upsert=True)
-    
+
 # Target Compounds
 def write_targets_to_mine(targets: List[dict], db: MINE, chunk_size: int = 10000) -> None:
     """Write target compounds to target collection of MINE.

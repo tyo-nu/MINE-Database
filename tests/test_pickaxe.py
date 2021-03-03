@@ -2,18 +2,18 @@
 # pylint: disable=redefined-outer-name
 # pylint: disable=protected-access
 
+import hashlib
 import os
 import re
-import hashlib
 import subprocess
-import time
 from filecmp import cmp
 
 import pytest
-
 from rdkit.Chem import AllChem
+
 from minedatabase import pickaxe
 from minedatabase.databases import MINE
+
 
 DATA_DIR = os.path.dirname(__file__) + '/data'
 
@@ -58,7 +58,7 @@ def pk():
 
 @pytest.fixture
 def default_rule(pk):
-    """Default operator to use for testing is set here."""
+    """Set default operator."""
     return pk.operators['2.7.1.a']
 
 
@@ -66,7 +66,11 @@ def default_rule(pk):
 def pk_transformed(default_rule, smiles_dict, coreactant_dict):
     """Create Pickaxe object with a few predicted reactions."""
     pk_transformed = pickaxe.Pickaxe()
-    pk_transformed._add_compound("Start", smi=smiles_dict['FADH'], cpd_type='Starting Compound')
+    pk_transformed._add_compound(
+        "Start",
+        smi=smiles_dict['FADH'],
+        cpd_type='Starting Compound'
+    )
     pk_transformed._load_coreactant(coreactant_dict['ATP'])
     pk_transformed._load_coreactant(coreactant_dict['ADP'])
     pk_transformed.operators['2.7.1.a'] = default_rule
@@ -88,31 +92,36 @@ def multiprocess(pk, smiles_dict, coreactant_dict):
     pk._load_coreactant(coreactant_dict['ADP'])
     pk._add_compound('FADH', smiles_dict['FADH'],
                      cpd_type='Starting Compound')
-    pk.transform_all(max_generations=2, num_workers=2)
+    pk.transform_all(generations=2, processes=2)
     return pk
-    
+
+
 def delete_database(name):
+    """Delete database."""
     mine = MINE(name)
     mine.client.drop_database(name)
     mine.client.close()
-    
+
 
 def test_cofactor_loading(pk):
-    """
+    """Test loading cofactors.
+
     GIVEN a default Pickaxe object
     WHEN cofactors are loaded into the Pickaxe object in its creation
     THEN make sure those cofactors were loaded correctly
     """
-    assert "O=C=O" in pk._raw_compounds
-    c_id = pk._raw_compounds['O=C=O']
+    c_id = 'X73bc8ef21db580aefe4dbc0af17d4013961d9d17'
+
     assert c_id in pk.compounds
+    assert pk.compounds[c_id]["Formula"] == 'H2O'
     assert pk.compounds[c_id]['Type'] == 'Coreactant'
-    assert isinstance(pk.coreactants['ATP'][0], AllChem.Mol)
-    assert pk.coreactants['ATP'][1][0] == "X"
+    assert isinstance(pk.coreactants['Water'][0], AllChem.Mol)
+    assert pk.coreactants['Water'][1][0] == "X"
 
 
 def test_reaction_rule_loading(default_rule):
-    """
+    """Test loading rules.
+
     GIVEN a reaction rule dict
     WHEN reaction rules are loaded during Pickaxe object initialization
     THEN make sure it is formatted correctly
@@ -125,7 +134,8 @@ def test_reaction_rule_loading(default_rule):
 
 
 def test_compound_loading(pk):
-    """
+    """Test loading compounds.
+
     GIVEN a default Pickaxe object
     WHEN compounds are loaded
     THEN check that they are loaded correctly
@@ -144,13 +154,16 @@ def test_compound_loading(pk):
 #     pk = pickaxe.Pickaxe(explicit_h=False, kekulize=False,
 #                          coreactant_list=DATA_DIR + '/test_coreactants.tsv',
 #                          rule_list=DATA_DIR + '/test_cd_rxn_rule.tsv')
-#     pk._add_compound("Start", smi=smiles_dict['meh'], cpd_type='Starting Compound')
+#     pk._add_compound("Start",
+#          smi=smiles_dict['meh'], cpd_type='Starting Compound')
 #     pk.transform_compound(smiles_dict['meh'])
 #     assert len(pk.compounds) == 38
 #     assert len(pk.reactions) == 1
 
+
 def test_compound_output_writing(pk_transformed):
-    """
+    """Test compound output writing.
+
     GIVEN a Pickaxe object with predicted transformations
     WHEN all compounds (including predicted) are written to an output file
     THEN make sure they are correctly written, and that they are all present
@@ -169,7 +182,8 @@ def test_compound_output_writing(pk_transformed):
 
 
 def test_reaction_output_writing(pk_transformed):
-    """
+    """Test writing reaction output.
+
     GIVEN a Pickaxe object with predicted transformations
     WHEN all reactions (including predicted) are written to an output file
     THEN make sure they are correctly written, and that they are all present
@@ -188,7 +202,8 @@ def test_reaction_output_writing(pk_transformed):
 
 
 def test_transform_all(default_rule, smiles_dict, coreactant_dict):
-    """
+    """Test transform function.
+
     GIVEN a set of rules and starting compounds
     WHEN we run pickaxe to predict potential transformations
     THEN make sure all expected transformations are predicted
@@ -199,7 +214,7 @@ def test_transform_all(default_rule, smiles_dict, coreactant_dict):
     pk._add_compound(smiles_dict['FADH'], smiles_dict['FADH'],
                      cpd_type='Starting Compound')
     pk.operators['2.7.1.a'] = default_rule
-    pk.transform_all(max_generations=2)
+    pk.transform_all(generations=2)
     assert len(pk.compounds) == 31
     assert len(pk.reactions) == 49
     comp_gens = set([x['Generation'] for x in pk.compounds.values()])
@@ -207,7 +222,8 @@ def test_transform_all(default_rule, smiles_dict, coreactant_dict):
 
 
 def test_multiprocessing(pk, smiles_dict, coreactant_dict):
-    """
+    """Test multiprocessing.
+
     GIVEN a Pickaxe object
     WHEN we use multiprocessing to enumerate predicted reactions
     THEN make sure those predictions are correct
@@ -220,7 +236,8 @@ def test_multiprocessing(pk, smiles_dict, coreactant_dict):
 
 
 def test_pruning(default_rule, smiles_dict, coreactant_dict):
-    """
+    """Test pruning network to targets.
+
     GIVEN a Pickaxe expansion
     WHEN that expansion is pruned via Pickaxe.prune_network()
     THEN make sure that the pruned compounds no longer exist in the network
@@ -244,8 +261,10 @@ def test_pruning(default_rule, smiles_dict, coreactant_dict):
         os.remove(DATA_DIR + '/pruned_comps_new')
         os.remove(DATA_DIR + '/pruned_rxns_new')
 
+
 def test_save_as_mine(default_rule, smiles_dict, coreactant_dict):
-    """
+    """Test saving compounds to database.
+
     GIVEN a Pickaxe expansion
     WHEN that expansion is saved as a MINE DB in the MongoDB
     THEN make sure that all features are saved in the MongoDB as expected
@@ -254,7 +273,7 @@ def test_save_as_mine(default_rule, smiles_dict, coreactant_dict):
     pk = pickaxe.Pickaxe(database='MINE_test', image_dir=DATA_DIR)
     pk.operators['2.7.1.a'] = default_rule
     pk = multiprocess(pk, smiles_dict, coreactant_dict)
-    pk.save_to_mine(num_workers=1)
+    pk.save_to_mine(processes=1)
     mine_db = MINE('MINE_test')
 
     try:
@@ -277,8 +296,10 @@ def test_save_as_mine(default_rule, smiles_dict, coreactant_dict):
         delete_database('MINE_test')
         purge(DATA_DIR, r".*\.svg$")
 
+
 def test_save_as_mine_multiprocess(default_rule, smiles_dict, coreactant_dict):
-    """
+    """Test saving mine generated from multiprocess.
+
     GIVEN a Pickaxe expansion
     WHEN that expansion is saved as a MINE DB in the MongoDB
     THEN make sure that all features are saved in the MongoDB as expected
@@ -287,7 +308,7 @@ def test_save_as_mine_multiprocess(default_rule, smiles_dict, coreactant_dict):
     pk = pickaxe.Pickaxe(database='MINE_test', image_dir=DATA_DIR)
     pk.operators['2.7.1.a'] = default_rule
     pk = multiprocess(pk, smiles_dict, coreactant_dict)
-    pk.save_to_mine(num_workers=2)
+    pk.save_to_mine(processes=2)
     mine_db = MINE('MINE_test')
     try:
         assert mine_db.compounds.estimated_document_count() == 31
@@ -308,8 +329,10 @@ def test_save_as_mine_multiprocess(default_rule, smiles_dict, coreactant_dict):
         delete_database('MINE_test')
         purge(DATA_DIR, r".*\.svg$")
 
+
 def test_database_already_exists(default_rule, smiles_dict, coreactant_dict):
-    """
+    """Test database collision.
+
     GIVEN an existing MINE
     WHEN a new pickaxe object is defined
     THEN make sure program exits with database collision
@@ -318,13 +341,15 @@ def test_database_already_exists(default_rule, smiles_dict, coreactant_dict):
     pk = pickaxe.Pickaxe(database='MINE_test')
     pk.operators['2.7.1.a'] = default_rule
     pk = multiprocess(pk, smiles_dict, coreactant_dict)
-    pk.save_to_mine(num_workers=1)
+    pk.save_to_mine(processes=1)
 
-    try:     
+    try:
         with pytest.raises(SystemExit) as pytest_wrapped_e:
-                pk = pickaxe.Pickaxe(database='MINE_test')
+            pk = pickaxe.Pickaxe(database='MINE_test')
         assert pytest_wrapped_e.type == SystemExit
-        assert pytest_wrapped_e.value.code == 'Exiting due to database name collision.'
+        assert pytest_wrapped_e.value.code == (
+            'Exiting due to database name collision.'
+        )
     finally:
         delete_database('MINE_test')
 
@@ -339,17 +364,20 @@ def test_database_already_exists(default_rule, smiles_dict, coreactant_dict):
 #     pk = pickaxe.Pickaxe(database='MINE_test')
 #     pk.operators['2.7.1.a'] = default_rule
 #     pk = multiprocess(pk, smiles_dict, coreactant_dict)
-#     pk.save_to_mine(num_workers=1)
+#     pk.save_to_mine(processes=1)
 #     del(pk)
 #     try:
 #         pk = pickaxe.Pickaxe()
 #         compound_smiles = pk.load_compound_set(database='MINE_test')
 #         assert len(compound_smiles) == 1
 #     finally:
-#         delete_database('MINE_test')        
+#         delete_database('MINE_test')
 
+
+# TODO When is  this necessary?
 def test_save_no_rxn_mine():
-    """
+    """Test saving no reactions.
+
     GIVEN a Pickaxe object with no expansion
     WHEN that Pickaxe object is saved into a MINE DB in the MongoDB
     THEN check that starting compounds are present and that no reactions exist
@@ -357,17 +385,19 @@ def test_save_no_rxn_mine():
     delete_database('MINE_test')
     pk = pickaxe.Pickaxe(database='MINE_test')
     pk.load_compound_set(compound_file=DATA_DIR + '/test_compounds.tsv')
-    pk.save_to_mine(num_workers=1)
+    pk.save_to_mine(processes=1)
     mine_db = MINE('MINE_test')
     try:
         assert mine_db.compounds.estimated_document_count() == 14
         assert mine_db.reactions.estimated_document_count() == 0
     finally:
-       delete_database('MINE_test')
+        delete_database('MINE_test')
 
 
+@pytest.mark.skip(reason="Need to look into command line with current state.")
 def test_cli():
-    """
+    """Test command line interface.
+
     GIVEN the pickaxe CLI
     WHEN pickaxe is run from the command line
     THEN make sure it exits with exit code 0 (no errors)
