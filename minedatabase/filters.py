@@ -115,7 +115,7 @@ class Filter(metaclass=abc.ABCMeta):
                 if cpd['_id'] in cpd_ids_to_check:
                     cpds_to_check.append(cpd)
             return cpds_to_check
-        
+
         compounds_to_check = get_compounds_to_check_from_ids(pickaxe, compound_ids_to_check)
 
         cpds_to_remove = set()
@@ -568,6 +568,7 @@ class MetabolomicsFilter(Filter):
                     'Matched_Adducts': []}
 
         cpd_exact_mass = ExactMolWt(MolFromSmiles(cpd_info[1]))
+        predicted_rt = None
         for possible_range in possible_ranges:
             if possible_range[0] < cpd_exact_mass < possible_range[1]:
                 c_id = cpd_info[0]
@@ -576,7 +577,8 @@ class MetabolomicsFilter(Filter):
                 adduct = possible_range[3]
 
                 if self.filter_by_rt:
-                    predicted_rt = self._predict_rt(smiles)
+                    if not predicted_rt:
+                        predicted_rt = self._predict_rt(smiles)
                     if not predicted_rt:
                         continue  # sometimes can't predict RT due to missing vals in fingerprint
 
@@ -604,7 +606,13 @@ class MetabolomicsFilter(Filter):
         if self.rt_important_features:
             fp = np.array([fp[feature] for feature in self.rt_important_features]).reshape(1, -1)
 
-        if all([isinstance(val, float) for val in fp[0]]):
+        def validate_np_val(val):
+            """Make sure value is numeric, not NaN, and not infinity."""
+            if isinstance(val, float) and not np.isnan(val) and not np.isinf(val):
+                return True
+            return False
+
+        if all([validate_np_val(val) for val in fp[0]]):
             predicted_rt = self.rt_predictor.predict(fp)[0]
         else:
             return None
