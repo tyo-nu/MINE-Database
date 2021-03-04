@@ -2,21 +2,21 @@
 import collections
 import multiprocessing
 from functools import partial
+from typing import Tuple
 
-from rdkit.RDLogger import logger
 from rdkit.Chem.AllChem import (
     AddHs,
+    CalcMolFormula,
     Kekulize,
     MolFromSmiles,
     MolToSmiles,
     RemoveHs,
     SanitizeMol,
-    CalcMolFormula,
 )
+from rdkit.RDLogger import logger
 
 from minedatabase import utils
 
-from typing import Tuple
 
 lg = logger()
 lg.setLevel(0)
@@ -76,9 +76,7 @@ def _run_reaction(
             for atom_id, atom_count in cpd_dict["atom_count"].items():
                 atom_counts[atom_id] += atom_count * cpd_counter[cpd_id]
 
-        cpd_returns = [
-            (stoich, cpds[cpd_id]) for cpd_id, stoich in cpd_counter.items()
-        ]
+        cpd_returns = [(stoich, cpds[cpd_id]) for cpd_id, stoich in cpd_counter.items()]
 
         return cpd_returns, atom_counts
 
@@ -88,7 +86,7 @@ def _run_reaction(
                 mol = RemoveHs(mol)
             SanitizeMol(mol)
         # TODO: logger
-        except:
+        except BaseException:
             return None
 
         mol_smiles = MolToSmiles(mol, True)
@@ -121,12 +119,9 @@ def _run_reaction(
 
     try:
         product_sets = rule[0].RunReactants(reactant_mols)
-        reactants, reactant_atoms = _make_half_rxn(
-            reactant_mols,
-            rule[1]["Reactants"]
-        )
+        reactants, reactant_atoms = _make_half_rxn(reactant_mols, rule[1]["Reactants"])
         # TODO: Logger
-    except:
+    except BaseException:
         reactants = None
 
     if not reactants:
@@ -134,10 +129,7 @@ def _run_reaction(
 
     for product_mols in product_sets:
         try:
-            products, product_atoms = _make_half_rxn(
-                product_mols,
-                rule[1]["Products"]
-            )
+            products, product_atoms = _make_half_rxn(product_mols, rule[1]["Products"])
             if not products:
                 continue
 
@@ -164,7 +156,7 @@ def _run_reaction(
                 else:
                     local_rxns[rhash]["Operators"].add(rule_name)
         # TODO: Logger
-        except (ValueError, MemoryError) as e:
+        except (ValueError, MemoryError):
             continue
     # return compounds and reactions to be added into the local
     return local_cpds, local_rxns
@@ -196,10 +188,7 @@ def _transform_ind_compound_with_full(
     for rule_name, rule in operators.items():
         # Get RDKit Mol objects for reactants
         reactant_mols = tuple(
-            [
-                mol if x == "Any" else coreactant_mols[x][0]
-                for x in rule[1]["Reactants"]
-            ]
+            [mol if x == "Any" else coreactant_mols[x][0] for x in rule[1]["Reactants"]]
         )
         # Perform chemical reaction on reactants for each rule
         # try:
@@ -289,11 +278,7 @@ def transform_all_compounds_with_full(
         # print(f'Chunk size = {chunk_size}')
         pool = multiprocessing.Pool(processes=processes)
         for i, res in enumerate(
-            pool.imap_unordered(
-                transform_compound_partial,
-                compound_smiles,
-                chunk_size
-            )
+            pool.imap_unordered(transform_compound_partial, compound_smiles, chunk_size)
         ):
             new_cpds, new_rxns = res
             new_cpds_master.update(new_cpds)
@@ -357,9 +342,7 @@ def _transform_ind_compound_with_partial(
                 reactant_mols.append(gen_mol(compound_smiles))
             else:
                 # These reactions already happen with any;any
-                if utils.compound_hash(smi) != utils.compound_hash(
-                    compound_smiles
-                ):
+                if utils.compound_hash(smi) != utils.compound_hash(compound_smiles):
                     reactant_mols.append(gen_mol(smi))
                 else:
                     return None
@@ -462,10 +445,7 @@ def _transform_all_compounds_with_partial(
         # print(f'Chunk size = {chunk_size}')
         pool = multiprocessing.Pool(processes=processes)
         for i, res in enumerate(
-            pool.imap_unordered(
-                transform_compound_partial,
-                compound_smiles,
-                chunk_size)
+            pool.imap_unordered(transform_compound_partial, compound_smiles, chunk_size)
         ):
             new_cpds, new_rxns = res
             new_cpds_master.update(new_cpds)
@@ -473,9 +453,7 @@ def _transform_all_compounds_with_partial(
             # Need to check if reactions already exist to update operators list
             for rxn, rxn_dict in new_rxns.items():
                 if rxn in new_rxns_master:
-                    new_rxns_master[rxn]["Operators"].union(
-                        rxn_dict["Operators"]
-                    )
+                    new_rxns_master[rxn]["Operators"].union(rxn_dict["Operators"])
                 else:
                     new_rxns_master.update({rxn: rxn_dict})
             print_progress(i, len(compound_smiles))
@@ -489,11 +467,9 @@ def _transform_all_compounds_with_partial(
             # Need to check if reactions already exist to update operators list
             for rxn, rxn_dict in new_rxns.items():
                 if rxn in new_rxns_master:
-                    new_rxns_master[rxn]["Partial Operators"] = (
-                        new_rxns_master[rxn]["Partial Operators"].union(
-                            rxn_dict["Partial Operators"]
-                        )
-                    )
+                    new_rxns_master[rxn]["Partial Operators"] = new_rxns_master[rxn][
+                        "Partial Operators"
+                    ].union(rxn_dict["Partial Operators"])
                 else:
                     new_rxns_master.update({rxn: rxn_dict})
             print_progress(i, len(compound_smiles))

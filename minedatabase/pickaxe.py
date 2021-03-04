@@ -38,6 +38,7 @@ from minedatabase.databases import (
 )
 from minedatabase.reactions import transform_all_compounds_with_full
 
+
 # Default to no errors
 lg = logger()
 lg.setLevel(4)
@@ -155,10 +156,7 @@ class Pickaxe:
                             " mines."
                         )
                     )
-                    db.core_compounds.update_many(
-                        {},
-                        {"$pull": {"MINES": database}}
-                    )
+                    db.core_compounds.update_many({}, {"$pull": {"MINES": database}})
                     db.client.drop_database(database)
                     self.mine = database
                 else:
@@ -247,11 +245,7 @@ class Pickaxe:
 
         print(f"{len(self.target_smiles)} target compounds loaded\n")
 
-    def load_compound_set(
-        self,
-        compound_file: str = None,
-        id_field: str = "id"
-    ):
+    def load_compound_set(self, compound_file: str = None, id_field: str = "id"):
         """Load compounds for expansion into pickaxe.
 
         Parameters
@@ -355,8 +349,7 @@ class Pickaxe:
         with open(rule_path) as infile:
             # Get all reaction rules from tsv file and store in dict (rdr)
             rdr = csv.DictReader(
-                (row for row in infile if not row.startswith("#")),
-                delimiter="\t"
+                (row for row in infile if not row.startswith("#")), delimiter="\t"
             )
             for rule in rdr:
                 try:
@@ -399,9 +392,7 @@ class Pickaxe:
                     # Update reaction rules dictionary
                     self.operators[rule["Name"]] = (rxn, rule)
                 except Exception as e:
-                    raise ValueError(
-                        f"{str(e)}\nFailed to parse" f"{rule['Name']}"
-                    )
+                    raise ValueError(f"{str(e)}\nFailed to parse" f"{rule['Name']}")
         if skipped:
             print("WARNING: {skipped} rules skipped")
 
@@ -504,9 +495,7 @@ class Pickaxe:
                             d2d.FinishDrawing()
                             outfile.write(d2d.GetDrawingText())
                     except OSError:
-                        print(
-                            f"Unable to generate image for {cpd_dict['SMILES']}"
-                        )
+                        print(f"Unable to generate image for {cpd_dict['SMILES']}")
 
         return cpd_id
 
@@ -720,9 +709,7 @@ class Pickaxe:
                 products = []
                 for s, reactant in rxn["Reactants"]:
                     if reactant in cofactors_as_cpds:
-                        reactants.append(
-                            (s, self.compounds["X" + reactant[1:]])
-                        )
+                        reactants.append((s, self.compounds["X" + reactant[1:]]))
                     else:
                         reactants.append((s, self.compounds[reactant]))
 
@@ -789,25 +776,17 @@ class Pickaxe:
                             and cofactor_rxn_id
                             not in self.compounds[cpd]["Reactant_in"]
                         ):
-                            self.compounds[cpd]["Reactant_in"].append(
-                                cofactor_rxn_id
-                            )
+                            self.compounds[cpd]["Reactant_in"].append(cofactor_rxn_id)
 
                 for _, cpd in rxn["Products"]:
                     if cpd.startswith("C"):
                         if rxn_id in self.compounds[cpd]["Product_of"]:
                             self.compounds[cpd]["Product_of"].remove(rxn_id)
 
-                        if (
-                            append_new
-                            and (
-                                cofactor_rxn_id not in
-                                self.compounds[cpd]["Product_of"]
-                            )
+                        if append_new and (
+                            cofactor_rxn_id not in self.compounds[cpd]["Product_of"]
                         ):
-                            self.compounds[cpd]["Product_of"].append(
-                                cofactor_rxn_id
-                            )
+                            self.compounds[cpd]["Product_of"].append(cofactor_rxn_id)
 
         if rxns_to_del:
             for rxn_id in rxns_to_del:
@@ -993,9 +972,7 @@ class Pickaxe:
                 lineterminator="\n",
             )
             writer.writeheader()
-            writer.writerows(
-                sorted(self.compounds.values(), key=lambda x: x["ID"])
-            )
+            writer.writerows(sorted(self.compounds.values(), key=lambda x: x["ID"]))
 
     def write_reaction_output_file(self, path: str, delimiter: str = "\t"):
         r"""Write all reaction data to the specified path.
@@ -1010,8 +987,7 @@ class Pickaxe:
         path = utils.prevent_overwrite(path)
         with open(path, "w") as outfile:
             outfile.write(
-                "ID\tName\tID equation\tSMILES equation\tRxn hash\t"
-                "Reaction rules\n"
+                "ID\tName\tID equation\tSMILES equation\tRxn hash\t" "Reaction rules\n"
             )
             for rxn in sorted(self.reactions.values(), key=lambda x: x["ID"]):
                 outfile.write(
@@ -1066,19 +1042,14 @@ class Pickaxe:
             write_core_compounds(
                 self.compounds.values(), db, self.mine, processes=processes
             )
-            print(
-                f"Wrote Core Compounds in {time.time() - cpd_start} seconds."
-            )
+            print(f"Wrote Core Compounds in {time.time() - cpd_start} seconds.")
         print("----------------------------------------\n")
 
         if self.targets:
             print("--------------- Targets ----------------")
             target_start = time.time()
             write_targets_to_mine(self.targets.values(), db)
-            print(
-                f"Wrote Target Compounds in {time.time() - target_start}"
-                " seconds."
-            )
+            print(f"Wrote Target Compounds in {time.time() - target_start}" " seconds.")
         else:
             print("No targets to write to MINE.")
         # Save operators
@@ -1093,10 +1064,7 @@ class Pickaxe:
                     self.operators[op][1]["Reactions_predicted"] += 1
             db.operators.insert_many([op[1] for op in self.operators.values()])
             db.meta_data.insert_one(
-                {
-                    "Timestamp": datetime.datetime.now(),
-                    "Action": "Operators Inserted"
-                }
+                {"Timestamp": datetime.datetime.now(), "Action": "Operators Inserted"}
             )
             print(
                 "Done with Operators Overall--took "
@@ -1151,14 +1119,11 @@ class Pickaxe:
                     if cpd_id.startswith("C")
                 ]:
                     if rxn_id not in self.compounds[reactant_id]["Reactant_in"]:
-                        self.compounds[reactant_id]["Reactant_in"].append(
-                            rxn_id
-                        )
+                        self.compounds[reactant_id]["Reactant_in"].append(rxn_id)
 
         # to pass coreactants externally
         coreactant_dict = {
-            co_key: self.compounds[co_key]
-            for _, co_key in self.coreactants.values()
+            co_key: self.compounds[co_key] for _, co_key in self.coreactants.values()
         }
 
         new_cpds, new_rxns = transform_all_compounds_with_full(
@@ -1317,23 +1282,17 @@ if __name__ == "__main__":
         help="Silence warnings about imbalenced reactions",
     )
     parser.add_argument(
-        "-s",
-        "--smiles",
-        default=None,
-        help="Specify a starting compound as SMILES."
+        "-s", "--smiles", default=None, help="Specify a starting compound as SMILES."
     )
     # Result args
     parser.add_argument(
         "-p",
         "--pruning_whitelist",
         default=None,
-        help="Specify a list of target compounds to prune reaction network down"
+        help="Specify a list of target compounds to prune reaction network down",
     )
     parser.add_argument(
-        "-o",
-        "--output_dir",
-        default=".",
-        help="The directory in which to place files"
+        "-o", "--output_dir", default=".", help="The directory in which to place files"
     )
     parser.add_argument(
         "-d",
@@ -1372,10 +1331,7 @@ if __name__ == "__main__":
     else:
         pk.load_compound_set(compound_file=OPTIONS.compound_file)
     # Generate reaction network
-    pk.transform_all(
-        processes=OPTIONS.max_workers,
-        max_generations=OPTIONS.generations
-    )
+    pk.transform_all(processes=OPTIONS.max_workers, max_generations=OPTIONS.generations)
     if OPTIONS.pruning_whitelist:
         # pylint: disable=invalid-name,protected-access
         mols = [
