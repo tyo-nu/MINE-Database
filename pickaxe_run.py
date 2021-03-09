@@ -16,9 +16,14 @@ import time
 
 import pymongo
 
-from minedatabase.filters import (MCSFilter, MetabolomicsFilter,
-                                  TanimotoFilter, TanimotoSamplingFilter)
+from minedatabase.filters import (
+    MCSFilter,
+    MetabolomicsFilter,
+    TanimotoFilter,
+    TanimotoSamplingFilter,
+)
 from minedatabase.pickaxe import Pickaxe
+
 
 # pylint: disable=invalid-name
 
@@ -33,10 +38,10 @@ start = time.time()
 # in the following format: username
 
 # Database to write results to
-write_db = True
+write_db = False
 database_overwrite = True
 # database = "APAH_100Sam_50rule"
-database = "Example_Run"
+database = "example_pathway"
 # Message to insert into metadata
 message = ("Example run to show how pickaxe is ran.")
 
@@ -55,7 +60,7 @@ output_dir = '.'
 ###############################################################################
 #    Starting Compounds, Cofactors, and Rules
 # Input compounds
-input_cpds = './example_data/starting_cpds_ten.csv'
+input_cpds = './example_data/starting_cpds_single.csv'
 
 # Metacyc Rules
 coreactant_list = './minedatabase/data/metacyc_rules/MetaCyc_Coreactants.tsv'
@@ -89,6 +94,10 @@ indexing = False
 # Path to target cpds file (not required for metabolomics filter)
 target_cpds = './example_data/target_list_many.csv'
 
+# Wheter or not to load targets even without filter
+# This allows for the pruning of a network without actually filternig
+load_targets_without_filter = False
+
 # Should targets be flagged for reaction
 react_targets = False
 
@@ -117,7 +126,7 @@ increasing_tani = False
 # Samples by tanimoto similarity score, using default RDKit fingerprints
 
 # Apply this sampler?
-tani_sample = True
+tani_sample = False
 
 # Number of compounds per generation to sample
 sample_size = 100
@@ -205,7 +214,6 @@ def print_run_parameters():
             'filter_after_final_gen',
             'react_targets',
             'prune_to_targets',
-            'react_targets'
         ]
     )
 
@@ -279,8 +287,8 @@ if __name__ == '__main__':  # required for parallelization on Windows
     #     pk.load_partial_operators(mapped_rxns)
 
     # Load target compounds for filters
-    if (tani_filter or mcs_filter or tani_sample):
-        pk.load_targets(target_cpds, structure_field="SMILES")
+    if (tani_filter or mcs_filter or tani_sample or load_targets_without_filter):
+        pk.load_targets(target_cpds)
 
     # Apply filters
     if tani_filter:
@@ -312,13 +320,8 @@ if __name__ == '__main__':  # required for parallelization on Windows
     # Transform compounds (the main step)
     pk.transform_all(processes, generations)
 
-    # Remove cofactor redundancies
-    # Eliminates cofactors that are being counted as compounds
-    pk.remove_cofactor_redundancy()
-
-    if (tani_filter or mcs_filter or tani_sample):
-        if prune_to_targets:
-            pk.prune_network_to_targets()
+    if pk.targets and prune_to_targets:
+        pk.prune_network_to_targets()
 
     # Write results to database
     if write_db:

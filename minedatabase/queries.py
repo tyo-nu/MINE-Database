@@ -215,7 +215,7 @@ def structure_search(
     :param stereo: If true, uses stereochemistry in finding exact match
     :type stereo: bool
     :param search_projection: The fields which should be returned
-    :type search_projection: str
+    :type search_projection: strE
     :return: Query results
     :rtype: list"""
     # Create Mol object from Molfile (has newlines)

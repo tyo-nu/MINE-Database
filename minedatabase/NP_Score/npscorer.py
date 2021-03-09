@@ -62,7 +62,7 @@ def processMols(fscore, suppl):
             continue
 
         n += 1
-        score = "%.3f" % scoreMol(m, fscore)
+        score = round(scoreMol(m, fscore), 3)
 
         smiles = Chem.MolToSmiles(m, True)
         name = m.GetProp("_Name")

@@ -8,6 +8,29 @@ storage and querying of MINE databases. For generalinformation on MINE
 Databases, please consult [JJeffryes et al. 2015](http://jcheminf.springeropen.com/articles/10.1186/s13321-015-0087-1)
 APIs can found in [the API Repository](https://github.com/tyo-nu/MINE-API)
 
+## Installation
+MINE Database requires the use of rdkit, which currently is unavailable to install on pip. It is therefore recommended to use the pure conda installation.
+
+### Pure Conda Installation
+Ensure that [Anaconda is installed](https://www.anaconda.com/products/individual) and run the following in a terminal:
+```
+conda env create --name minedatabase --file requirements.yml
+```
+To activate the conda environment for usage use:
+```
+conda activate minedatabase
+```
+
+### Pip and Conda Installation
+The majority of requirements can be installed through pip:
+```
+pip install -r requirements.txt
+```
+RDKit must still be installed using Anaconda
+```
+
+
+
 ## Repository Structure
 This repository primarily consists of the minedatabases python module 
 and its 8 submodules:

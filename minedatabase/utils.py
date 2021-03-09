@@ -382,9 +382,9 @@ def rxn2hash(reactants: List[StoichTuple], products: List[StoichTuple]) -> str:
     # TODO: cleanup
     def to_str(half_rxn):
         return [
-            "(%s) %s" % (x[0], x[1])
+            f"({x[0]}) {x[1]})"
             if (len(x) == 2 and not isinstance(x, str))
-            else "(1) %s" % x
+            else f"(1) {x}"
             for x in sorted(half_rxn)
         ]
 
@@ -428,10 +428,10 @@ def _calculate_rxn_hash(db, reactants, products):
             if comp and comp["Inchikey"]:
                 split_inchikey = comp["Inchikey"].split("-")
                 if len(split_inchikey) > 1:
-                    first_block.append("%s,%s" % (x.stoich, split_inchikey[0]))
-                    second_block.append("%s,%s" % (x.stoich, split_inchikey[1]))
+                    first_block.append(f"{x.stoich},{split_inchikey}")
+                    second_block.append(f"{x.stoich},{split_inchikey[1]}")
             else:
-                print("No Inchikey for %s" % x.c_id)
+                print(f"No Inchikey for {x.c_id}")
         return "+".join(first_block), "+".join(second_block)
 
     reactants.sort()

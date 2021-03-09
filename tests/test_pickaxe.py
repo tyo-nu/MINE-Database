@@ -7,6 +7,7 @@ import os
 import re
 import subprocess
 from filecmp import cmp
+from pathlib import Path
 
 import pytest
 from rdkit.Chem import AllChem
@@ -85,15 +86,6 @@ def purge(directory, pattern):
             os.remove(os.path.join(directory, filename))
 
 
-def multiprocess(pk, smiles_dict, coreactant_dict):
-    """Convert FADH into other compounds in parallel."""
-    pk._load_coreactant(coreactant_dict["ATP"])
-    pk._load_coreactant(coreactant_dict["ADP"])
-    pk._add_compound("FADH", smiles_dict["FADH"], cpd_type="Starting Compound")
-    pk.transform_all(generations=2, processes=2)
-    return pk
-
-
 def delete_database(name):
     """Delete database."""
     mine = MINE(name)
@@ -144,21 +136,25 @@ def test_compound_loading(pk):
     assert len(compound_smiles) == 14
 
 
-# TODO : Do we allow single compound expansions?
-# def test_transform_compounds_implicit(smiles_dict):
-#     """
-#     GIVEN a compound (meh in this case)
-#     WHEN that compound is transformed into another compound via pickaxe
-#     THEN make sure that the transformation is successful and recorded
-#     """
-#     pk = pickaxe.Pickaxe(explicit_h=False, kekulize=False,
-#                          coreactant_list=DATA_DIR + '/test_coreactants.tsv',
-#                          rule_list=DATA_DIR + '/test_cd_rxn_rule.tsv')
-#     pk._add_compound("Start",
-#          smi=smiles_dict['meh'], cpd_type='Starting Compound')
-#     pk.transform_compound(smiles_dict['meh'])
-#     assert len(pk.compounds) == 38
-#     assert len(pk.reactions) == 1
+def test_transform_all(default_rule, smiles_dict, coreactant_dict):
+    """Test transform function.
+
+    GIVEN a set of rules and starting compounds
+    WHEN we run pickaxe to predict potential transformations
+    THEN make sure all expected transformations are predicted
+    """
+    pk = pickaxe.Pickaxe(errors=False)
+    pk._load_coreactant(coreactant_dict["ATP"])
+    pk._load_coreactant(coreactant_dict["ADP"])
+    pk._add_compound(
+        smiles_dict["FADH"], smiles_dict["FADH"], cpd_type="Starting Compound"
+    )
+    pk.operators["2.7.1.a"] = default_rule
+    pk.transform_all(generations=2)
+    assert len(pk.compounds) == 31
+    assert len(pk.reactions) == 49
+    comp_gens = set([x["Generation"] for x in pk.compounds.values()])
+    assert comp_gens == {0, 1, 2}
 
 
 def test_compound_output_writing(pk_transformed):
@@ -199,27 +195,6 @@ def test_reaction_output_writing(pk_transformed):
         os.remove(DATA_DIR + "/testreactionsout_new.tsv")
 
 
-def test_transform_all(default_rule, smiles_dict, coreactant_dict):
-    """Test transform function.
-
-    GIVEN a set of rules and starting compounds
-    WHEN we run pickaxe to predict potential transformations
-    THEN make sure all expected transformations are predicted
-    """
-    pk = pickaxe.Pickaxe(errors=False)
-    pk._load_coreactant(coreactant_dict["ATP"])
-    pk._load_coreactant(coreactant_dict["ADP"])
-    pk._add_compound(
-        smiles_dict["FADH"], smiles_dict["FADH"], cpd_type="Starting Compound"
-    )
-    pk.operators["2.7.1.a"] = default_rule
-    pk.transform_all(generations=2)
-    assert len(pk.compounds) == 31
-    assert len(pk.reactions) == 49
-    comp_gens = set([x["Generation"] for x in pk.compounds.values()])
-    assert comp_gens == {0, 1, 2}
-
-
 def test_multiprocessing(pk, smiles_dict, coreactant_dict):
     """Test multiprocessing.
 
@@ -227,7 +202,11 @@ def test_multiprocessing(pk, smiles_dict, coreactant_dict):
     WHEN we use multiprocessing to enumerate predicted reactions
     THEN make sure those predictions are correct
     """
-    pk = multiprocess(pk, smiles_dict, coreactant_dict)
+    pk._load_coreactant(coreactant_dict["ATP"])
+    pk._load_coreactant(coreactant_dict["ADP"])
+    pk._add_compound("FADH", smiles_dict["FADH"], cpd_type="Starting Compound")
+    pk.transform_all(generations=2, processes=2)
+
     assert len(pk.compounds) == 67
     assert len(pk.reactions) == 49
     comp_gens = set([x["Generation"] for x in pk.compounds.values()])
@@ -244,7 +223,11 @@ def test_pruning(default_rule, smiles_dict, coreactant_dict):
 
     pk = pickaxe.Pickaxe(database=None, image_dir=None)
     pk.operators["2.7.1.a"] = default_rule
-    pk = multiprocess(pk, smiles_dict, coreactant_dict)
+    pk._load_coreactant(coreactant_dict["ATP"])
+    pk._load_coreactant(coreactant_dict["ADP"])
+    pk._add_compound("FADH", smiles_dict["FADH"], cpd_type="Starting Compound")
+    pk.transform_all(generations=2)
+
     ids = [
         "C89d19c432cbe8729c117cfe50ff6ae4704a4e6c1",
         "C750e93db23dd3f796ffdf9bdefabe32b10710053",
@@ -264,6 +247,22 @@ def test_pruning(default_rule, smiles_dict, coreactant_dict):
         os.remove(DATA_DIR + "/pruned_rxns_new")
 
 
+def test_target_generation(default_rule, smiles_dict, coreactant_dict):
+    """Test generating a target from starting compounds."""
+    pk = pickaxe.Pickaxe(database=None)
+    pk.operators["2.7.1.a"] = default_rule
+    pk._load_coreactant(coreactant_dict["ATP"])
+    pk._load_coreactant(coreactant_dict["ADP"])
+    pk._add_compound("FADH", smiles_dict["FADH"], cpd_type="Starting Compound")
+    pk.load_targets(DATA_DIR + "/test_targets.csv")
+    pk.transform_all(generations=2)
+    pk.prune_network_to_targets()
+
+    assert "C11088915f64b93293e70af9c3b7822a4f131225d" in pk.compounds
+    assert len(pk.reactions) == 4
+    assert len(pk.compounds) == 6
+
+
 def test_save_as_mine(default_rule, smiles_dict, coreactant_dict):
     """Test saving compounds to database.
 
@@ -274,7 +273,10 @@ def test_save_as_mine(default_rule, smiles_dict, coreactant_dict):
     delete_database("MINE_test")
     pk = pickaxe.Pickaxe(database="MINE_test", image_dir=DATA_DIR)
     pk.operators["2.7.1.a"] = default_rule
-    pk = multiprocess(pk, smiles_dict, coreactant_dict)
+    pk._load_coreactant(coreactant_dict["ATP"])
+    pk._load_coreactant(coreactant_dict["ADP"])
+    pk._add_compound("FADH", smiles_dict["FADH"], cpd_type="Starting Compound")
+    pk.transform_all(generations=2)
     pk.save_to_mine(processes=1)
     mine_db = MINE("MINE_test")
 
@@ -300,38 +302,31 @@ def test_save_as_mine(default_rule, smiles_dict, coreactant_dict):
         purge(DATA_DIR, r".*\.svg$")
 
 
-def test_save_as_mine_multiprocess(default_rule, smiles_dict, coreactant_dict):
-    """Test saving mine generated from multiprocess.
-
-    GIVEN a Pickaxe expansion
-    WHEN that expansion is saved as a MINE DB in the MongoDB
-    THEN make sure that all features are saved in the MongoDB as expected
-    """
+def test_save_target_mine(default_rule, smiles_dict, coreactant_dict):
+    """Test saving the target run to a MINE."""
     delete_database("MINE_test")
-    pk = pickaxe.Pickaxe(database="MINE_test", image_dir=DATA_DIR)
+    pk = pickaxe.Pickaxe(database="MINE_test")
     pk.operators["2.7.1.a"] = default_rule
-    pk = multiprocess(pk, smiles_dict, coreactant_dict)
-    pk.save_to_mine(processes=2)
+    pk._load_coreactant(coreactant_dict["ATP"])
+    pk._load_coreactant(coreactant_dict["ADP"])
+    pk._add_compound("FADH", smiles_dict["FADH"], cpd_type="Starting Compound")
+    pk.load_targets(DATA_DIR + "/test_targets.csv")
+    pk.transform_all(generations=2)
+    pk.prune_network_to_targets()
+
+    pk.save_to_mine()
     mine_db = MINE("MINE_test")
+
     try:
-        assert mine_db.compounds.estimated_document_count() == 31
-        assert mine_db.reactions.estimated_document_count() == 49
+        assert mine_db.compounds.estimated_document_count() == 6
+        assert mine_db.reactions.estimated_document_count() == 4
         assert mine_db.operators.estimated_document_count() == 1
-        assert os.path.exists(
-            DATA_DIR + "/X9c29f84930a190d9086a46c344020283c85fb917.svg"
-        )
-        start_comp = mine_db.compounds.find_one({"Type": "Starting Compound"})
-        assert len(start_comp["Reactant_in"]) > 0
-        # Don't track sources of coreactants
-        coreactant = mine_db.compounds.find_one({"Type": "Coreactant"})
-        assert "Product_of" not in coreactant
-        assert "Reactant_in" not in coreactant
-        product = mine_db.compounds.find_one({"Generation": 2})
-        assert len(product["Product_of"]) > 0
-        assert product["Type"] == "Predicted"
+        assert mine_db.operators.find_one()["Reactions_predicted"] == 4
+        start_comp = mine_db.target_compounds.find_one()
+        assert start_comp["InChI_key"] == "RYNUDNWPSBJQQY-UHFFFAOYSA-N"
+        assert all([i in start_comp.keys() for i in ["_id", "SMILES", "InChI_key"]])
     finally:
         delete_database("MINE_test")
-        purge(DATA_DIR, r".*\.svg$")
 
 
 def test_database_already_exists(default_rule, smiles_dict, coreactant_dict):
@@ -344,7 +339,10 @@ def test_database_already_exists(default_rule, smiles_dict, coreactant_dict):
     delete_database("MINE_test")
     pk = pickaxe.Pickaxe(database="MINE_test")
     pk.operators["2.7.1.a"] = default_rule
-    pk = multiprocess(pk, smiles_dict, coreactant_dict)
+    pk._load_coreactant(coreactant_dict["ATP"])
+    pk._load_coreactant(coreactant_dict["ADP"])
+    pk._add_compound("FADH", smiles_dict["FADH"], cpd_type="Starting Compound")
+    pk.transform_all(generations=2)
     pk.save_to_mine(processes=1)
 
     try:
@@ -356,27 +354,6 @@ def test_database_already_exists(default_rule, smiles_dict, coreactant_dict):
         )
     finally:
         delete_database("MINE_test")
-
-
-# def test_load_compounds_from_mine(default_rule, smiles_dict, coreactant_dict):
-#     """
-#     GIVEN a Pickaxe object loaded from the 'MINE_test' MINE DB
-#     WHEN Pickaxe.load_compound_set() is used to load all compounds from the DB
-#     THEN make sure that all compounds are loaded
-#     """
-#     # Generate database
-#     delete_database('MINE_test')
-#     pk = pickaxe.Pickaxe(database='MINE_test')
-#     pk.operators['2.7.1.a'] = default_rule
-#     pk = multiprocess(pk, smiles_dict, coreactant_dict)
-#     pk.save_to_mine(processes=1)
-#     del(pk)
-#     try:
-#         pk = pickaxe.Pickaxe()
-#         compound_smiles = pk.load_compound_set(database='MINE_test')
-#         assert len(compound_smiles) == 1
-#     finally:
-#         delete_database('MINE_test')
 
 
 # TODO When is  this necessary?
@@ -397,6 +374,33 @@ def test_save_no_rxn_mine():
         assert mine_db.reactions.estimated_document_count() == 0
     finally:
         delete_database("MINE_test")
+
+
+def test_pickle(coreactant_dict, smiles_dict, default_rule):
+    """Test pickling of pickaxe objects."""
+    pickle_path = Path("test_pickle.pk")
+
+    pk = pickaxe.Pickaxe(errors=False)
+    pk._load_coreactant(coreactant_dict["ATP"])
+    pk._load_coreactant(coreactant_dict["ADP"])
+    pk._add_compound(
+        smiles_dict["FADH"], smiles_dict["FADH"], cpd_type="Starting Compound"
+    )
+    pk.operators["2.7.1.a"] = default_rule
+
+    pk.transform_all(generations=2)
+
+    pk.pickle_pickaxe(pickle_path)
+    del pk
+    pk = pickaxe.Pickaxe(errors=False)
+    pk.load_pickled_pickaxe(pickle_path)
+
+    assert len(pk.compounds) == 31
+    assert len(pk.reactions) == 49
+    comp_gens = set([x["Generation"] for x in pk.compounds.values()])
+    assert comp_gens == {0, 1, 2}
+
+    pickle_path.unlink()
 
 
 @pytest.mark.skip(reason="Need to look into command line with current state.")

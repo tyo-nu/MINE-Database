@@ -31,8 +31,8 @@ def export_sdf(mine_db: MINE, dir_path: str, max_compounds: int = None) -> None:
         mine_db.add_rxn_pointers()
 
     print(
-        "Exporting %s compounds from %s as an SDF file"
-        % (mine_db.compounds.count(), mine_db.name)
+        f"Exporting {mine_db.compounds.count()} compounds from {mine_db.name}"
+        " as an SDF file"
     )
     target = utils.prevent_overwrite(os.path.join(dir_path, mine_db.name) + "_1.sdf")
     # SDWriter (rdkit) writes Mol objects to SD files
@@ -56,7 +56,7 @@ def export_sdf(mine_db: MINE, dir_path: str, max_compounds: int = None) -> None:
             if max_compounds and (writer.NumMols() >= max_compounds):
                 n_files += 1
                 target = utils.prevent_overwrite(
-                    os.path.join(dir_path, mine_db.name) + "_%s.sdf" % n_files
+                    os.path.join(dir_path, mine_db.name) + f"_(n_files).sdf"
                 )
                 writer = AllChem.SmilesWriter(target)
     writer.close()
@@ -80,8 +80,8 @@ def export_smiles(mine_db: MINE, dir_path: str, max_compounds: int = None) -> No
         mine_db.add_rxn_pointers()
 
     print(
-        "Exporting %s compounds from %s as SMILES file"
-        % (mine_db.compounds.count(), mine_db.name)
+        f"Exporting {mine_db.compounds.count()} compounds from {mine_db.name()}"
+        " as SMILES file"
     )
     target = open(
         utils.prevent_overwrite(os.path.join(dir_path, mine_db.name) + "_1.smiles"), "w"
@@ -102,7 +102,7 @@ def export_smiles(mine_db: MINE, dir_path: str, max_compounds: int = None) -> No
             n_files += 1
             target = open(
                 utils.prevent_overwrite(
-                    os.path.join(dir_path, mine_db.name) + "_%s.smiles" % n_files
+                    os.path.join(dir_path, mine_db.name) + f"_{n_files}.smiles"
                 ),
                 "w",
             )
@@ -131,7 +131,7 @@ def export_mol(mine_db: MINE, target: str, name_field: str = "_id") -> None:
         != mine_db.compounds.find({name_field: {"$exists": 1}}).count()
     ):
         raise ValueError(
-            "%s does not exist for every compound in the database" % name_field
+            f"{name_field} does not exist for every compound in the database"
         )
 
     for compound in mine_db.compounds.find({"_id": {"$regex": "^C"}}):
@@ -184,10 +184,7 @@ def export_tsv(
         [description]
     """
     db_links = ("KEGG", "Model_SEED", "PubChem")
-    print(
-        "Exporting %s compounds from %s to tsv"
-        % (mine_db.compounds.count(), mine_db.name)
-    )
+    print(f"Exporting {mine_db.compounds.count()} compounds from {mine_db.name} to tsv")
     with open(
         utils.prevent_overwrite(os.path.join(target, mine_db.name) + "_compounds.tsv"),
         "w",
@@ -217,10 +214,7 @@ def export_tsv(
                 del compound["DB_links"]
             writer.writerow(compound)
 
-    print(
-        "Exporting %s reactions from %s to tsv"
-        % (mine_db.reactions.count(), mine_db.name)
-    )
+    print(f"Exporting {mine_db.reactions.count()} reactions from {mine_db.name} to tsv")
     with open(
         utils.prevent_overwrite(os.path.join(target, mine_db.name) + "_reactions.tsv"),
         "w",
@@ -236,7 +230,7 @@ def export_tsv(
             if "C_id_rxn" in reaction_fields:
 
                 def to_str(half_rxn):
-                    return ["(%s) %s" % (x["stoich"], x["c_id"]) for x in half_rxn]
+                    return [f"({x['stoich']}) {x['c_id']}" for x in half_rxn]
 
                 rxn["C_id_rxn"] = (
                     " + ".join(to_str(rxn["Reactants"]))
@@ -284,8 +278,7 @@ def export_kbase(mine_db: MINE, target: str) -> None:
         ]
     )
     print(
-        "Exporting %s compounds from %s to tsv"
-        % (mine_db.compounds.count(), mine_db.name)
+        f"Exporting {mine_db.compounds.count()} compounds from {mine_db.name()} to tsv"
     )
     with open(
         utils.prevent_overwrite(os.path.join(target, mine_db.name) + "_compounds.tsv"),
@@ -319,10 +312,7 @@ def export_kbase(mine_db: MINE, target: str) -> None:
                 del compound["DB_links"]
             writer.writerow(compound)
 
-    print(
-        "Exporting %s reactions from %s to tsv"
-        % (mine_db.reactions.count(), mine_db.name)
-    )
+    print(f"Exporting {mine_db.reactions.count()} reactions from {mine_db.name} to tsv")
     with open(
         utils.prevent_overwrite(os.path.join(target, mine_db.name) + "_reactions.tsv"),
         "w",
@@ -344,7 +334,7 @@ def export_kbase(mine_db: MINE, target: str) -> None:
 
                 def to_str(half_rxn):
                     return [
-                        "(%s) %s" % (x["stoich"], x["c_id"].replace("X", "C"))
+                        f"({x['stoich']}) {x['c_id'].replace('X', 'C')}"
                         for x in half_rxn
                     ]
 
@@ -394,7 +384,7 @@ def export_inchi_rxns(
         lst = []
         for x in half_rxn:
             name, inchi = get_name_and_inchi(x["c_id"])
-            lst.append("(%s) %s[%s]" % (x["stoich"], name, inchi))
+            lst.append(f"({x['stoich']}) {name}[{inchi}]")
         return lst
 
     with open(

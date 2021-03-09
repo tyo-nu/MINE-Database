@@ -100,7 +100,7 @@ def _run_reaction(
                     "ID": None,
                     "_id": cpd_id,
                     "SMILES": mol_smiles,
-                    "InChi_key": inchi_key,
+                    "InChI_key": inchi_key,
                     "Type": "Predicted",
                     "Generation": generation,
                     "atom_count": utils._getatom_count(mol),
@@ -127,10 +127,16 @@ def _run_reaction(
     if not reactants:
         return local_cpds, local_rxns
 
+    reactant_set = set([r[1]["_id"] for r in reactants])
     for product_mols in product_sets:
         try:
             products, product_atoms = _make_half_rxn(product_mols, rule[1]["Products"])
             if not products:
+                continue
+
+            # Check to see if any reactants weren't changed
+            product_set = set([p[1]["_id"] for p in products])
+            if reactant_set.intersection(product_set):
                 continue
 
             if reactant_atoms - product_atoms or product_atoms - reactant_atoms:

@@ -209,22 +209,22 @@ class MetabolomicsDataset:
                 self.total_formulas += len(peak.formulas)
             if self.options.verbose:
                 pct_done = int(float(i) / float(len(self.unk_peaks)) * 100)
-                print("%s percent of peaks processed" % pct_done)
+                print(f"{pct_done} percent of peaks processed")
 
         if self.options.verbose:
             print(
-                "Proposed matches for %s of %s peaks"
-                % (self.matched_peaks, len(self.unk_peaks))
+                f"Proposed matches for {self.matched_peaks} of {len(self.unk_peaks)}"
+                " peaks"
             )
 
             try:
                 print(
-                    "Average hits per peak: %s"
-                    % (float(self.total_hits) / float(self.matched_peaks))
+                    "Average hits per peak:"
+                    f" {(float(self.total_hits) / float(self.matched_peaks))}"
                 )
                 print(
-                    "Average formulas per peak: %s"
-                    % (float(self.total_formulas) / float(self.matched_peaks))
+                    "Average formulas per peak: "
+                    f" {(float(self.total_formulas) / float(self.matched_peaks))}"
                 )
             except ZeroDivisionError:
                 pass
@@ -399,7 +399,7 @@ class Peak:
 
         for i, hit in enumerate(self.isomers):
             if spec_key in hit:
-                hit_spec = hit[spec_key]["%s V" % energy_level]
+                hit_spec = hit[spec_key][f"{energy_level} V"]
                 score = metric(self.ms2peaks, hit_spec, epsilon=tolerance)
                 rounded_score = round(score * 1000)
                 self.isomers[i]["Spectral_score"] = rounded_score
@@ -607,14 +607,14 @@ def read_mzxml(input_string: str, charge) -> List[Peak]:
     root = ET.fromstring(input_string)
     prefix = root.tag.strip("mzXML")
 
-    for scan in root.findall(".//%sscan" % prefix):
+    for scan in root.findall(f".//{prefix}scan"):
         # somewhat counter intuitively we will get the peak info from the
         # second fragments precursor info.
         if scan.attrib["msLevel"] == "2":
-            precursor = scan.find("./%sprecursorMz" % prefix)
+            precursor = scan.find(f"./{prefix}precursorMz")
             mz = precursor.text
             r_time = scan.attrib["retentionTime"][2:-1]
-            name = "%s @ %s" % (mz, r_time)
+            name = f"{mz} @ {r_time}"
             charge = scan.attrib["polarity"]
             peaks.append(Peak(name, r_time, mz, charge, "False"))
 
@@ -672,8 +672,7 @@ def ms_adduct_search(db, keggdb, text, text_type, ms_params):
         Compound JSON documents matching ms adduct query.
     """
     print(
-        "<MS Adduct Search: TextType=%s, Text=%s, Parameters=%s>"
-        % (text_type, text, ms_params)
+        f"<MS Adduct Search: TextType={text_type}, Text={text}, Parameters={ms_params}>"
     )
     name = text_type + time.strftime("_%d-%m-%Y_%H:%M:%S", time.localtime())
 
@@ -693,7 +692,7 @@ def ms_adduct_search(db, keggdb, text, text_type, ms_params):
     elif text_type == "msp":
         dataset.unk_peaks = read_msp(text, ms_params.charge)
     else:
-        raise IOError("%s files not supported" % text_type)
+        raise IOError(f"{text_type} files not supported")
 
     if not ms_params.models:
         ms_params.models = ["eco"]
@@ -761,7 +760,7 @@ def ms2_search(db, keggdb, text, text_type, ms_params):
     ms_adduct_output : list
         Compound JSON documents matching ms2 search query.
     """
-    print("<MS Adduct Sea" "rch: TextType=%s, Parameters=%s>" % (text_type, ms_params))
+    print(f"<MS Adduct Sea" "rch: TextType={text_type}, Parameters={ms_params}>")
     name = text_type + time.strftime("_%d-%m-%Y_%H:%M:%S", time.localtime())
 
     if isinstance(ms_params, dict):
@@ -789,7 +788,7 @@ def ms2_search(db, keggdb, text, text_type, ms_params):
     elif text_type == "msp":
         dataset.unk_peaks = read_msp(text, ms_params.charge)
     else:
-        raise IOError("%s files not supported" % text_type)
+        raise IOError(f"{text_type} files not supported")
 
     if not ms_params.models:
         ms_params.models = ["eco"]
@@ -864,9 +863,9 @@ def spectra_download(db, mongo_query=None, parent_filter=False, putative=True):
     """
 
     def print_peaklist(peaklist):
-        text = ["Num Peaks: %s" % len(peaklist)]
+        text = [f"Num Peaks: {len(peaklist)}"]
         for x in peaklist:
-            text.append("%s %s" % (x[0], x[1]))
+            text.append(f"{x[0]} {x[1]}")
         text.append("")
         return text
 
@@ -911,15 +910,15 @@ def spectra_download(db, mongo_query=None, parent_filter=False, putative=True):
         # add header
         header = []
         if "Names" in compound and len(compound["Names"]) > 0:
-            header.append("Name: %s" % compound["Names"][0])
+            header.append(f"Name: {compound['Names'][0]}")
             for alt in compound["Names"][1:]:
-                header.append("Synonym: %s" % alt)
+                header.append(f"Synonym: {alt}")
         else:
-            header.append("Name: MINE Compound %s" % compound["MINE_id"])
+            header.append("Name: MINE Compound {compound{'MINE_id']")
 
         for k, v in compound.items():
             if k not in {"Names", "Pos_CFM_spectra", "Neg_CFM_spectra"}:
-                header.append("%s: %s" % (k, v))
+                header.append(f"{k}: {v}")
 
         header.append("Instrument: CFM-ID")
 
@@ -930,7 +929,7 @@ def spectra_download(db, mongo_query=None, parent_filter=False, putative=True):
                 # he had spec_type as a argument to this function
                 # if not spec_type or [True, int(energy[:2])] in spec_type:
                 spectral_library += header
-                spectral_library += ["Ionization: Positive", "Energy: %s" % energy]
+                spectral_library += [f"Ionization: Positive", "Energy: {energy}"]
                 spectral_library += print_peaklist(spec)
 
         if "Neg_CFM_spectra" in compound:
@@ -938,7 +937,7 @@ def spectra_download(db, mongo_query=None, parent_filter=False, putative=True):
                 # ??? not sure what James meant with this conditional:
                 # if not spec_type or [False, int(energy[:2])] in spec_type:
                 spectral_library += header
-                spectral_library += ["Ionization Mode: Negative", "Energy: %s" % energy]
+                spectral_library += [f"Ionization Mode: Negative", "Energy: {energy}"]
                 spectral_library += print_peaklist(spec)
 
     spectral_library = "\n".join(spectral_library)
@@ -1084,4 +1083,4 @@ if __name__ == "__main__":
         pickle.dump(data, outfile)
 
     t_end = time.time()
-    print("BatchAdductQuery.py completed in %s seconds" % (t_end - t_start))
+    print(f"BatchAdductQuery.py completed in {(t_end - t_start)} seconds.")

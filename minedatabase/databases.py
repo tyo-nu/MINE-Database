@@ -85,55 +85,6 @@ class MINE:
         # self.nps_model = nps.readNPModel()
         self._mass_cache = {}  # for rapid calculation of reaction mass change
 
-    # def add_rxn_pointers(self):
-    #     """Add links to the reactions that each compound participates in
-    #     allowing for users to follow paths in the network"""
-    #     reactions_count = self.reactions.count()
-    #     print(f"Linking compounds to {reactions_count} reactions")
-    #     for reaction in self.reactions.find().batch_size(500):
-    #         # Update pointers for compounds that are reactants
-    #         for compound in reaction['Reactants']:
-    #             self.compounds.update({'_id': compound['c_id']},
-    #                                   {'$push': {
-    #                                       'Reactant_in': reaction['_id']}})
-    #         # Update pointers for compounds that are products
-    #         for compound in reaction['Products']:
-    #             self.compounds.update({'_id': compound['c_id']},
-    #                                   {'$push': {
-    #                                       'Product_of': reaction['_id']}})
-    #     # Write to log file
-    #     self.meta_data.insert({'Timestamp': datetime.datetime.now(), 'Action':
-    #                            "Add Reaction Pointers"})
-
-    # def add_compound_sources(self, rxn_key_type='_id'):
-    # """Adds a field detailing the compounds and reactions from which a
-    # compound is produced. This enables filtering search results to only
-    # include compounds which are relevant to a specified metabolic context.
-    # This is different from add_rxn_pointers in that this provides the
-    # precursor compounds rather than the reactions that the compound
-    # participates in."""
-    # for compound in self.compounds.find({'Sources': {'$exists': 0}}):
-    #     compound['Sources'] = []
-
-    #     for reaction in self.reactions.find(
-    #             {'Products.c_id': compound[rxn_key_type]}):
-    #         compound['Sources'].append(
-    #             {'Compounds': [x['c_id'] for x in reaction['Reactants']],
-    #              'Operators': reaction['Operators']})
-    #     # If there are sources, then save them and make sure there aren't
-    #     #  too many for a single compound.
-    #     if compound['Sources']:
-    #         try:
-    #             self.compounds.save(compound)
-    #         except pymongo.errors.DocumentTooLarge:
-    #             print(f"Too Many Sources for {compound['SMILES']}")
-    # # Allow for quick searching within database
-    # self.compounds.ensure_index([('Sources.Compound', pymongo.ASCENDING),
-    #                              ('Sources.Operators', pymongo.ASCENDING)])
-    # # Write to log file
-    # self.meta_data.insert({'Timestamp': datetime.datetime.now(), 'Action':
-    #                        "Add Compound Source field"})
-
     def add_reaction_mass_change(self, reaction: str = None) -> None:
         """Calculate the change in mass between reactant and product compounds.
 
@@ -346,24 +297,6 @@ class MINE:
     #                 {'$set': {'Mapped_Rules': mine_rxn['Operators']}})
 
 
-def save_document(collection: pymongo.collection.Collection, doc) -> None:
-    """Save document to given MongoDB collection.
-
-    If document _id already exists, replaces it. Else, inserts it.
-
-    Parameters
-    ----------
-    collection : mongodb.collection
-        Collection to save document to.
-    doc : dict
-        Document to save.
-    """
-    if "_id" in doc and collection.find_one({"_id": doc["_id"]}):
-        collection.replace_one({"_id": doc["_id"]}, doc)
-    else:
-        collection.insert_one(doc)
-
-
 # Functions to write data to MINE
 
 # Reactions
@@ -414,7 +347,7 @@ def write_compounds_to_mine(
             "_id",
             "ID",
             "SMILES",
-            "InChi_key",
+            "InChI_key",
             "Type",
             "Generation",
             "Reactant_in",
@@ -536,7 +469,7 @@ def write_targets_to_mine(
     """
 
     def _get_cpd_insert(cpd_dict: dict):
-        output_keys = ["_id", "ID", "SMILES", "InChi_key"]
+        output_keys = ["_id", "ID", "SMILES", "InChI_key"]
         return pymongo.InsertOne(
             {key: cpd_dict.get(key) for key in output_keys if cpd_dict.get(key) != None}
         )
