@@ -85,8 +85,9 @@ def delete_database(name):
     mine.client.close()
 
 
-@pytest.mark.skipif('win' in platform,
-                    reason='MolConvert fails on Windows due to permissions errors')
+@pytest.mark.skipif(
+    "win" in platform, reason="MolConvert fails on Windows due to permissions errors"
+)
 @unittest.skipIf(
     "TRAVIS" in os.environ and os.environ["TRAVIS"] == "true",
     "Skipping this test on Travis CI.",
