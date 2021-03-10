@@ -113,7 +113,7 @@ class Filter(metaclass=abc.ABCMeta):
         For a compound to be removed it must:
             1. Not be flagged for expansion
             2. Not have a coproduct in a reaction marked for expansion
-            3. Start with 'C'
+            3. Start with "C"
         """
 
         def should_delete_reaction(rxn_id):
@@ -475,15 +475,13 @@ def _calc_max_T(t_df, min_T, df):
 
 
 class Options:
-    """Just need an object with an adducts property to pass to
-    MetabolomicsDataset for initialization. Must be outside of
-    MetabolomicsFilter class for parallelization reasons."""
+    """Object containing adducts property required for MetabolomicsDataset init."""
+
     def __init__(self, adducts):
         self.adducts = adducts
 
 
 class MetabolomicsFilter(Filter):
-
     def __init__(
         self,
         filter_name,
@@ -493,7 +491,7 @@ class MetabolomicsFilter(Filter):
         mass_tolerance,
         rt_predictor=None,
         rt_threshold=None,
-        rt_important_features=None
+        rt_important_features=None,
     ):
         """Load metabolomics data into a MetabolomicsDataset object."""
 
@@ -518,7 +516,7 @@ class MetabolomicsFilter(Filter):
 
         self.possible_adducts = possible_adducts
         self.mass_tolerance = mass_tolerance
-        
+
         options = Options(possible_adducts)
         self.metabolomics_dataset = MetabolomicsDataset(self.met_data_name, options)
 
@@ -575,10 +573,13 @@ class MetabolomicsFilter(Filter):
         for cpd in pickaxe.compounds.values():
             # Compounds are in generation and correct type
 
-            if (cpd['Generation'] == pickaxe.generation and cpd['Type'] not in ['Coreactant', 'Target Compound']):
+            if cpd["Generation"] == pickaxe.generation and cpd["Type"] not in [
+                "Coreactant",
+                "Target Compound",
+            ]:
 
-                cpd['Matched_Peak_IDs'] = []
-                cpd['Matched_Adducts'] = []
+                cpd["Matched_Peak_IDs"] = []
+                cpd["Matched_Adducts"] = []
 
                 # Check for targets and only react if terminal
                 if pickaxe.react_targets or not pickaxe.targets:
@@ -600,7 +601,9 @@ class MetabolomicsFilter(Filter):
 
         possible_ranges = self.metabolomics_dataset.possible_ranges
 
-        filter_by_mass_and_rt_partial = partial(self._filter_by_mass_and_rt, possible_ranges)
+        filter_by_mass_and_rt_partial = partial(
+            self._filter_by_mass_and_rt, possible_ranges
+        )
 
         mass_matched_ids = set()
         cpd_met_dict = {}
@@ -610,7 +613,9 @@ class MetabolomicsFilter(Filter):
             chunk_size = max([round(len(cpd_info) / (num_workers * 4)), 1])
             pool = multiprocessing.Pool(num_workers)
 
-            for res in pool.imap_unordered(filter_by_mass_and_rt_partial, cpd_info, chunk_size):
+            for res in pool.imap_unordered(
+                filter_by_mass_and_rt_partial, cpd_info, chunk_size
+            ):
                 if res[0]:
                     this_cpd_id = res[0]
                     mass_matched_ids.add(this_cpd_id)
@@ -625,9 +630,13 @@ class MetabolomicsFilter(Filter):
                     cpd_met_dict[res[0]] = res[1]
 
         for c_id in mass_matched_ids:
-            pickaxe.compounds[c_id]['Matched_Peak_IDs'] += cpd_met_dict[c_id]['Matched_Peak_IDs']
-            pickaxe.compounds[c_id]['Matched_Adducts'] += cpd_met_dict[c_id]['Matched_Adducts']
-            pickaxe.compounds[c_id]['Predicted_RT'] = cpd_met_dict[c_id]['Predicted_RT']
+            pickaxe.compounds[c_id]["Matched_Peak_IDs"] += cpd_met_dict[c_id][
+                "Matched_Peak_IDs"
+            ]
+            pickaxe.compounds[c_id]["Matched_Adducts"] += cpd_met_dict[c_id][
+                "Matched_Adducts"
+            ]
+            pickaxe.compounds[c_id]["Predicted_RT"] = cpd_met_dict[c_id]["Predicted_RT"]
 
         # Get compounds to remove
         ids = set(i[0] for i in cpd_info)
@@ -642,9 +651,7 @@ class MetabolomicsFilter(Filter):
         """Check to see if compound masses  (and optionally, retention time)
         each lie in any possible mass ranges."""
         c_id_if_matched = None
-        cpd_dict = {'Predicted_RT': None,
-                    'Matched_Peak_IDs': [],
-                    'Matched_Adducts': []}
+        cpd_dict = {"Predicted_RT": None, "Matched_Peak_IDs": [], "Matched_Adducts": []}
 
         cpd_exact_mass = ExactMolWt(MolFromSmiles(cpd_info[1]))
         predicted_rt = None
@@ -659,19 +666,20 @@ class MetabolomicsFilter(Filter):
                     if not predicted_rt:
                         predicted_rt = self._predict_rt(smiles)
                     if not predicted_rt:
-                        continue  # sometimes can't predict RT due to missing vals in fingerprint
+                        # sometimes can't predict RT due to missing vals in fingerprint
+                        continue
 
                     expt_rt = self.metabolomics_dataset.get_rt(peak_id)
                     if not expt_rt:
-                        raise ValueError(f'No retention time found for peak, {peak_id}')
+                        raise ValueError(f"No retention time found for peak, {peak_id}")
 
-                    cpd_dict['Predicted_RT'] = predicted_rt
+                    cpd_dict["Predicted_RT"] = predicted_rt
                     if abs(expt_rt - predicted_rt) > self.rt_threshold:
-                        continue  # if outside threshold, don't add to matched peaks
+                        continue  # if outside threshold, don"t add to matched peaks
 
                 c_id_if_matched = c_id
-                cpd_dict['Matched_Peak_IDs'].append(peak_id)
-                cpd_dict['Matched_Adducts'].append(adduct)
+                cpd_dict["Matched_Peak_IDs"].append(peak_id)
+                cpd_dict["Matched_Adducts"].append(adduct)
 
         return c_id_if_matched, cpd_dict
 
@@ -683,7 +691,9 @@ class MetabolomicsFilter(Filter):
         fp = self.fp_calculator(mol)
         # Transform dict into array of values (fingerprint)
         if self.rt_important_features:
-            fp = np.array([fp[feature] for feature in self.rt_important_features]).reshape(1, -1)
+            fp = np.array(
+                [fp[feature] for feature in self.rt_important_features]
+            ).reshape(1, -1)
 
         def validate_np_val(val):
             """Make sure value is numeric, not NaN, and not infinity."""
