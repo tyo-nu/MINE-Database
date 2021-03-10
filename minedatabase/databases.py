@@ -65,8 +65,7 @@ def establish_db_client(uri: str = None) -> pymongo.MongoClient:
 
 class MINE:
     """
-    This class basically exposes the underlying mongo database to manipulation
-    but also defines expected database structure.
+    This class provides an interface to the MongoDB and some useful functions.
     """
 
     def __init__(self, name: str, uri: str = "mongodb://localhost:27017/"):
@@ -268,33 +267,6 @@ class MINE:
     #             self.compounds.save(self.link_to_external_database(
     #                 external_database, compound=comp, match_field=match_field,
     #                 fields_to_copy=fields_to_copy))
-
-    # def map_reactions(self, ext_db, match_field='_id'):
-    #     """Update operators by adding the reactions they participate in.
-
-    #     :param ext_db: name of MongoDB
-    #     :param match_field: name of reaction field to match based on
-    #     """
-    #     # Update operators by adding the reactions they participate in
-    #     lit_db = MINE(ext_db)
-    #     for lit_rxn in lit_db.reactions.find():
-    #         if match_field == 'InChI_hash':
-    #             mine_rxn = self.reactions.find_one(
-    #                 {match_field: {'$regex': lit_rxn[match_field].split('-')[0]
-    #                                }}, {'Operators': 1})
-    #         else:
-    #             mine_rxn = self.reactions.find_one(
-    #                 {match_field: lit_rxn[match_field]}, {'Operators': 1})
-    #         if mine_rxn:
-    #             for op in mine_rxn['Operators']:
-    #                 self.operators.update(
-    #                     {'_id': op},
-    #                     {'$addToSet': {'Mapped_Rxns': lit_rxn['_id'],
-    #                                    'References': {
-    #                                        '$each': lit_rxn['References']}}})
-    #             lit_db.reactions.update(
-    #                 {'_id': lit_rxn['_id']},
-    #                 {'$set': {'Mapped_Rules': mine_rxn['Operators']}})
 
 
 # Functions to write data to MINE

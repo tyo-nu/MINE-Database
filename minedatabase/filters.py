@@ -669,7 +669,7 @@ class TanimotoFilter(Filter):
                 if pickaxe.react_targets:
                     compounds_to_check.append(cpd)
                 else:
-                    # TODO this is inneficient
+                    # TODO this is not efficient
                     for t_id in pickaxe.targets:
                         if "C" + t_id[1:] != cpd["_id"]:
                             compounds_to_check.append(cpd)
