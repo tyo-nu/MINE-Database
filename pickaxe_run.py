@@ -1,4 +1,5 @@
-"""pickaxe_run.py
+"""Template for a pickaxe run.
+
 This python script provides a skeleton to build Pickaxe runs around
 The general format of a script will be:
    1. Connect to mongoDB (if desired)
@@ -16,16 +17,21 @@ import time
 
 import pymongo
 
-from minedatabase.filters import (MCSFilter, MetabolomicsFilter,
-                                  TanimotoFilter, TanimotoSamplingFilter)
+from minedatabase.filters import (
+    MCSFilter,
+    MetabolomicsFilter,
+    TanimotoFilter,
+    TanimotoSamplingFilter,
+)
 from minedatabase.pickaxe import Pickaxe
+
 
 # pylint: disable=invalid-name
 
 start = time.time()
 
 ###############################################################################
-##### Database and output information
+#    Database and output information
 # The default mongo is localhost:27017
 # Connecting remotely requires the location of the database
 # as well as username/password if security is being used.
@@ -33,10 +39,10 @@ start = time.time()
 # in the following format: username
 
 # Database to write results to
-write_db = True
+write_db = False
 database_overwrite = True
 # database = "APAH_100Sam_50rule"
-database = "Example_Run"
+database = "example_pathway"
 # Message to insert into metadata
 message = ("Example run to show how pickaxe is run.")
 
@@ -55,7 +61,7 @@ output_dir = '.'
 ###############################################################################
 #    Starting Compounds, Cofactors, and Rules
 # Input compounds
-input_cpds = './example_data/starting_cpds_ten.csv'
+input_cpds = './example_data/starting_cpds_single.csv'
 
 # Rules from Joseph Ni
 coreactant_list = './minedatabase/data/metacyc_rules/metacyc_coreactants.tsv'
@@ -69,10 +75,10 @@ rule_list = './minedatabase/data/metacyc_rules/metacyc_27percent_10rules.tsv'
 
 ###############################################################################
 # Core Pickaxe Run Options
-generations = 2
-processes = 4     # Number of processes for parallelization
-inchikey_blocks_for_cid = 1 # Number of blocks of the inchi key to use for the compound id
-verbose = False     # Display RDKit warnings and errors
+generations = 1
+processes = 1                # Number of processes for parallelization
+inchikey_blocks_for_cid = 1  # Number of inchi key blocks to gen cid
+verbose = False              # Display RDKit warnings and errors
 explicit_h = False
 kekulize = True
 neutralise = True
@@ -82,12 +88,16 @@ indexing = False
 ###############################################################################
 
 ###############################################################################
-##### All Filter and Sampler Options
+#   All Filter and Sampler Options
 ###############################################################################
 # Global Filtering Options
 
 # Path to target cpds file (not required for metabolomics filter)
 target_cpds = './example_data/target_list_many.csv'
+
+# Wheter or not to load targets even without filter
+# This allows for the pruning of a network without actually filternig
+load_targets_without_filter = False
 
 # Should targets be flagged for reaction
 react_targets = False
@@ -122,14 +132,22 @@ tani_sample = False
 # Number of compounds per generation to sample
 sample_size = 100
 
-# weight is a function that specifies weighting of Tanimoto similarity
-# weight accepts one input
-# T : float in range 0-1
-# and returns
-# float in any range (will be rescaled later)
-# weight = None will use a T^4 to weight.
+
 def weight(T):
+    """Specify the weight for tanimoto sampling.
+
+    Parameters
+    ----------
+    T : float
+        Tanimoto similarity score between 0 and 1
+
+    Returns
+    -------
+    Foat
+        New value for sampling
+    """
     return T**4
+
 
 # How to represent the function in text
 weight_representation = "T^4"
@@ -140,7 +158,8 @@ weight_representation = "T^4"
 # Apply this filter?
 mcs_filter = False
 
-# Finds the MCS of the target and compound and identifies fraction of target the MCS composes
+# Finds the MCS of the target and compound and identifies fraction of target
+# the MCS composes
 crit_mcs = [0.3, 0.8, 0.95]
 
 ##############################################################################
@@ -149,8 +168,10 @@ crit_mcs = [0.3, 0.8, 0.95]
 # Apply this filter?
 metabolomics_filter = False
 
-# Path to csv with list of detected masses (and optionally, retention times). For example:
-# Peak ID, Retention Time, Aggregate M/Z, Polarity, Compound Name, Predicted Structure (smile), ID
+# Path to csv with list of detected masses (and optionally, retention times).
+# For example: Peak ID, Retention Time, Aggregate M/Z, Polarity, Compound Name,
+# Predicted Structure (smile), ID
+#
 # Peak1, 6.33, 74.0373, negative, propionic acid, CCC(=O)O, yes
 # Peak2, 26.31, 84.06869909, positive, , , no
 # ...
@@ -159,7 +180,8 @@ met_data_path = './local_data/ADP1_Metabolomics_PeakList_final.csv'
 # Name of dataset
 met_data_name = 'ADP1_metabolomics'
 
-# Adducts to add to each mass in mass list to create final list of possible masses.
+# Adducts to add to each mass in mass list to create final list of possible
+# masses.
 # See "./minedatabase/data/adducts/All adducts.txt" for options.
 possible_adducts = ['[M+H]+', '[M-H]-']
 
@@ -184,27 +206,34 @@ rt_important_features = ['nAcid', 'ETA_dEpsilon_D', 'NsNH2', 'MDEO-11']
 # Verbose output
 print_parameters = True
 
+
 def print_run_parameters():
+    """Write relevant parameters."""
     def print_parameter_list(plist):
         for i in plist:
             print(f"--{i}: {eval(i)}")
 
     print('\n-------------Run Parameters-------------')
 
-    print ('\nRun Info')
+    print('\nRun Info')
     print_parameter_list(['coreactant_list', 'rule_list', 'input_cpds'])
 
     print('\nExpansion Options')
     print_parameter_list(['generations', 'processes'])
 
     print('\nGeneral Filter Options')
-    print_parameter_list(['filter_after_final_gen', 'react_targets',
-                    'prune_to_targets', 'react_targets'])
-    
+    print_parameter_list(
+        [
+            'filter_after_final_gen',
+            'react_targets',
+            'prune_to_targets',
+        ]
+    )
+
     if tani_sample:
         print('\nTanimoto Sampling Filter Options')
         print_parameter_list(['sample_size', 'weight_representation'])
-    
+
     if tani_filter:
         print('\nTanimoto Threshold Filter Options')
         print_parameter_list(['tani_threshold', 'increasing_tani'])
@@ -217,15 +246,25 @@ def print_run_parameters():
         print('\nMetabolomics Filter Options')
         print_parameter_list(['met_data_path', 'met_data_name',
                               'possible_adducts', 'mass_tolerance'])
-    
+
     print('\nPickaxe Options')
-    print_parameter_list(['verbose', 'explicit_h', 'kekulize', 'neutralise',
-                'image_dir', 'quiet', 'indexing'])
+    print_parameter_list(
+        [
+            'verbose',
+            'explicit_h',
+            'kekulize',
+            'neutralise',
+            'image_dir',
+            'quiet',
+            'indexing'
+        ]
+    )
     print('----------------------------------------\n')
 ###############################################################################
 
+
 ###############################################################################
-##### Running pickaxe
+#   Running pickaxe
 if __name__ == '__main__':  # required for parallelization on Windows
     # Use 'spawn' for multiprocessing
     multiprocessing.set_start_method('spawn')
@@ -236,13 +275,22 @@ if __name__ == '__main__':  # required for parallelization on Windows
     if print_parameters:
         print_run_parameters()
 
-    pk = Pickaxe(coreactant_list=coreactant_list, rule_list=rule_list,
-                 errors=verbose, explicit_h=explicit_h, kekulize=kekulize,
-                 neutralise=neutralise, image_dir=image_dir,
-                 inchikey_blocks_for_cid=inchikey_blocks_for_cid, database=database,
-                 database_overwrite=database_overwrite, mongo_uri=mongo_uri,
-                 quiet=quiet, react_targets=react_targets,
-                 filter_after_final_gen=filter_after_final_gen)
+    pk = Pickaxe(
+        coreactant_list=coreactant_list,
+        rule_list=rule_list,
+        errors=verbose,
+        explicit_h=explicit_h,
+        kekulize=kekulize,
+        neutralise=neutralise,
+        image_dir=image_dir,
+        inchikey_blocks_for_cid=inchikey_blocks_for_cid,
+        database=database,
+        database_overwrite=database_overwrite,
+        mongo_uri=mongo_uri,
+        quiet=quiet,
+        react_targets=react_targets,
+        filter_after_final_gen=filter_after_final_gen
+    )
 
     # Load compounds
     pk.load_compound_set(compound_file=input_cpds)
@@ -252,13 +300,16 @@ if __name__ == '__main__':  # required for parallelization on Windows
     #     pk.load_partial_operators(mapped_rxns)
 
     # Load target compounds for filters
-    if (tani_filter or mcs_filter or tani_sample):
-        pk.load_targets(target_cpds, structure_field="SMILES")
+    if (tani_filter or mcs_filter or tani_sample or load_targets_without_filter):
+        pk.load_targets(target_cpds)
 
     # Apply filters
     if tani_filter:
-        taniFilter = TanimotoFilter(filter_name="Tani", crit_tani=tani_threshold,
-                                    increasing_tani=increasing_tani)
+        taniFilter = TanimotoFilter(
+            filter_name="Tani",
+            crit_tani=tani_threshold,
+            increasing_tani=increasing_tani
+        )
         pk.filters.append(taniFilter)
 
     if tani_sample:
@@ -291,13 +342,8 @@ if __name__ == '__main__':  # required for parallelization on Windows
     # Transform compounds (the main step)
     pk.transform_all(processes, generations)
 
-    # Remove cofactor redundancies
-    # Eliminates cofactors that are being counted as compounds
-    pk.remove_cofactor_redundancy()
-
-    if (tani_filter or mcs_filter or tani_sample):
-        if prune_to_targets:
-            pk.prune_network_to_targets()
+    if pk.targets and prune_to_targets:
+        pk.prune_network_to_targets()
 
     # Write results to database
     if write_db:
@@ -336,4 +382,3 @@ if __name__ == '__main__':  # required for parallelization on Windows
     print('----------------------------------------')
     print(f'Overall run took {round(time.time() - start, 2)} seconds.')
     print('----------------------------------------')
-    
