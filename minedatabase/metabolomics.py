@@ -24,11 +24,14 @@ import minedatabase
 from minedatabase.databases import establish_db_client
 from minedatabase.utils import score_compounds
 
-import pymongo
-from typing import Callable, Generator, List
-
 
 MINEDB_DIR = os.path.dirname(minedatabase.__file__)
+
+
+class MetabolomicsOptions:
+    """Used when command line isn't being used to pass options."""
+    def __init__(self, adducts):
+        self.adducts = adducts
 
 
 class MetabolomicsDataset:
