@@ -105,21 +105,25 @@ class MetabolomicsDataset:
         self.possible_ranges = []
 
     def __str__(self):
+        """Give string representation."""
         return self.name
 
     def enumerate_possible_masses(self, tolerance):
-        """Take list of masses from unknown peaks and list of adducts, and
-        combine them into all possible masses."""
+        """Generate all possible masses from unkown peaks and list of adducts."""
         possible_masses = []
         possible_ranges = []
         for peak in self.unk_peaks + self.known_peaks:
             for adduct in list(self.pos_adducts) + list(self.neg_adducts):
                 possible_mass = (peak.mz - adduct["f2"]) / adduct["f1"]
                 possible_masses.append(possible_mass)
-                possible_ranges.append((possible_mass - tolerance,
-                                        possible_mass + tolerance,
-                                        peak.name,
-                                        adduct['f0']))
+                possible_ranges.append(
+                    (
+                        possible_mass - tolerance,
+                        possible_mass + tolerance,
+                        peak.name,
+                        adduct["f0"],
+                    )
+                )
 
         self.possible_masses = np.array(set(possible_masses))
         self.possible_ranges = possible_ranges

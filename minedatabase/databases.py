@@ -337,7 +337,7 @@ def write_compounds_to_mine(
             "Expand",
             "Matched_Peak_IDs",
             "Matched_Adducts",
-            "Predicted_RT"
+            "Predicted_RT",
         ]
         return pymongo.InsertOne(
             {key: cpd_dict.get(key) for key in output_keys if cpd_dict.get(key) != None}
@@ -355,7 +355,7 @@ def write_compounds_to_mine(
 def write_core_compounds(
     compounds: List[dict], db: MINE, mine: str, chunk_size: int = 10000, processes=1
 ) -> None:
-    """Write core compounds to the core compound database
+    """Write core compounds to the core compound database.
 
     Calculates and formats compounds into appropriate form to insert into the
     core compound database in the mongo instance. Core compounds are attempted
