@@ -95,6 +95,7 @@ def delete_database(name):
 
 def test_cofactor_loading(pk):
     """Test loading cofactors.
+
     GIVEN a default Pickaxe object
     WHEN cofactors are loaded into the Pickaxe object in its creation
     THEN make sure those cofactors were loaded correctly
@@ -110,6 +111,7 @@ def test_cofactor_loading(pk):
 
 def test_reaction_rule_loading(default_rule):
     """Test loading rules.
+
     GIVEN a reaction rule dict
     WHEN reaction rules are loaded during Pickaxe object initialization
     THEN make sure it is formatted correctly
@@ -123,6 +125,7 @@ def test_reaction_rule_loading(default_rule):
 
 def test_compound_loading(pk):
     """Test loading compounds.
+
     GIVEN a default Pickaxe object
     WHEN compounds are loaded
     THEN check that they are loaded correctly
@@ -135,6 +138,7 @@ def test_compound_loading(pk):
 
 def test_transform_all(default_rule, smiles_dict, coreactant_dict):
     """Test transform function.
+
     GIVEN a set of rules and starting compounds
     WHEN we run pickaxe to predict potential transformations
     THEN make sure all expected transformations are predicted
@@ -155,6 +159,7 @@ def test_transform_all(default_rule, smiles_dict, coreactant_dict):
 
 def test_compound_output_writing(pk_transformed):
     """Test compound output writing.
+
     GIVEN a Pickaxe object with predicted transformations
     WHEN all compounds (including predicted) are written to an output file
     THEN make sure they are correctly written, and that they are all present
@@ -173,6 +178,7 @@ def test_compound_output_writing(pk_transformed):
 
 def test_reaction_output_writing(pk_transformed):
     """Test writing reaction output.
+
     GIVEN a Pickaxe object with predicted transformations
     WHEN all reactions (including predicted) are written to an output file
     THEN make sure they are correctly written, and that they are all present
@@ -191,6 +197,7 @@ def test_reaction_output_writing(pk_transformed):
 
 def test_multiprocessing(pk, smiles_dict, coreactant_dict):
     """Test multiprocessing.
+
     GIVEN a Pickaxe object
     WHEN we use multiprocessing to enumerate predicted reactions
     THEN make sure those predictions are correct
@@ -208,6 +215,7 @@ def test_multiprocessing(pk, smiles_dict, coreactant_dict):
 
 def test_pruning(default_rule, smiles_dict, coreactant_dict):
     """Test pruning network to targets.
+
     GIVEN a Pickaxe expansion
     WHEN that expansion is pruned via Pickaxe.prune_network()
     THEN make sure that the pruned compounds no longer exist in the network
@@ -257,6 +265,7 @@ def test_target_generation(default_rule, smiles_dict, coreactant_dict):
 
 def test_save_as_mine(default_rule, smiles_dict, coreactant_dict):
     """Test saving compounds to database.
+
     GIVEN a Pickaxe expansion
     WHEN that expansion is saved as a MINE DB in the MongoDB
     THEN make sure that all features are saved in the MongoDB as expected
@@ -322,6 +331,7 @@ def test_save_target_mine(default_rule, smiles_dict, coreactant_dict):
 
 def test_database_already_exists(default_rule, smiles_dict, coreactant_dict):
     """Test database collision.
+
     GIVEN an existing MINE
     WHEN a new pickaxe object is defined
     THEN make sure program exits with database collision
@@ -349,6 +359,7 @@ def test_database_already_exists(default_rule, smiles_dict, coreactant_dict):
 # TODO When is  this necessary?
 def test_save_no_rxn_mine():
     """Test saving no reactions.
+
     GIVEN a Pickaxe object with no expansion
     WHEN that Pickaxe object is saved into a MINE DB in the MongoDB
     THEN check that starting compounds are present and that no reactions exist
@@ -395,6 +406,7 @@ def test_pickle(coreactant_dict, smiles_dict, default_rule):
 @pytest.mark.skip(reason="Need to look into command line with current state.")
 def test_cli():
     """Test command line interface.
+
     GIVEN the pickaxe CLI
     WHEN pickaxe is run from the command line
     THEN make sure it exits with exit code 0 (no errors)
