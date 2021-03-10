@@ -24,6 +24,9 @@ import minedatabase
 from minedatabase.databases import establish_db_client
 from minedatabase.utils import score_compounds
 
+import pymongo
+from typing import Callable, Generator, List
+
 
 MINEDB_DIR = os.path.dirname(minedatabase.__file__)
 
@@ -110,12 +113,21 @@ class MetabolomicsDataset:
             for adduct in list(self.pos_adducts) + list(self.neg_adducts):
                 possible_mass = (peak.mz - adduct["f2"]) / adduct["f1"]
                 possible_masses.append(possible_mass)
-                possible_ranges.append(
-                    (possible_mass - tolerance, possible_mass + tolerance, peak.name)
-                )
+                possible_ranges.append((possible_mass - tolerance,
+                                        possible_mass + tolerance,
+                                        peak.name,
+                                        adduct['f0']))
 
         self.possible_masses = np.array(set(possible_masses))
         self.possible_ranges = possible_ranges
+
+    def get_rt(self, peak_id):
+        """Return retention time for peak with given ID. If not found, returns
+        None."""
+        for peak in self.unk_peaks + self.known_peaks:
+            if peak_id == peak.name:
+                return peak.r_time
+        return None
 
     def find_db_hits(self, peak, db, adducts):
         """This function searches the database for matches of a peak given
@@ -285,11 +297,25 @@ def jaccard(x: List[tuple], y: List[tuple], epsilon=0.01):
     return intersect / float((len(x) + len(y) - intersect))
 
 
-def approximate_matches(
-    list1: List[tuple], list2: List[tuple], epsilon: float = 0.01
-) -> Generator:
-    """Find approximate matches between two lists of tuples
+def pearsons_r(x, y, epsilon=0.01):
+    """Calculate the Pearson correlation between two spectra."""
+    binned_x, binned_y = list(approximate_matches(x, y, epsilon=epsilon))
 
+    x_mean = np.mean(binned_x)
+    y_mean = np.mean(binned_y)
+
+    x_std = np.std(binned_x)
+    y_std = np.std(binned_y)
+
+    r = 0
+    for x_val, y_val in zip(binned_x, binned_y):
+        r += ((x_val - x_mean) / x_std) * ((y_val - y_mean) / y_std)
+
+    return r
+
+
+def approximate_matches(list1, list2, epsilon=0.01):
+    """
     Takes two list of tuples and searches for matches of tuples first value
     within the supplied epsilon. Emits tuples with the tuples second values
     where found. if a value in one dist does not match the other list, it is

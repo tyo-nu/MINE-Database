@@ -12,6 +12,7 @@ The general format of a script will be:
 
 import datetime
 import multiprocessing
+import pickle
 import time
 
 import pymongo
@@ -43,7 +44,7 @@ database_overwrite = True
 # database = "APAH_100Sam_50rule"
 database = "example_pathway"
 # Message to insert into metadata
-message = ("Example run to show how pickaxe is ran.")
+message = ("Example run to show how pickaxe is run.")
 
 # mongo DB information
 use_local = True
@@ -62,8 +63,8 @@ output_dir = '.'
 # Input compounds
 input_cpds = './example_data/starting_cpds_single.csv'
 
-# Metacyc Rules
-coreactant_list = './minedatabase/data/metacyc_rules/MetaCyc_Coreactants.tsv'
+# Rules from Joseph Ni
+coreactant_list = './minedatabase/data/metacyc_rules/metacyc_coreactants.tsv'
 
 # See ./example_data/metacyc_rule_selection/rule_selection.ipynb
 # to generate sets of rules from metacyc based on reaction mapping, where
@@ -167,8 +168,8 @@ crit_mcs = [0.3, 0.8, 0.95]
 # Apply this filter?
 metabolomics_filter = False
 
-# Path to csv with list of detected masses. For example:
-# Peak ID, Retention Time, Aggregate M/Z, Polarity, Compound Name,
+# Path to csv with list of detected masses (and optionally, retention times).
+# For example: Peak ID, Retention Time, Aggregate M/Z, Polarity, Compound Name,
 # Predicted Structure (smile), ID
 #
 # Peak1, 6.33, 74.0373, negative, propionic acid, CCC(=O)O, yes
@@ -186,6 +187,18 @@ possible_adducts = ['[M+H]+', '[M-H]-']
 
 # Tolerance in Da
 mass_tolerance = 0.001
+
+# Retention Time Filter Options (optional but included in metabolomics filter)
+
+# Path to pickled machine learning predictor (SMILES => RT)
+rt_predictor_pickle_path = '../RT_Prediction/final_RT_model.pickle'
+
+# Allowable deviation in predicted RT (units just have to be consistent with dataset)
+rt_threshold = 4.5
+
+# Mordred descriptors to use as input to model (must be in same order as in trained model)
+# If None, will try to use all (including 3D) mordred descriptors
+rt_important_features = ['nAcid', 'ETA_dEpsilon_D', 'NsNH2', 'MDEO-11']
 
 ###############################################################################
 
@@ -310,11 +323,20 @@ if __name__ == '__main__':  # required for parallelization on Windows
         pk.filters.append(mcsFilter)
 
     if metabolomics_filter:
+        if rt_predictor_pickle_path:
+            with open(rt_predictor_pickle_path, 'rb') as infile:
+                rt_predictor = pickle.load(infile) 
+        else:
+            rt_predictor = None
+
         metFilter = MetabolomicsFilter(filter_name="ADP1_Metabolomics_Data",
                                        met_data_name=met_data_name,
                                        met_data_path=met_data_path,
                                        possible_adducts=possible_adducts,
-                                       mass_tolerance=mass_tolerance)
+                                       mass_tolerance=mass_tolerance,
+                                       rt_predictor=rt_predictor,
+                                       rt_threshold=rt_threshold,
+                                       rt_important_features=rt_important_features)
         pk.filters.append(metFilter)
 
     # Transform compounds (the main step)

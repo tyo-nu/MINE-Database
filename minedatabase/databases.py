@@ -337,6 +337,7 @@ def write_compounds_to_mine(
             "Expand",
             "Matched_Peak_IDs",
             "Matched_Adducts",
+            "Predicted_RT"
         ]
         return pymongo.InsertOne(
             {key: cpd_dict.get(key) for key in output_keys if cpd_dict.get(key) != None}

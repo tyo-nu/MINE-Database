@@ -131,6 +131,7 @@ def compound_hash(smi: str, cpd_type: str = "Predicted", inchi_blocks: int = 1) 
     # The ID is generated from a hash of either the InChI key (partial) or SMILES
     # The InChI key is used if the SMILES does not contain '*'
     inchi_key = None
+
     if "*" not in smi:
         compound = AllChem.MolFromSmiles(smi)
         inchi_key = AllChem.MolToInchiKey(compound)
