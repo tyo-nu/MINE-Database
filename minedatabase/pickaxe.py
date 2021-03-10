@@ -10,7 +10,7 @@ import pickle
 import time
 from argparse import ArgumentParser
 from sys import exit
-from typing import Set, Tuple
+from typing import List, Set, Tuple
 
 from rdkit.Chem.AllChem import (
     AddHs,
@@ -192,23 +192,12 @@ class Pickaxe:
         print("\nDone intializing pickaxe object")
         print("----------------------------------------\n")
 
-    """Loads the target list into an list of fingerprints to later compare to
-        compounds to determine if those compounds should be expanded.
-
-        :param structure_field: the name of the column containing the
-            structure incarnation as Inchi or SMILES (Default:'structure')
-        :type structure_field: str
-        :param id_field: the name of the column containing the desired
-            compound ID (Default: 'id)
-        :type id_field: str
-        """
-
     def load_targets(
         self,
         target_compound_file: str,
         id_field: str = "id",
         calc_fp: bool = True,
-    ):
+    ) -> None:
         """Load targets into pickaxe.
 
         Parameters
@@ -241,7 +230,7 @@ class Pickaxe:
 
         print(f"{len(self.target_smiles)} target compounds loaded\n")
 
-    def load_compound_set(self, compound_file: str = None, id_field: str = "id"):
+    def load_compound_set(self, compound_file: str = None, id_field: str = "id") -> str:
         """Load compounds for expansion into pickaxe.
 
         Parameters
@@ -288,14 +277,15 @@ class Pickaxe:
 
         return compound_smiles
 
-    def _load_coreactant(self, coreactant_text):
-        """Load coreactants into pickaxe.
+    def _load_coreactant(self, coreactant_text: str):
+        """load_coreactants into pickaxe.
 
         Parameters
         ----------
         coreactant_text : str
-            text read in from the coreactant file
+            A line read in from the coreactant data file.
         """
+
         # If coreactant is commented out (with '#') then don't import
         if coreactant_text[0] == "#":
             return
@@ -328,7 +318,7 @@ class Pickaxe:
             cpd_id,
         )
 
-    def _load_operators(self, rule_path):
+    def _load_operators(self, rule_path: str):
         """Load reaction rules into pickaxe.
 
         Parameters
@@ -386,9 +376,9 @@ class Pickaxe:
                 except Exception as e:
                     raise ValueError(f"{str(e)}\nFailed to parse" f"{rule['Name']}")
         if skipped:
-            print("WARNING: {skipped} rules skipped")
+            print(f"WARNING: {skipped} rules skipped")
 
-    def _mol_from_dict(self, input_dict):
+    def _mol_from_dict(self, input_dict: dict):
         """Generate an RDKit mol object from a dictionary."""
         structure_field = None
         for field in input_dict:
@@ -424,8 +414,27 @@ class Pickaxe:
             mol = utils.neutralise_charges(mol)
         return mol
 
-    def _gen_compound(self, cpd_name, smi, cpd_type, mol=None):
-        """Generate a compound."""
+    def _gen_compound(self, cpd_name: str, smi: str, cpd_type: str, mol=None):
+        """Generate a compound.
+
+        Parameters
+        ----------
+        cpd_name : str
+            Name of the compound to add.
+        smi : str
+            SMILES of the compound to add.
+        cpd_type : str
+            Type of compound
+        mol : rdkitmol, optional
+            RDKit Molecule, by default None
+
+        Returns
+        -------
+        str
+            compound ID
+        dict
+            compound dict
+        """
         cpd_dict = {}
         cpd_id, inchi_key = utils.compound_hash(
             smi, cpd_type, self.cid_num_inchi_blocks
@@ -460,10 +469,28 @@ class Pickaxe:
 
             return cpd_id, cpd_dict
         else:
-            return
+            return None, None
 
-    def _add_compound(self, cpd_name, smi, cpd_type, mol=None):
-        """Add a compound to the internal compound dictionary."""
+    def _add_compound(self, cpd_name: str, smi: str, cpd_type: str, mol=None):
+        """Generate a compound.
+
+        Parameters
+        ----------
+        cpd_name : str
+            Name of the compound to add.
+        smi : str
+            SMILES of the compound to add.
+        cpd_type : str
+            Type of compound
+        mol : rdkitmol, optional
+            RDKit Molecule, by default None
+
+        Returns
+        -------
+        str
+            compound ID
+        """
+
         # We don't want to overwrite the same compound from a prior
         # generation so we check with hashed id from above
         cpd_id, cpd_dict = self._gen_compound(cpd_name, smi, cpd_type, mol)
@@ -490,7 +517,7 @@ class Pickaxe:
 
         return cpd_id
 
-    def transform_all(self, processes=1, generations=1):
+    def transform_all(self, processes: int = 1, generations: int = 1) -> None:
         """Transform compounds with reaction operators.
 
         Apply reaction rules to compounds and generate a specified number
@@ -503,19 +530,6 @@ class Pickaxe:
         max_generations : int, optional
             Number of generations to create, by default 1
         """
-
-        def print_progress(done, total):
-            # Use print_on to print % completion roughly every 5 percent
-            # Include max to print no more than once per compound (e.g. if
-            # less than 20 compounds)
-            print_on = max(round(0.1 * total), 1)
-            if not done % print_on:
-                print(
-                    (
-                        f"Generation {self.generation}: "
-                        f"{round(done / total * 100)} percent complete"
-                    )
-                )
 
         while self.generation < generations or (
             self.generation == generations and self.filter_after_final_gen
@@ -565,6 +579,7 @@ class Pickaxe:
 
             self.generation += 1
 
+    # Partial operator code
     # def load_partial_operators(self, mapped_reactions):
     #     """Generate set of partial operators from a list of mapped reactions
     #     corresponding to the reaction rules being used.
@@ -792,7 +807,7 @@ class Pickaxe:
             for cpd_id in cofactors_as_cpds:
                 del self.compounds[cpd_id]
 
-    def prune_network(self, white_list: list):
+    def prune_network(self, white_list: list) -> None:
         """Prune the reaction network to a list of targets.
 
         Prune the predicted reaction network to only compounds and reactions
@@ -874,6 +889,7 @@ class Pickaxe:
                 # Add reactants, also add to queue
                 for cpd in self.reactions[rxn_id]["Reactants"]:
                     cpd_set.add(cpd[1])
+                    # Termination conditions
                     if (
                         cpd[1].startswith("C")
                         and cpd[1] not in visited
@@ -883,15 +899,16 @@ class Pickaxe:
 
         return cpd_set, rxn_set
 
-    def assign_ids(self):
+    def assign_ids(self) -> None:
         """Assign a numerical ID to compounds (and reactions).
 
         Assign IDs that are unique only to the CURRENT run.
         """
-        # If we were running a multiprocess expansion, this removes the dicts
-        # from Manager control
-        self.compounds = dict(self.compounds)
-        self.reactions = dict(self.reactions)
+        # TODO is this necessary?
+        # # If we were running a multiprocess expansion, this removes the dicts
+        # # from Manager control
+        # self.compounds = dict(self.compounds)
+        # self.reactions = dict(self.reactions)
         i = 1
         for comp in sorted(
             self.compounds.values(), key=lambda x: (x["Generation"], x["_id"])
@@ -968,7 +985,7 @@ class Pickaxe:
             writer.writeheader()
             writer.writerows(sorted(self.compounds.values(), key=lambda x: x["ID"]))
 
-    def write_reaction_output_file(self, path: str, delimiter: str = "\t"):
+    def write_reaction_output_file(self, path: str, delimiter: str = "\t") -> None:
         r"""Write all reaction data to the specified path.
 
         Parameters
@@ -1000,7 +1017,7 @@ class Pickaxe:
 
     def save_to_mine(
         self, processes: int = 1, indexing: bool = True, write_core: bool = True
-    ):
+    ) -> None:
         """Save pickaxe run to MINE database.
 
         Parameters
@@ -1077,8 +1094,16 @@ class Pickaxe:
         print(f"Finished uploading everything in {time.time() - start} sec")
         print("----------------------------------------\n")
 
-    def _transform_helper(self, compound_smiles, processes):
-        """Help to stage expansions externally of pickaxe class."""
+    def _transform_helper(self, compound_smiles: List[str], processes: int) -> None:
+        """Help to transform reactions external to pickaxe class
+
+        Parameters
+        ----------
+        compound_smiles : List[str]
+            A list of SMILES to expand
+        processes : int
+            Number of processes to run
+        """
 
         def update_cpds_rxns(new_cpds, new_rxns):
             # Save results to self.compounds / self.reactions
@@ -1149,8 +1174,7 @@ class Pickaxe:
         #     else:
         #         print("No partial operators could be generated.")
 
-    # TODO: remove this?
-    def pickle_pickaxe(self, fname: str):
+    def pickle_pickaxe(self, fname: str) -> None:
         """Pickle key pickaxe items.
 
         Pickle pickaxe object to be loaded in later
@@ -1170,7 +1194,7 @@ class Pickaxe:
         with open(fname, "wb") as f:
             pickle.dump(dict_to_pickle, f)
 
-    def load_pickled_pickaxe(self, fname: str):
+    def load_pickled_pickaxe(self, fname: str) -> None:
         """Load pickaxe from pickle.
 
         Load pickled pickaxe object

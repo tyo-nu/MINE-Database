@@ -8,7 +8,7 @@ import sys
 from copy import deepcopy
 from shutil import move
 from subprocess import call
-from typing import List
+from typing import List, Union
 
 import pymongo
 from pymongo.errors import ServerSelectionTimeoutError
@@ -37,7 +37,7 @@ def establish_db_client(uri: str = None) -> pymongo.MongoClient:
 
     Parameters
     ----------
-    uri : [type], optional
+    uri : str, optional
         URI to connect to mongo DB, by default None
 
     Returns
@@ -69,6 +69,15 @@ class MINE:
     """
 
     def __init__(self, name: str, uri: str = "mongodb://localhost:27017/"):
+        """Intialize class.
+
+        Parameters
+        ----------
+        name : str
+            Name of the database to work with
+        uri : str, optional
+            uri of the mongo server, by default "mongodb://localhost:27017/"
+        """
         self.client = establish_db_client(uri)
         self.uri = uri
         self._db = self.client[name]
@@ -84,10 +93,12 @@ class MINE:
         # self.nps_model = nps.readNPModel()
         self._mass_cache = {}  # for rapid calculation of reaction mass change
 
-    def add_reaction_mass_change(self, reaction: str = None) -> None:
+    def add_reaction_mass_change(self, reaction: str = None) -> Union[float, None]:
         """Calculate the change in mass between reactant and product compounds.
 
-        This is useful for discovering compounds in molecular networking.
+        This is useful for discovering compounds in molecular networking. If no reaction
+        is specified then mass change of each reaction in the database will be
+        calculated.
 
         Parameters
         ----------
@@ -96,7 +107,7 @@ class MINE:
 
         Returns
         -------
-        float
+        float, optional
             Mass change of specified reaction
 
         """
@@ -213,7 +224,7 @@ class MINE:
                 move(old, new)
 
     def build_indexes(self) -> None:
-        """Build indexes for efficient querying of the database"""
+        """Build indexes for efficient querying of the database."""
         self.core_compounds.drop_indexes()
         self.core_compounds.create_index([("Mass", pymongo.ASCENDING)])
         self.core_compounds.create_index("Inchikey")
@@ -270,7 +281,6 @@ class MINE:
 
 
 # Functions to write data to MINE
-
 # Reactions
 def write_reactions_to_mine(
     reactions: List[dict], db: MINE, chunk_size: int = 10000
@@ -393,7 +403,6 @@ def _get_core_cpd_update(cpd_dict: dict, mine: str) -> pymongo.UpdateOne:
 
 
 def _get_core_cpd_insert(cpd_dict: dict) -> pymongo.InsertOne:
-
     # cpd_dict = deepcopy(cpd_dict)
     core_keys = ["_id", "SMILES", "Inchi", "InchiKey", "Mass", "Formula"]
     core_dict = {

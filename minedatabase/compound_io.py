@@ -14,7 +14,7 @@ from minedatabase.databases import MINE
 
 
 def export_sdf(mine_db: MINE, dir_path: str, max_compounds: int = None) -> None:
-    """Exports compounds from the database as an MDL SDF file
+    """Exports compounds from the database as an MDL SDF file.
 
     Parameters
     ----------

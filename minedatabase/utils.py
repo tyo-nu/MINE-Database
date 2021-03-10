@@ -37,8 +37,6 @@ class Chunks(Iterator):
     def next(self):
         """Returns the next chunk from the iterable.
         This method is not thread-safe.
-        :raises TimeoutError: if timeout is given and no value is acknowledged in
-        the mean time.
         """
 
         def peek(iterable):
@@ -74,7 +72,6 @@ def file_to_dict_list(filepath: str) -> list:
     list
         Dictionary list
     """
-
     if ".tsv" in filepath:
         reader = csv.DictReader(open(filepath), dialect="excel-tab")
     elif ".csv" in filepath:
@@ -379,7 +376,6 @@ def rxn2hash(reactants: List[StoichTuple], products: List[StoichTuple]) -> str:
     """
     # Get text reaction to be hashed
     # this is a combination of two functions
-    # TODO: cleanup
     def to_str(half_rxn):
         return [
             f"({x[0]}) {x[1]})"
@@ -417,37 +413,7 @@ def rxn2hash(reactants: List[StoichTuple], products: List[StoichTuple]) -> str:
     return rhash, text_smiles_rxn
 
 
-def _calculate_rxn_hash(db, reactants, products):
-    """Calculates a unique reaction hash using inchikeys. First block is
-    connectivity only, second block is stereo only"""
-
-    def __get_blocks(tups):
-        first_block, second_block = [], []
-        for x in tups:
-            comp = db.compounds.find_one({"_id": x.c_id})
-            if comp and comp["Inchikey"]:
-                split_inchikey = comp["Inchikey"].split("-")
-                if len(split_inchikey) > 1:
-                    first_block.append(f"{x.stoich},{split_inchikey}")
-                    second_block.append(f"{x.stoich},{split_inchikey[1]}")
-            else:
-                print(f"No Inchikey for {x.c_id}")
-        return "+".join(first_block), "+".join(second_block)
-
-    reactants.sort()
-    products.sort()
-    r_1, r_2 = __get_blocks(reactants)
-    p_1, p_2 = __get_blocks(products)
-    first_block = r_1 + "<==>" + p_1
-    second_block = r_2 + "<==>" + p_2
-    return (
-        "R"
-        + hashlib.sha256(first_block.encode()).hexdigest()
-        + "-"
-        + hashlib.md5(second_block.encode()).hexdigest()
-    )
-
-
+# TODO mark for delete?
 def parse_text_rxn(rxn, rp_del, cp_del, translation_dict=None):
     """Makes a list of product and reactant StoichTuples"""
 
@@ -638,7 +604,7 @@ def get_smiles_from_mol_string(mol_string: str) -> str:
 #         smiles_rxn = r_s + ' => ' + p_s
 #         return smiles_rxn
 
-
+# TODO: mark for delete?
 def _getatom_count(mol, radical_check=False):
     """Takes a set of mol objects and returns a counter with each element
     type in the set"""
