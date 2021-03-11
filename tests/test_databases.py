@@ -208,30 +208,6 @@ def test_insert_bulk_core_compound(test_db, cpd_dict):
             test_db.core_compounds.delete_many({"_id": f"test_mine_cpd{i}"})
 
 
-def test_insert_reaction(test_db):
-    """Test inserting a reaction.
-
-    GIVEN a reaction (dict with 'Equation', 'Reactants', and 'Products' keys)
-    WHEN that reaction is inserted into a MINE database
-    THEN check that it is present and that the stoichiometry is correct
-    """
-    rxn = {"Equation": "A + B = C + D"}
-    rxn["Reactants"], rxn["Products"] = utils.parse_text_rxn(
-        rxn["Equation"], " = ", " + "
-    )
-    rxn["_id"] = "R_testrxn"
-
-    write_reactions_to_mine([rxn], test_db)
-    entry = test_db.reactions.find_one({"_id": "R_testrxn"})
-    try:
-        assert entry
-        assert isinstance(entry["_id"], str) and (len(entry["_id"]) > 0)
-        assert entry["Reactants"] == [[1, "A"], [1, "B"]]
-        assert entry["Products"] == [[1, "C"], [1, "D"]]
-    finally:
-        test_db.reactions.delete_many({"_id": "R_testrxn"})
-
-
 def test_db_driver(test_db):
     """Test database driver.
 

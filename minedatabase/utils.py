@@ -8,7 +8,7 @@ import re
 from collections.abc import Iterable, Iterator
 from itertools import chain, islice
 from os import path
-from typing import Callable, Generator, List
+from typing import Callable, Generator, List, Tuple, Union
 
 import pymongo
 import rdkit
@@ -19,9 +19,7 @@ StoichTuple = collections.namedtuple("StoichTuple", "stoich,c_id")
 
 
 class Chunks(Iterator):
-    """Chunks an iterator into defined sizes and acts as an iterator, returning
-    those chunks in order.
-    """
+    """A class to chunk an iterator up into defined sizes."""
 
     def __init__(self, it: Iterable, chunk_size: int = 1, return_list: bool = False):
         self._it = iter(it)
@@ -40,7 +38,7 @@ class Chunks(Iterator):
         """
 
         def peek(iterable):
-            "peek at first element of iterable to determine if it is empty"
+            """peek at first element of iterable to determine if it is empty."""
             try:
                 first = next(iterable)
             except StopIteration:
@@ -60,17 +58,17 @@ class Chunks(Iterator):
 
 
 def file_to_dict_list(filepath: str) -> list:
-    """Accept a path to a CSV, TSV or JSON file and return a dictionary list
+    """Accept a path to a CSV, TSV or JSON file and return a dictionary list.
 
     Parameters
     ----------
     filepath : str
-        File to load into a dictionary list
+        File to load into a dictionary list.
 
     Returns
     -------
     list
-        Dictionary list
+        Dictionary list.
     """
     if ".tsv" in filepath:
         reader = csv.DictReader(open(filepath), dialect="excel-tab")
@@ -84,24 +82,26 @@ def file_to_dict_list(filepath: str) -> list:
 
 
 def get_fp(smi: str) -> AllChem.RDKFingerprint:
-    """Generate default RDKFingerprint
+    """Generate default RDKFingerprint.
 
     Parameters
     ----------
     smi : str
-        SMILES of the molecule
+        SMILES of the molecule.
 
     Returns
     -------
     AllChem.RDKFingerprint
-        Default fingerprint of the molecule
+        Default fingerprint of the molecule.
     """
     mol = AllChem.MolFromSmiles(smi)
     fp = AllChem.RDKFingerprint(mol)
     return fp
 
 
-def compound_hash(smi: str, cpd_type: str = "Predicted", inchi_blocks: int = 1) -> str:
+def compound_hash(
+    smi: str, cpd_type: str = "Predicted", inchi_blocks: int = 1
+) -> Tuple[str, Union[str, None]]:
     """Create a hash string for a given compound.
 
     This function generates an unique identifier for a compound, ensuring a
@@ -116,16 +116,14 @@ def compound_hash(smi: str, cpd_type: str = "Predicted", inchi_blocks: int = 1) 
     Parameters
     ----------
     smi : str
-        The SMILES of the compound
+        The SMILES of the compound.
     cpd_type : str, optional
-        The Compound Type, by default 'Predicted'
+        The Compound Type, by default 'Predicted'.
 
     Returns
     -------
-    str
-        Compound hash
-    str
-        Inchi key (if calculable)
+    Tuple[str, Union[str, None]]
+        Compound hash, InChI-Key.
     """
 
     # The ID is generated from a hash of either the InChI key (partial) or SMILES
@@ -154,17 +152,17 @@ def compound_hash(smi: str, cpd_type: str = "Predicted", inchi_blocks: int = 1) 
 
 
 def convert_sets_to_lists(obj: dict) -> dict:
-    """Recursively converts dictionaries that contain sets to lists
+    """Recursively converts dictionaries that contain sets to lists.
 
     Parameters
     ----------
     obj : dict
-        Input object to convert sets from
+        Input object to convert sets from.
 
     Returns
     -------
     dict
-        dictionary with no sets
+        dictionary with no sets.
     """
     if isinstance(obj, set):
         # This brings short names to the top of the list
@@ -179,19 +177,19 @@ def convert_sets_to_lists(obj: dict) -> dict:
 
 
 def get_dotted_field(input_dict: dict, accessor_string: str) -> dict:
-    """Gets data from a dictionary using a dotted accessor-string
+    """Gets data from a dictionary using a dotted accessor-string.
 
     Parameters
     ----------
     input_dict : dict
-        A nested dictionary
+        A nested dictionary.
     accessor_string : str
-        The value in the nested dict
+        The value in the nested dict.
 
     Returns
     -------
     dict
-        Data from the dictionary
+        Data from the dictionary.
     """
     current_data = input_dict
     for chunk in accessor_string.split("."):
@@ -200,19 +198,19 @@ def get_dotted_field(input_dict: dict, accessor_string: str) -> dict:
 
 
 def save_dotted_field(accessor_string: str, data: dict):
-    """Saves data to a dictionary using a dotted accessor-string
+    """Saves data to a dictionary using a dotted accessor-string.
 
     Parameters
     ----------
     accessor_string : str
-        A dotted path description, e.g. "DBLinks.KEGG"
+        A dotted path description, e.g. "DBLinks.KEGG".
     data : dict
-        The value to be stored
+        The value to be stored.
 
     Returns
     -------
     dict
-        The nested dictionary
+        The nested dictionary.
     """
     for chunk in accessor_string.split(".")[::-1]:
         data = {chunk: data}
@@ -225,7 +223,7 @@ def memoize(func: Callable):
     Parameters
     ----------
     func : Callable
-        Function to memoize
+        Function to memoize.
     """
 
     class MemoDict(dict):
@@ -244,17 +242,17 @@ def memoize(func: Callable):
 
 def prevent_overwrite(write_path: str) -> str:
     """Prevents overwrite of existing output files by appending "_new" when
-    needed
+    needed.
 
     Parameters
     ----------
     write_path : str
-        Path to write
+        Path to write.
 
     Returns
     -------
     str
-        Updated path to write
+        Updated path to write.
     """
     while path.exists(write_path):
         split = write_path.split(".")
@@ -280,16 +278,16 @@ def approximate_matches(list1: list, list2: list, epsilon: float = 0.01) -> Gene
     Parameters
     ----------
     list1 : list
-        First list of tuples
+        First list of tuples.
     list2 : list
-        Second list of tuples
+        Second list of tuples.
     epsilon : float, optional
-        Maximum difference in, by default 0.01
+        Maximum difference in, by default 0.01.
 
     Yields
     -------
     Generator
-        Generator that yields matches
+        Generator that yields matches.
     """
     list1.sort()
     list2.sort()
@@ -326,14 +324,14 @@ def approximate_matches(list1: list, list2: list, epsilon: float = 0.01) -> Gene
 
 
 def dict_merge(finaldict: dict, sourcedict: dict) -> None:
-    """Merges two dictionaries using sets to avoid duplication of values
+    """Merges two dictionaries using sets to avoid duplication of values.
 
     Parameters
     ----------
     finaldict : dict
-        Dict to merge into
+        Dict to merge into.
     sourcedict : dict
-        Dict to merge from
+        Dict to merge from.
     """
     for key, val in sourcedict.items():
         if (key in finaldict) and isinstance(finaldict[key], list):
@@ -359,21 +357,21 @@ def dict_merge(finaldict: dict, sourcedict: dict) -> None:
 
 
 def rxn2hash(reactants: List[StoichTuple], products: List[StoichTuple]) -> str:
-    """Hashes reactant and product lists
+    """Hashes reactant and product lists.
 
-    Generates a unique ID for a given reaction for use in MongoDB
+    Generates a unique ID for a given reaction for use in MongoDB.
 
     Parameters
     ----------
     reactants : List[StoichTuple]
-        List of reactants
+        List of reactants.
     products : List[StoichTuple]
-        List of products
+        List of products.
 
     Returns
     -------
     str
-        Reaction hash
+        Reaction hash.
     """
     # Get text reaction to be hashed
     # this is a combination of two functions
@@ -414,50 +412,25 @@ def rxn2hash(reactants: List[StoichTuple], products: List[StoichTuple]) -> str:
     return rhash, text_smiles_rxn
 
 
-# TODO mark for delete?
-def parse_text_rxn(rxn, rp_del, cp_del, translation_dict=None):
-    """Makes a list of product and reactant StoichTuples"""
-
-    def parse_half(half_rxn, t_d):
-        if translation_dict:
-            return [
-                StoichTuple(1, t_d[x.strip()])
-                if len(x.split()) == 1
-                else StoichTuple(
-                    int(x.split()[0].strip("()")), t_d[x.split()[1].strip()]
-                )
-                for x in half_rxn.split(cp_del)
-            ]
-        else:
-            return [
-                StoichTuple(1, x.strip())
-                if len(x.split()) == 1
-                else StoichTuple(int(x.split()[0].strip("()")), x.split()[1].strip())
-                for x in half_rxn.split(cp_del)
-            ]
-
-    return [parse_half(x, translation_dict) for x in rxn.split(rp_del)]
-
-
 _REACTIONS = None
 
 
 def neutralise_charges(
     mol: rdkit.Chem.rdchem.Mol, reactions=None
 ) -> rdkit.Chem.rdchem.Mol:
-    """Neutralize all charges in an rdkit mol
+    """Neutralize all charges in an rdkit mol.
 
     Parameters
     ----------
     mol : rdkit.Chem.rdchem.Mol
-        Molecule to neutralize
+        Molecule to neutralize.
     reactions : list, optional
-        patterns to neutralize, by default None
+        patterns to neutralize, by default None.
 
     Returns
     -------
     rdkit.Chem.rdchem.Mol
-        Neutralized molecule
+        Neutralized molecule.
     """
 
     def _initialise_neutralisation_reactions():
@@ -575,12 +548,12 @@ def get_smiles_from_mol_string(mol_string: str) -> str:
     Parameters
     ----------
     mol_string : str
-        molfile in string format
+        molfile in string format.
 
     Returns
     -------
     str
-        SMILES string
+        SMILES string.
     """
     mol = AllChem.MolFromMolBlock(mol_string)
     smiles = AllChem.MolToSmiles(mol)
@@ -588,24 +561,6 @@ def get_smiles_from_mol_string(mol_string: str) -> str:
     return smiles
 
 
-# def calculate_rxn_text(self, reactants, products):
-#         """Calculates a unique reaction hash using inchikeys. First block is
-#         connectivity only, second block is stereo only"""
-#         def get_blocks(cpds):
-#             cpd_tups = [(stoich, cpd_dict['_id'], cpd_dict['SMILES'])
-#                   for stoich, cpd_dict in cpds]
-#             cpd_tups.sort(key=lambda x: x[1])
-#             smiles = []
-#             for cpd in cpd_tups:
-#                 smiles.append(f"({cpd[0]}) {cpd[2]}")
-#             return ' + '.join(smiles)
-
-#         r_s = get_blocks(reactants)
-#         p_s = get_blocks(products)
-#         smiles_rxn = r_s + ' => ' + p_s
-#         return smiles_rxn
-
-# TODO: mark for delete?
 def _getatom_count(mol, radical_check=False):
     """Takes a set of mol objects and returns a counter with each element
     type in the set"""

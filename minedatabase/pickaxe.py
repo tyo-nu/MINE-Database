@@ -51,6 +51,86 @@ class Pickaxe:
     compounds using a set of SMARTS-based reaction rules. It may be initialized
     with a text file containing the reaction rules and coreactants or this may
     be done on an ad hoc basis.
+
+    Parameters
+    ----------
+    rule_list : str
+        Filepath of rules.
+    coreactant_list : str
+        Filepath of coreactants.
+    explicit_h : bool, optional
+        Whether rules utilize explicit hydrogens, by default True.
+    kekulize : bool, optional
+        Whether or not to kekulize compounds before reaction,
+        by default True.
+    neutralise : bool, optional
+        Whether or not to neutralise compounds, by default True.
+    errors : bool, optional
+        Whether or not to print errors to stdout, by default True.
+    inchikey_blocks_for_cid : int, optional
+        How many blocks of the InChI key to use for the compound id,
+        by default 1.
+    database : str, optional
+        Name of the database where to save results, by default None.
+    database_overwrite : bool, optional
+        Whether or not to erase existing database in event of a collision,
+        by default False.
+    mongo_uri : bool, optional
+        uri for the mongo client, by default 'mongodb://localhost:27017'.
+    image_dir : str, optional
+        Filepath where images should be saved, by default None.
+    quiet : bool, optional
+        Whether to silence warnings, by default False.
+    react_targets : bool, optional
+        Whether or not to apply reactions to generated compounds that match
+        targets, by default True.
+    filter_after_final_gen : bool, optional
+        Whether to apply filters after final expansion, by default True.
+
+    Attributes
+    ----------
+    operators: dict
+        Reaction operators to transform compounds with.
+    coreactants: dict
+        Coreactants required by the operators.
+    compounds: dict
+        Compounds in the pickaxe network.
+    reactions: dict
+        Reactions in the pickaxe network.
+    generation: int
+        The current generation
+    explicit_h : bool
+        Whether rules utilize explicit hydrogens.
+    kekulize : bool
+        Whether or not to kekulize compounds before reaction.
+    neutralise : bool
+        Whether or not to neutralise compounds.
+    fragmented_mols : bool
+        Whether or not to allow fragmented molecules.
+    radical_check : bool
+        Whether or not to check and remove radicals.
+    image_dir : str, optional
+        Filepath where images should be saved.
+    errors : bool
+        Whether or not to print errors to stdout.
+    quiet : bool
+        Whether or not to silence warnings.
+    filters: List[object]
+        A list of filters to apply during the expansion.
+    targets : dict
+        Molecules to be targeted during expansions.
+    target_smiles: list
+        The SMILES of all the targets.
+    target_fps : list[RDKFingerprint]
+        Fingerprints of the targets.
+    react_targets : bool
+        Whether or not to react targets when generated.
+    filter_after_final_gen : bool
+        Whether or not to filter after the last expansion.
+    mongo_uri : str
+        The connection string to the mongo database.
+    cid_num_inchi_blocks : int
+        How many blocks of the inchi-blocks to use to generate the compound id.
     """
 
     def __init__(
@@ -70,44 +150,6 @@ class Pickaxe:
         react_targets: bool = True,
         filter_after_final_gen: bool = True,
     ):
-        """Pickaxe class initialization.
-
-        Parameters
-        ----------
-        rule_list : str
-            Filepath of rules
-        coreactant_list : str
-            Filepath of coreactants
-        explicit_h : bool, optional
-            Whether rules utilize explicit hydrogens, by default True
-        kekulize : bool, optional
-            Whether or not to kekulize compounds before reaction,
-            by default True
-        neutralise : bool, optional
-            Whether or not to neutralise compounds, by default True
-        errors : bool, optional
-            Whether or not to print errors to stdout, by default True
-        inchikey_blocks_for_cid : int, optional
-            How many blocks of the InChI key to use for the compound id,
-            by default 1
-        database : str, optional
-            Name of the database where to save results, by default None
-        database_overwrite : bool, optional
-            Whether or not to erase existing database in event of a collision,
-            by default False
-        mongo_uri : bool, optional
-            uri for the mongo client, by default 'mongodb://localhost:27017'
-        image_dir : str, optional
-            Filepath where images should be saved, by default None
-        quiet : bool, optional
-            Whether to silence warnings, by default False
-        react_targets : bool, optional
-            Whether or not to apply reactions to generated compounds that match
-            targets, by default True
-        filter_after_final_gen : bool, optional
-            Whether to apply filters after final expansion, by default True
-        """
-
         # Main pickaxe properties
         self.operators = {}
         self.coreactants = {}
@@ -203,12 +245,12 @@ class Pickaxe:
         Parameters
         ----------
         target_compound_file : str
-            Filepath of target compounds
+            Filepath of target compounds.
         id_field : str, optional
             Header value of compound id in input file, by default 'id'
-        calc_fp : bool, optional
+        calc_fp : bool, optional.
             Whether or not to calculate fingerprints of targets for use with
-            filters, by default True
+            filters, by default True.
         """
         for target_dict in utils.file_to_dict_list(target_compound_file):
             mol = self._mol_from_dict(target_dict)
@@ -236,19 +278,19 @@ class Pickaxe:
         Parameters
         ----------
         compound_file : str, optional
-            Filepath of compounds, by default None
+            Filepath of compounds, by default None.
         id_field : str, optional
-            Header value of compound id in input file, by default 'id'
+            Header value of compound id in input file, by default 'id'.
 
         Returns
         -------
         str
-            List of SMILES that were succesfully loaded into pickaxe
+            List of SMILES that were succesfully loaded into pickaxe.
 
         Raises
         ------
         ValueError
-            No file specified for loading
+            No file specified for loading.
         """
 
         # load compounds
@@ -324,7 +366,7 @@ class Pickaxe:
         Parameters
         ----------
         rule_path : str
-            Filepath of reaction rules
+            Filepath of reaction rules.
 
         """
         skipped = 0
@@ -426,14 +468,12 @@ class Pickaxe:
         cpd_type : str
             Type of compound
         mol : rdkitmol, optional
-            RDKit Molecule, by default None
+            RDKit Molecule, by default None.
 
         Returns
         -------
-        str
-            compound ID
-        dict
-            compound dict
+        Tuple[str, dict]
+            Compound id and compound dict.
         """
         cpd_dict = {}
         cpd_id, inchi_key = utils.compound_hash(
@@ -483,12 +523,12 @@ class Pickaxe:
         cpd_type : str
             Type of compound
         mol : rdkitmol, optional
-            RDKit Molecule, by default None
+            RDKit Molecule, by default None.
 
         Returns
         -------
         str
-            compound ID
+            compound ID.
         """
 
         # We don't want to overwrite the same compound from a prior
@@ -526,9 +566,9 @@ class Pickaxe:
         Parameters
         ----------
         processes : int, optional
-            Number of processes to run in parallel, by default 1
+            Number of processes to run in parallel, by default 1.
         max_generations : int, optional
-            Number of generations to create, by default 1
+            Number of generations to create, by default 1.
         """
 
         while self.generation < generations or (
@@ -832,7 +872,7 @@ class Pickaxe:
             f"{n_white} whitelisted compounds."
         )
 
-    def prune_network_to_targets(self):
+    def prune_network_to_targets(self) -> None:
         """Prune the reaction network to the target compounds.
 
         Prune the predicted reaction network to only compounds and reactions
@@ -854,12 +894,12 @@ class Pickaxe:
         """Find the minimal set of compounds and reactions given a white list.
 
         Given a whitelist this function finds the minimal set of compound and
-        reactions ids that comprise the set
+        reactions ids that comprise the set.
 
         Parameters
         ----------
         white_list : Set[str]
-            List of compound_ids to use to filter reaction network to
+            List of compound_ids to use to filter reaction network to.
 
         Returns
         -------
@@ -963,9 +1003,9 @@ class Pickaxe:
         Parameters
         ----------
         path : str
-            Path to write data
+            Path to write data.
         dialect : str, optional
-            Dialect of the output, by default 'excel-tab'
+            Dialect of the output, by default 'excel-tab'.
         """
         path = utils.prevent_overwrite(path)
 
@@ -991,9 +1031,9 @@ class Pickaxe:
         Parameters
         ----------
         path : str
-            Path to write data
+            Path to write data.
         delimiter : str, optional
-            Delimiter for the output file, by default '\t'
+            Delimiter for the output file, by default '\t'.
         """
         path = utils.prevent_overwrite(path)
         with open(path, "w") as outfile:
@@ -1023,11 +1063,11 @@ class Pickaxe:
         Parameters
         ----------
         processes : int, optional
-            Number of processes to use, by default 1
+            Number of processes to use, by default 1.
         indexing : bool, optional
-            Whether or not to add indexes, by default True
+            Whether or not to add indexes, by default True.
         write_core : bool, optional
-            Whether or not to write to core database, by default True
+            Whether or not to write to core database, by default True.
         """
         print("\n----------------------------------------")
         print(f"Writing results to {self.mine} Database")
@@ -1100,9 +1140,9 @@ class Pickaxe:
         Parameters
         ----------
         compound_smiles : List[str]
-            A list of SMILES to expand
+            A list of SMILES to expand.
         processes : int
-            Number of processes to run
+            Number of processes to run.
         """
 
         def update_cpds_rxns(new_cpds, new_rxns):
@@ -1177,12 +1217,12 @@ class Pickaxe:
     def pickle_pickaxe(self, fname: str) -> None:
         """Pickle key pickaxe items.
 
-        Pickle pickaxe object to be loaded in later
+        Pickle pickaxe object to be loaded in later.
 
         Parameters
         ----------
         fname : str
-            filename to save (must be .pk)
+            filename to save (must be .pk).
         """
         dict_to_pickle = {
             "compounds": self.compounds,
@@ -1197,12 +1237,12 @@ class Pickaxe:
     def load_pickled_pickaxe(self, fname: str) -> None:
         """Load pickaxe from pickle.
 
-        Load pickled pickaxe object
+        Load pickled pickaxe object.
 
         Parameters
         ----------
         fname : str
-            filename to read (must be .pk)
+            filename to read (must be .pk).
         """
         start_load = time.time()
         print(f"Loading {fname} pickled data.")
