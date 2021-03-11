@@ -4,10 +4,8 @@
 
 import json
 import os
-import unittest
 from copy import copy
 from shutil import rmtree
-from sys import platform
 
 import pymongo
 import pytest
@@ -86,11 +84,7 @@ def delete_database(name):
 
 
 @pytest.mark.skipif(
-    "win" in platform, reason="MolConvert fails on Windows due to permissions errors"
-)
-@unittest.skipIf(
-    "TRAVIS" in os.environ and os.environ["TRAVIS"] == "true",
-    "Skipping this test on Travis CI.",
+    os.name == "nt", reason="MolConvert fails on Windows due to permissions errors"
 )
 def test_generate_image_files(test_db):
     """Test image generation.

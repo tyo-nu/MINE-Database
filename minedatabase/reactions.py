@@ -4,6 +4,8 @@ import multiprocessing
 from functools import partial
 from typing import Tuple
 
+import rdkit.rdBase as rkrb
+import rdkit.RDLogger as rkl
 from rdkit.Chem.AllChem import (
     AddHs,
     CalcMolFormula,
@@ -13,13 +15,13 @@ from rdkit.Chem.AllChem import (
     RemoveHs,
     SanitizeMol,
 )
-from rdkit.RDLogger import logger
 
 from minedatabase import utils
 
 
-lg = logger()
-lg.setLevel(0)
+logger = rkl.logger()
+logger.setLevel(rkl.ERROR)
+rkrb.DisableLog("rdApp.error")
 
 ###############################################################################
 # Functions to run transformations
@@ -113,11 +115,11 @@ def _run_reaction(
             SanitizeMol(mol)
         # TODO: logger
         except BaseException:
-            return None, None
+            return None
 
         mol_smiles = MolToSmiles(mol, True)
         if "." in mol_smiles:
-            return None, None
+            return None
 
         cpd_id, inchi_key = utils.compound_hash(mol_smiles, "Predicted")
         if cpd_id:
@@ -141,7 +143,7 @@ def _run_reaction(
 
             return cpd_dict
         else:
-            return None, None
+            return None
 
     try:
         product_sets = rule[0].RunReactants(reactant_mols)
@@ -188,7 +190,7 @@ def _run_reaction(
                 else:
                     local_rxns[rhash]["Operators"].add(rule_name)
         # TODO: Logger
-        except (ValueError, MemoryError):
+        except BaseException:
             continue
     # return compounds and reactions to be added into the local
     return local_cpds, local_rxns

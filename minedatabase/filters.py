@@ -15,6 +15,8 @@ from functools import partial
 
 import numpy as np
 import pandas as pd
+import rdkit.rdBase as rkrb
+import rdkit.RDLogger as rkl
 from mordred import Calculator, descriptors
 from rdkit.Chem import AddHs, AllChem, CanonSmiles
 from rdkit.Chem import rdFMCS as mcs
@@ -28,6 +30,10 @@ from minedatabase import utils
 from minedatabase.metabolomics import MetabolomicsDataset, Peak
 from minedatabase.utils import get_fp
 
+
+logger = rkl.logger()
+logger.setLevel(rkl.ERROR)
+rkrb.DisableLog("rdApp.error")
 
 ###############################################################################
 # ABC for all Filter Subclasses
@@ -755,8 +761,11 @@ class TanimotoFilter(Filter):
 
         # Set up variables required for filtering
         # Tanimoto Threshold
-        if isinstance(self.crit_tani, list):
-            crit_tani = self.crit_tani[pickaxe.generation]
+        if type(self.crit_tani) in [list, tuple]:
+            if len(self.crit_tani) - 1 < pickaxe.generation:
+                crit_tani = self.crit_tani[-1]
+            else:
+                crit_tani = self.crit_tani[pickaxe.generation]
         else:
             crit_tani = self.crit_tani
 
@@ -789,7 +798,13 @@ class TanimotoFilter(Filter):
         # Get input to filter code, c_id and smiles (to be
         # turned into fingerprint)
         cpd_info = [(cpd["_id"], cpd["SMILES"]) for cpd in compounds_to_check]
-        this_gen_crit_tani = self.crit_tani[pickaxe.generation]
+        if type(self.crit_tani) in [list, tuple]:
+            if len(self.crit_tani) - 1 < pickaxe.generation:
+                this_gen_crit_tani = self.crit_tani[-1]
+            else:
+                this_gen_crit_tani = self.crit_tani[pickaxe.generation]
+        else:
+            this_gen_crit_tani = self.crit_tani
         cpd_filters = self._filter_by_tani_helper(
             cpd_info, pickaxe.target_fps, num_workers, this_gen_crit_tani
         )
@@ -878,19 +893,25 @@ class TanimotoFilter(Filter):
             return (compound_info[0], -1)
 
     def preprint(self, pickaxe):
-        print(
-            (
-                "Filtering out compounds with maximum tanimoto match"
-                f" < {self.crit_tani[pickaxe.generation]}"
-            )
-        )
+        if type(self.crit_tani) in [list, tuple]:
+            print_tani = self.crit_tani[pickaxe.generation]
+        else:
+            print_tani = self.crit_tani
+        print(f"Filtering out compounds with maximum tanimoto match < {print_tani}")
 
     def post_print(self, pickaxe, n_total, n_filtered, time_sample):
+        if type(self.crit_tani) in [list, tuple]:
+            if len(self.crit_tani) - 1 < pickaxe.generation:
+                print_tani = self.crit_tani[-1]
+            else:
+                print_tani = self.crit_tani[pickaxe.generation]
+        else:
+            print_tani = self.crit_tani
         print(
             (
                 f"{n_filtered} of {n_total} compounds selected after "
                 f"Tanimoto filtering of generation {pickaxe.generation} "
-                f"at cutoff of {self.crit_tani[pickaxe.generation]}. "
+                f"at cutoff of {print_tani}. "
                 f"--took {round(time.time() - time_sample, 2)}s.\n"
             )
         )
@@ -920,9 +941,12 @@ class MCSFilter(Filter):
             return None
 
         # Set up variables required for filtering
-        # Tanimoto Threshold
-        if isinstance(self.crit_mcs, list):
-            crit_mcs = self.crit_mcs[pickaxe.generation]
+        # MCS Threshold
+        if type(self.crit_mcs) in [list, tuple]:
+            if len(self.crit_mcs) - 1 < pickaxe.generation:
+                crit_mcs = self.crit_mcs[-1]
+            else:
+                crit_mcs = self.crit_mcs[pickaxe.generation]
         else:
             crit_mcs = self.crit_mcs
 
@@ -1065,19 +1089,28 @@ class MCSFilter(Filter):
             return (compound_info[0], -1)
 
     def preprint(self, pickaxe):
-        print(
-            (
-                "Filtering out compounds with maximum MCS match"
-                f" < {self.crit_mcs[pickaxe.generation]}"
-            )
-        )
+        if type(self.crit_mcs) in [list, tuple]:
+            if len(self.crit_mcs) - 1 < pickaxe.generation:
+                crit_mcs = self.crit_mcs[-1]
+            else:
+                crit_mcs = self.crit_mcs[pickaxe.generation]
+        else:
+            crit_mcs = self.crit_mcs
+        print(f"Filtering out compounds with maximum MCS match < {crit_mcs}")
 
     def post_print(self, pickaxe, n_total, n_filtered, time_sample):
+        if type(self.crit_mcs) in [list, tuple]:
+            if len(self.crit_mcs) - 1 < pickaxe.generation:
+                crit_mcs = self.crit_mcs[-1]
+            else:
+                crit_mcs = self.crit_mcs[pickaxe.generation]
+        else:
+            crit_mcs = self.crit_mcs
         print(
             (
                 f"{n_filtered} of {n_total} compounds selected after "
                 f"MCS filtering of generation {pickaxe.generation} "
-                f"at cutoff of {self.crit_mcs[pickaxe.generation]}. "
+                f"at cutoff of {crit_mcs}. "
                 f"--took {round(time.time() - time_sample, 2)}s.\n"
             )
         )
