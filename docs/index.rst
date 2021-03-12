@@ -7,6 +7,7 @@ MINE-Database Documentation
 ===========================
 
 .. toctree::
+   :numbered:
    :maxdepth: 2
 
    install.rst

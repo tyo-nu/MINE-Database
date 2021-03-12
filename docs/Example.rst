@@ -17,10 +17,11 @@ and explain the components of running pickaxe. Generally, pickaxe_run.py operate
 5. Specifying stdout output options
 6. Running Pickaxe
 
-This document gives the relevant code snippets from pickaxe_run and expands on existing comments.
+This document gives the relevant code snippets from pickaxe_run and expands on existing comments. Additionally, brief
+examples of relevant inputs will be created. For more detailed descriptions please see RULES LINK and FILTERS LINK.
 
-Designating Run Output
-----------------------
+Run Output
+----------
 There are two ways to output data:
 
 1. Writing to a mongo database that is specified by a `mongo uri`_, either local or in mongo_uri.csv
@@ -47,16 +48,57 @@ There are two ways to output data:
     write_local = False
     output_dir = '.'
 
-
 .. _mongo uri: https://docs.mongodb.com/manual/reference/connection-string/
 
-Designating Run Input
-----------------------
+Run Input
+---------
 There are three key inputs for a Pickaxe run to be specified:
 
 1. **input_cpds** specifying the compounds to be reacted
 2. **coreactant_list** are coreactants that are required for the reaction rules
 3. **rule_list** that specifies the reaction rules to be applied
+
+Input Compounds Example
+^^^^^^^^^^^^^^^^^^^^^^^
+The file specified for :code:`input_cpds` must be a .tsv or a .csv format. 
+The file consists of an id and a SMILES string. An example of a .csv file is
+
+::
+
+    id,SMILES
+    0,CC(=O)OC
+    1,CCO
+
+Coreactant and Rule lists
+^^^^^^^^^^^^^^^^^^^^^^^^^
+Pickaxe is provided with a rule list generated from approximately 70,000 MetaCyc reactions.
+When choosing how many reactions to use, you can refer to the following table:
+
++-----------------+---------------------+
+| Number of Rules | Percent Coverage of |
+|                 | MetaCyc Reactions   |
++-----------------+---------------------+
+| 20              | 50                  |
++-----------------+---------------------+
+| 84              | 75                  |
++-----------------+---------------------+
+| 100             | 78                  |
++-----------------+---------------------+
+| 272             | 90                  |
++-----------------+---------------------+
+| 500             | 95                  |
++-----------------+---------------------+
+| 956             | 99                  |
++-----------------+---------------------+
+| 1221            | 100                 |
++-----------------+---------------------+
+
+For more information on creating rules and cofactors see: TODO RULES
+
+Code snippet from Pickaxe_run.py
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+These input filse are specified as follows in :code:`Pickaxe_Run.py`
 
 .. code-block:: python
 
@@ -70,6 +112,8 @@ There are three key inputs for a Pickaxe run to be specified:
     # to generate sets of rules from metacyc based on reaction mapping, where
     # the reactions being mapped are the reactions the rules are derived from.
     rule_list = './minedatabase/data/metacyc_rules/metacyc_27percent_10rules.tsv'
+
+
 
 Core Pickaxe Options
 --------------------
@@ -90,7 +134,7 @@ However, the remaining can be changed if needed:
 .. code-block:: python
 
     generations = 1
-    num_workers = 4     # Number of processes for parallelization
+    processes = 4     # Number of processes for parallelization
     verbose = False     # Display RDKit warnings and errors
     explicit_h = False
     kekulize = True
@@ -99,8 +143,8 @@ However, the remaining can be changed if needed:
     quiet = True
     indexing = False
 
-Specification of Filters
-------------------------
+Filters
+-------
 Three general filters are supplied with Pickaxe:
 
 1. A tanimoto threshold filters
@@ -112,7 +156,7 @@ to be expanded. This allows for the removal of compounds that aren't of interest
 Additionally, custom filters can be written. To write your own filter see: 
 
 General Filter Options
-~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^
 These options apply to every filter and are independent of the actual filter itself.
 
 1. **target_cpds** specifies where the target compound list is. This file is a csv
@@ -137,7 +181,7 @@ These options apply to every filter and are independent of the actual filter its
 
 
 Tanimoto Threshold Filter
-~~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^^
 The rational behind this filter is to generate a list of Tanimoto similarity scores (ranging from 0 to 1) for each generation
 in comparison to the targets and use this to trim compounds to only those above a certain similarity threshold. 
 The maximum similarity of a given compound compared to all the targets is used. Similarity is calculated
@@ -163,7 +207,7 @@ to the threshold are reacted.
     increasing_tani = False
 
 Tanimoto Sampling Filter
-~~~~~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^^^^^
 For large expansions the tanimoto threshold filter does not work well. For example, expanding 10,000 compounds from KEGG with 272 rules from metacyc yields 5 million compounds. To expand this another generation
 the number of compounds has to be heavily reduced for the system resources to handle it and for analysis to be reasonable. 
 The threshold filter will have to be at a large value, e.g. greater than 0.9, which leads to reduced chemical diversity in the final network.

@@ -12,6 +12,7 @@ import copy
 import multiprocessing
 import time
 from functools import partial
+from typing import Callable, List, Tuple
 
 import numpy as np
 import pandas as pd
@@ -20,6 +21,7 @@ import rdkit.RDLogger as rkl
 from mordred import Calculator, descriptors
 from rdkit.Chem import AddHs, AllChem, CanonSmiles
 from rdkit.Chem import rdFMCS as mcs
+from rdkit.Chem.AllChem import RDKFingerprint
 from rdkit.Chem.Descriptors import ExactMolWt
 from rdkit.Chem.inchi import MolToInchiKey
 from rdkit.Chem.rdmolfiles import MolFromSmiles
@@ -28,7 +30,8 @@ from scipy.stats import rv_discrete
 
 from minedatabase import utils
 from minedatabase.metabolomics import MetabolomicsDataset, Peak
-from minedatabase.utils import get_fp
+from minedatabase.pickaxe import Pickaxe
+from minedatabase.utils import Chunks, get_fp
 
 
 logger = rkl.logger()
@@ -40,11 +43,13 @@ rkrb.DisableLog("rdApp.error")
 
 
 class Filter(metaclass=abc.ABCMeta):
-    """ABC for all Filter subclasses.
+    """Abstract base class used to generate filters.
 
+    The Filter class provides the framework for interaction with pickaxe expansions.
+    Each filter subclass must inherit properties from the Filter class.
     All subclasses must implement properties and methods decorated with
     @abc.abstractmethod. Feel free to override other non-private methods as
-    well, such as pre_print() and post_print().
+    well, such as _pre_print() and _post_print().
     """
 
     @property
@@ -54,39 +59,49 @@ class Filter(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def _choose_cpds_to_filter(self, pickaxe, num_workers):
+    def _choose_cpds_to_filter(self, pickaxe, processes):
         """Return list of compounds to remove from pickaxe object."""
         pass
 
-    def apply_filter(self, pickaxe, num_workers=1, print_on=True):
-        """Apply filter from Pickaxe object."""
+    def apply_filter(self, pickaxe: Pickaxe, processes: int = 1, print_on: bool = True):
+        """Apply filter from Pickaxe object.
+
+        Parameters
+        ----------
+        pickaxe : Pickaxe
+            The Pickaxe object to filter.
+        processes : int
+            The number of processes to use, by default 1.
+        print_on : bool
+            Whether or not to print filtering results.
+        """
         time_sample = time.time()
 
         if print_on:
             n_total = self._get_n(pickaxe, "total")
-            self.pre_print_header(pickaxe)
-            self.pre_print()
+            self._pre_print_header(pickaxe)
+            self._pre_print()
 
-        compound_ids_to_check = self._choose_cpds_to_filter(pickaxe, num_workers)
+        compound_ids_to_check = self._choose_cpds_to_filter(pickaxe, processes)
 
         if compound_ids_to_check:
             self._apply_filter_results(pickaxe, compound_ids_to_check)
 
         if print_on:
             n_filtered = self._get_n(pickaxe, "filtered")
-            self.post_print(pickaxe, n_total, n_filtered, time_sample)
-            self.post_print_footer(pickaxe)
+            self._post_print(pickaxe, n_total, n_filtered, time_sample)
+            self._post_print_footer(pickaxe)
 
-    def pre_print_header(self, pickaxe):
+    def _pre_print_header(self, pickaxe):
         """Print header before filtering."""
         print("----------------------------------------")
         print(f"Filtering Generation {pickaxe.generation}\n")
 
-    def pre_print(self):
+    def _pre_print(self):
         """Print filter being applied."""
         print(f"Applying filter: {self.filter_name}")
 
-    def post_print(self, pickaxe, n_total, n_filtered, time_sample):
+    def _post_print(self, pickaxe, n_total, n_filtered, time_sample):
         """Print results of filtering."""
         print(
             f"{n_filtered} of {n_total} compounds remain after applying "
@@ -94,7 +109,7 @@ class Filter(metaclass=abc.ABCMeta):
             f"--took {round(time.time() - time_sample, 2)}s.\n"
         )
 
-    def post_print_footer(self, pickaxe):
+    def _post_print_footer(self, pickaxe):
         """Print end of filtering."""
         print(f"Done filtering Generation {pickaxe.generation}")
         print("----------------------------------------\n")
@@ -191,21 +206,32 @@ class Filter(metaclass=abc.ABCMeta):
 
 
 class TanimotoSamplingFilter(Filter):
-    """Filter that samples randomly from weighted tanimoto."""
+    """Filter that samples randomly from weighted tanimoto.
 
-    def __init__(self, filter_name: str, sample_size: int, weight=None):
-        """Initialize filtering class.
+    TanimotoSamplingFilter takes a distribution of tanimoto similarity scores and uses
+    inverse CDF sampling to select N compounds for further expansion. Each compound
+    is assigned a tanimoto similarity score that corresponds to the maximum tanimoto
+    score of the set of similarity scores obtained by comparing that compound to each
+    target. These scores can also be weighted by a specified function to bias higher
+    or lower tanimoto scores.
 
-        Parameters
-        ----------
-        filter_name : [type]
-            [description]
-        sample_size : [type]
-            [description]
-        weight : [type]
-            [description]
-        """
-        self._filter_name = filter_name
+    Parameters
+    ----------
+    sample_size : int
+        Number of compounds to sample.
+    weight : Callable
+        Function to weight the tanimoto similarity score with.
+
+    Attributes
+    ----------
+    sample_size : int
+        Number of compounds to sample.
+    weight : Callable
+        Function to weight the tanimoto similarity score with.
+    """
+
+    def __init__(self, sample_size: int, weight: Callable = None):
+        self._filter_name = "Tanimoto Sampling Filter"
         self.sample_size = sample_size
         self.sample_weight = weight
 
@@ -213,7 +239,8 @@ class TanimotoSamplingFilter(Filter):
     def filter_name(self):
         return self._filter_name
 
-    def pre_print(self):
+    def _pre_print(self):
+        """Print before filtering."""
         print(
             (
                 f"Sampling {self.sample_size} Compounds Based on a "
@@ -221,7 +248,8 @@ class TanimotoSamplingFilter(Filter):
             )
         )
 
-    def post_print(self, pickaxe, n_total, n_filtered, time_sample):
+    def _post_print(self, pickaxe, n_total, n_filtered, time_sample):
+        """Print after filtering."""
         print(
             (
                 f"{n_filtered} of {n_total} "
@@ -231,11 +259,19 @@ class TanimotoSamplingFilter(Filter):
             )
         )
 
-    def _choose_cpds_to_filter(self, pickaxe, num_workers):
+    def _choose_cpds_to_filter(self, pickaxe: Pickaxe, processes: int):
         """
-        Samples N compounds to expand based on the weighted Tanimoto
-        distribution.
+        Samples N compounds to expand based on the weighted Tanimoto distribution.
+
+        Parameters
+        ----------
+        pickaxe : Pickaxe
+            Pickaxe object to filter
+        processes : int
+            Number of processes to use.
+
         """
+
         print(f"Filtering Generation {pickaxe.generation}" " via Tanimoto Sampling.")
 
         if not pickaxe.target_fps:
@@ -271,14 +307,14 @@ class TanimotoSamplingFilter(Filter):
         # Get compounds to keep
         cpd_info = [(cpd["_id"], cpd["SMILES"]) for cpd in compounds_to_check]
 
-        sampled_ids = self.sample_by_tanimoto(
+        sampled_ids = self._sample_by_tanimoto(
             cpd_info,
             pickaxe.target_fps,
             self.sample_size,
             min_T=0.15,
             weighting=self.sample_weight,
             max_iter=None,
-            n_cores=num_workers,
+            processes=processes,
         )
 
         # Get compounds to remove
@@ -290,38 +326,44 @@ class TanimotoSamplingFilter(Filter):
 
         return cpds_remove_set
 
-    def sample_by_tanimoto(
+    def _sample_by_tanimoto(
         self,
-        mol_info,
-        t_fp,
-        n_cpds=None,
-        min_T=0.05,
-        weighting=None,
-        max_iter=None,
-        n_cores=1,
-    ):
-        """
-        Given a list of ids and compounds, this function uses inverse-CDF
-        sampling from a PMF generated from weighted tanimoto similarity
-        to select compounds to expand.
+        mol_info: List[Tuple[str, str]],
+        t_fp: RDKFingerprint,
+        n_cpds: int = None,
+        min_T: float = 0.05,
+        weighting: Callable = None,
+        max_iter: int = None,
+        processes: int = 1,
+    ) -> List[str]:
+        """Smple compounds by weighted tanimoto coefficient.
 
-        :param mol_info:  A list consisting of (cpd_id, SMILES)
-        :type mol_info: list(tuple)
-        :param t_fp: A list of the target fingerprints
-        :type t_fp: list(rdkit.DataStructs.cDataStructs.ExplicitBitVect)
-        :param n_cpds: Number of compounds to sample
-        :type n_cpds: int
-        :param min_T: Minimum Tanimoto for consideration
-        :type min_T: float
-        :param weighting: Weighting function that takes Tanimoto as input
-        :type weighting: func
-        :param max_iter: Maximum iterations before new CDF is calculated
-        :type max_iter: int
-        :param n_cores: Number of CPU cores to use
-        :type n_cores: int
+        Use inverse cumulative distrbution function (CDF) sampling to select
+        compounds based on a weighted tanimoto coefficient distribution.
 
-        :return: A set of cpd_ids to be expanded
-        :rtype: set(str)
+        Parameters
+        ----------
+        mol_info : List[Tuple[str, str]]
+            A list consisting of (compound_id, SMILES).
+        t_fp : List[RDKFingerprint]
+            Target fingerprints to compare compounds to.
+        n_cpds : int, optional
+            Number of compounds to select for sampling, by default None.
+        min_T : float, optional
+            Minimum Tanimoto similarity to be considered for sampling, by default 0.05.
+        weighting : Callable, optional
+            Function that accepts a Tanimoto similarity score and returns
+            a float, by default None.
+        max_iter : int, optional
+            The maximum number of iterations before regenerating the CDF for sampling
+            , by default None.
+        processes : int, optional
+            Number of processes to use, by default 1.
+
+        Returns
+        -------
+        List[str]
+            The compound ids to expand.
         """
 
         # Return input if less than desired number of compounds
@@ -334,8 +376,9 @@ class TanimotoSamplingFilter(Filter):
             return ids
 
         # Get pandas df and ids
-        df = self._gen_df_from_tanimoto(mol_info, t_fp, min_T=min_T, n_cores=n_cores)
-
+        df = self._gen_df_from_tanimoto(
+            mol_info, t_fp, min_T=min_T, processes=processes
+        )
         if len(df) <= n_cpds:
             ids = set(df["_id"])
             print(
@@ -378,8 +421,28 @@ class TanimotoSamplingFilter(Filter):
 
         return chosen_ids
 
-    def _gen_rv_from_df(self, df, chosen=[], weighting=None):
-        """Genderate a scipy.rv object to sample from."""
+    def _gen_rv_from_df(
+        self,
+        df: pd.DataFrame,
+        chosen: List = [],
+        weighting: Callable = None,
+    ) -> rv_discrete:
+        """Generate a scipy.rv object to sample from the inverse CDF
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            Dataframe containing the data to sample
+        chosen : List, optional
+            Compound ids that have already been chosen, by default []
+        weighting : Callable, optional
+            Function to weight the Tanimoto distribution by, by default None
+
+        Returns
+        -------
+        rv_discrete
+            scipy.rv object to sample from.
+        """
         if weighting is None:
 
             def weighting(T):
@@ -402,13 +465,26 @@ class TanimotoSamplingFilter(Filter):
 
         return rv, ids
 
-    def _gen_df_from_tanimoto(self, mol_info, t_fp, min_T, n_cores):
-        # Construct target df
+    def _gen_df_from_tanimoto(
+        self,
+        mol_info: List[Tuple[str, str]],
+        t_fp: List[RDKFingerprint],
+        min_T: float = 0.05,
+        processes: int = 1,
+    ):
+        """Generate a dataframe from tanimoto
 
-        def chunks(lst, size):
-            """Yield successive n-sized chunks from lst."""
-            for i in range(0, len(lst), size):
-                yield lst[i : i + size]
+        Parameters
+        ----------
+        mol_info : List[Tuple[str, str]]
+            A list consisting of (compound_id, SMILES)
+        t_fp : List[RDKFingerprint]
+            Target fingerprints to compare compounds to.
+        min_T : float, optional
+            Minimum Tanimoto similarity to be considered for sampling, by default 0.05
+        processes : int, optional
+            Number of processes to use, by default 1
+        """
 
         then = time.time()
         print("-- Calculating Fingerprints and Tanimoto Values.")
@@ -419,11 +495,10 @@ class TanimotoSamplingFilter(Filter):
         partial_T_calc = partial(_calc_max_T, t_df, min_T)
 
         df = pd.DataFrame()
-        for mol_chunk in chunks(mol_info, 10000):
-
+        for mol_chunk in Chunks(mol_info, 10000):
             # Construct targets to sample df
             temp_df = pd.DataFrame(mol_chunk, columns=["_id", "SMILES"])
-            df = df.append(_parallelize_dataframe(temp_df, partial_T_calc, n_cores))
+            df = df.append(_parallelize_dataframe(temp_df, partial_T_calc, processes))
 
         # Reset index for CDF calculation
         df.reset_index(inplace=True, drop=True)
@@ -432,19 +507,29 @@ class TanimotoSamplingFilter(Filter):
         return df
 
 
-def _parallelize_dataframe(df, func, n_cores=1):
+def _parallelize_dataframe(
+    df: pd.DataFrame,
+    func: Callable,
+    processes: int = 1,
+) -> pd.DataFrame:
     """Parallelize mapping a function to a dataframe.
 
-    Applies a function to a dataframe in parallel by chunking it up over
-    the specified number of cores.
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Dataframe to apply function to.
+    func : Callable
+        Function to map onto dataframe.
+    processes : int
+        Number of processes to use, by default 1.
     """
     # Require minimum number of compounds to parallelize
-    if len(df) <= n_cores * 4:
-        n_cores = 1
+    if len(df) <= processes * 4:
+        processes = 1
 
-    if n_cores > 1:
-        df_split = np.array_split(df, n_cores)
-        pool = multiprocessing.Pool(n_cores)
+    if processes > 1:
+        df_split = np.array_split(df, processes)
+        pool = multiprocessing.Pool(processes)
         df = pd.concat(pool.map(func, df_split))
         pool.close()
         pool.join()
@@ -453,12 +538,21 @@ def _parallelize_dataframe(df, func, n_cores=1):
     return df
 
 
-def _calc_max_T(t_df, min_T, df):
+def _calc_max_T(t_df: pd.DataFrame, min_T: float, df: pd.DataFrame) -> pd.DataFrame:
     """Calculate maximum tanimoto.
 
     Generate the tanimoto to use to generate the PMF to sample from.
     For each compound a list of tanimoito values are obtained by a generated
     compound to every target compound and the max is taken.
+
+    Parameters
+    ----------
+    t_df : pd.Dataframe
+        Dataframe containing the target fingerprints.
+    min_T : float
+        The minimum tanimoto similarity score needed to consider a compound.
+    df : pd.DataFrame
+        Dataframe to calculate the max tanimoto for.
     """
     df["fp"] = df["SMILES"].map(get_fp)
 
@@ -480,7 +574,7 @@ def _calc_max_T(t_df, min_T, df):
 # Metabolomics data filter
 
 
-class Options:
+class _Options:
     """Object containing adducts property required for MetabolomicsDataset init."""
 
     def __init__(self, adducts):
@@ -488,6 +582,21 @@ class Options:
 
 
 class MetabolomicsFilter(Filter):
+    """A metabolomics filter short description.
+
+    A longer description.
+
+    Parameters
+    ----------
+    please_jon : float
+        Fill me in
+
+    Attributes
+    ----------
+    I_believe_in_you : bool
+        Do I believe in you?, by default True.
+    """
+
     def __init__(
         self,
         filter_name,
@@ -523,7 +632,7 @@ class MetabolomicsFilter(Filter):
         self.possible_adducts = possible_adducts
         self.mass_tolerance = mass_tolerance
 
-        options = Options(possible_adducts)
+        options = _Options(possible_adducts)
         self.metabolomics_dataset = MetabolomicsDataset(self.met_data_name, options)
 
         # Load Metabolomics peaks
@@ -560,7 +669,7 @@ class MetabolomicsFilter(Filter):
     def filter_name(self):
         return self._filter_name
 
-    def _choose_cpds_to_filter(self, pickaxe, num_workers):
+    def _choose_cpds_to_filter(self, pickaxe, processes):
         """Choose compounds to expand based on whether they are found in a
         metabolomics dataset.
 
@@ -614,10 +723,10 @@ class MetabolomicsFilter(Filter):
         mass_matched_ids = set()
         cpd_met_dict = {}
 
-        if num_workers > 1:
+        if processes > 1:
             # Set up parallel computing
-            chunk_size = max([round(len(cpd_info) / (num_workers * 4)), 1])
-            pool = multiprocessing.Pool(num_workers)
+            chunk_size = max([round(len(cpd_info) / (processes * 4)), 1])
+            pool = multiprocessing.Pool(processes)
 
             for res in pool.imap_unordered(
                 filter_by_mass_and_rt_partial, cpd_info, chunk_size
@@ -714,10 +823,10 @@ class MetabolomicsFilter(Filter):
 
         return predicted_rt
 
-    def pre_print(self):
+    def _pre_print(self):
         print(f"Filtering compounds based on match with metabolomics data.")
 
-    def post_print(self, pickaxe, n_total, n_filtered, time_sample):
+    def _post_print(self, pickaxe, n_total, n_filtered, time_sample):
         print(
             (
                 f"{n_filtered} of {n_total} compounds selected after "
@@ -735,12 +844,30 @@ class MetabolomicsFilter(Filter):
 
 
 class TanimotoFilter(Filter):
-    """Calculate Tanimoto Coefficient for fingerprints between predicted and
-    target compounds and filter out predicted compounds with low Tanimoto, set
-    by specifying crit_tani."""
+    """A filter that uses tanimoto similarity score to determine compounds to expand.
 
-    def __init__(self, filter_name, crit_tani, increasing_tani):
-        self._filter_name = filter_name
+    TanimotoFilter applies a strict cutoff to to the tanimoto similarity score of
+    compounds to determine which compounds to expand.
+
+    Parameters
+    ----------
+    crit_tani : float
+        The tanimoto similarity score threshold.
+    increasing_tani : bool
+        Whether or not to only keep compounds whos tanimoto score is higher than its
+        parent.
+
+    Attributes
+    ----------
+    crit_tani : float
+        The tanimoto similarity score threshold.
+    increasing_tani : bool
+        Whether or not to only keep compounds whos tanimoto score is higher than its
+        parent.
+    """
+
+    def __init__(self, crit_tani: float, increasing_tani: bool):
+        self._filter_name = "Tanimoto Cutoff"
         self.crit_tani = crit_tani
         self.increasing_tani = increasing_tani
 
@@ -748,7 +875,7 @@ class TanimotoFilter(Filter):
     def filter_name(self):
         return self._filter_name
 
-    def _choose_cpds_to_filter(self, pickaxe, num_workers=1):
+    def _choose_cpds_to_filter(self, pickaxe: Pickaxe, processes: int = 1):
         """
         Compares the current generation to the target compound fingerprints
         marking compounds, who have a tanimoto similarity score to a target
@@ -806,7 +933,7 @@ class TanimotoFilter(Filter):
         else:
             this_gen_crit_tani = self.crit_tani
         cpd_filters = self._filter_by_tani_helper(
-            cpd_info, pickaxe.target_fps, num_workers, this_gen_crit_tani
+            cpd_info, pickaxe.target_fps, processes, this_gen_crit_tani
         )
 
         # Process filtering results
@@ -825,7 +952,7 @@ class TanimotoFilter(Filter):
         return cpds_remove_set
 
     def _filter_by_tani_helper(
-        self, compounds_info, target_fps, num_workers, this_crit_tani
+        self, compounds_info, target_fps, processes, this_crit_tani
     ):
         def print_progress(done, total, section):
             # Use print_on to print % completion roughly every 5 percent
@@ -841,10 +968,10 @@ class TanimotoFilter(Filter):
             self._compare_target_fps, target_fps, this_crit_tani
         )
 
-        if num_workers > 1:
+        if processes > 1:
             # Set up parallel computing of compounds to
-            chunk_size = max([round(len(compounds_info) / (num_workers * 4)), 1])
-            pool = multiprocessing.Pool(num_workers)
+            chunk_size = max([round(len(compounds_info) / (processes * 4)), 1])
+            pool = multiprocessing.Pool(processes)
             for i, res in enumerate(
                 pool.imap_unordered(
                     compare_target_fps_partial, compounds_info, chunk_size
@@ -899,7 +1026,7 @@ class TanimotoFilter(Filter):
             print_tani = self.crit_tani
         print(f"Filtering out compounds with maximum tanimoto match < {print_tani}")
 
-    def post_print(self, pickaxe, n_total, n_filtered, time_sample):
+    def _post_print(self, pickaxe, n_total, n_filtered, time_sample):
         if type(self.crit_tani) in [list, tuple]:
             if len(self.crit_tani) - 1 < pickaxe.generation:
                 print_tani = self.crit_tani[-1]
@@ -918,18 +1045,31 @@ class TanimotoFilter(Filter):
 
 
 class MCSFilter(Filter):
-    """Filter out compounds based on Maximum Common Substructure (MCS) with
-    target compounds."""
+    """A filter that uses MCS score to determine compounds to expand.
 
-    def __init__(self, filter_name, crit_mcs):
-        self._filter_name = filter_name
+    MCSFilter applies a strict cutoff to to the MCS score of
+    compounds to determine which compounds to expand.
+
+    Parameters
+    ----------
+    crit_mcs: float
+        The maximum common substructure similarity score threshold.
+
+    Attributes
+    ----------
+    crit_mcs : float
+        The maximum common substructure similarity score threshold.
+    """
+
+    def __init__(self, crit_mcs: float):
+        self._filter_name = "MCS Cutoff"
         self.crit_mcs = crit_mcs
 
     @property
     def filter_name(self):
         return self._filter_name
 
-    def _choose_cpds_to_filter(self, pickaxe, num_workers=1):
+    def _choose_cpds_to_filter(self, pickaxe, processes=1):
         """
         Compares the current generation to the target compound fingerprints
         marking compounds, who have a tanimoto similarity score to a target
@@ -977,7 +1117,7 @@ class MCSFilter(Filter):
         cpd_info = [(cpd["_id"], cpd["SMILES"]) for cpd in compounds_to_check]
         this_gen_crit_mcs = crit_mcs
         cpd_filters = self._filter_by_mcs_helper(
-            cpd_info, pickaxe.target_smiles, num_workers, this_gen_crit_mcs
+            cpd_info, pickaxe.target_smiles, processes, this_gen_crit_mcs
         )
 
         # Process filtering results
@@ -991,7 +1131,7 @@ class MCSFilter(Filter):
         return cpds_remove_set
 
     def _filter_by_mcs_helper(
-        self, compounds_info, target_smiles, num_workers, this_crit_mcs, retro=False
+        self, compounds_info, target_smiles, processes, this_crit_mcs, retro=False
     ):
         def print_progress(done, total, section):
             # Use print_on to print % completion roughly every 5 percent
@@ -1007,10 +1147,10 @@ class MCSFilter(Filter):
             self._compare_target_mcs, target_smiles, retro
         )
 
-        if num_workers > 1:
+        if processes > 1:
             # Set up parallel computing of compounds to
-            chunk_size = max([round(len(compounds_info) / (num_workers * 4)), 1])
-            pool = multiprocessing.Pool(num_workers)
+            chunk_size = max([round(len(compounds_info) / (processes * 4)), 1])
+            pool = multiprocessing.Pool(processes)
             for i, res in enumerate(
                 pool.imap_unordered(
                     compare_target_mcs_partial,
@@ -1098,7 +1238,7 @@ class MCSFilter(Filter):
             crit_mcs = self.crit_mcs
         print(f"Filtering out compounds with maximum MCS match < {crit_mcs}")
 
-    def post_print(self, pickaxe, n_total, n_filtered, time_sample):
+    def _post_print(self, pickaxe, n_total, n_filtered, time_sample):
         if type(self.crit_mcs) in [list, tuple]:
             if len(self.crit_mcs) - 1 < pickaxe.generation:
                 crit_mcs = self.crit_mcs[-1]

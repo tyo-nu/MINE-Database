@@ -32,9 +32,7 @@ def pk():
 def test_tani_cutoff_single(pk):
     """Test tanimoto cutoff filter"""
     tani_threshold = 0.5
-    filter = TanimotoFilter(
-        filter_name="Tani", crit_tani=tani_threshold, increasing_tani=False
-    )
+    filter = TanimotoFilter(crit_tani=tani_threshold, increasing_tani=False)
     pk.filters.append(filter)
     pk.transform_all(generations=2)
 
@@ -46,9 +44,7 @@ def test_tani_cutoff_single(pk):
 def test_filter_after(pk):
     """Test tanimoto cutoff filter"""
     tani_threshold = 0.5
-    filter = TanimotoFilter(
-        filter_name="Tani", crit_tani=tani_threshold, increasing_tani=False
-    )
+    filter = TanimotoFilter(crit_tani=tani_threshold, increasing_tani=False)
     pk.filter_after_final_gen = True
     pk.filters.append(filter)
     pk.transform_all(generations=2)
@@ -60,9 +56,7 @@ def test_filter_after(pk):
 def test_tani_cutoff_multi(pk):
     """Test tanimoto cutoff filter"""
     tani_threshold = [0, 0.3, 0.5]
-    filter = TanimotoFilter(
-        filter_name="Tani", crit_tani=tani_threshold, increasing_tani=False
-    )
+    filter = TanimotoFilter(crit_tani=tani_threshold, increasing_tani=False)
     pk.filters.append(filter)
     pk.transform_all(generations=2)
 
@@ -73,9 +67,7 @@ def test_tani_cutoff_multi(pk):
 def test_tani_cutoff_multi_short_list(pk):
     """Test tanimoto filter when the tani_threshold is shorter than generations."""
     tani_threshold = [0.5]
-    filter = TanimotoFilter(
-        filter_name="Tani", crit_tani=tani_threshold, increasing_tani=False
-    )
+    filter = TanimotoFilter(crit_tani=tani_threshold, increasing_tani=False)
     pk.filters.append(filter)
     pk.transform_all(generations=2)
 
@@ -85,7 +77,7 @@ def test_tani_cutoff_multi_short_list(pk):
 
 def test_tani_sample_default_weight(pk):
     """Test tanimoto cutoff filter"""
-    filter = TanimotoSamplingFilter(filter_name="Tani", sample_size=10, weight=None)
+    filter = TanimotoSamplingFilter(sample_size=10, weight=None)
     pk.filters.append(filter)
     pk.transform_all(generations=2)
 
@@ -100,7 +92,7 @@ def test_tani_sample_user_weight(pk):
     def weight(T):
         return T ** 4
 
-    filter = TanimotoSamplingFilter(filter_name="Tani", sample_size=10, weight=weight)
+    filter = TanimotoSamplingFilter(sample_size=10, weight=weight)
     pk.filters.append(filter)
     pk.transform_all(generations=2)
 
@@ -115,8 +107,9 @@ def test_tani_sample_multiprocess(pk):
     def weight(T):
         return T ** 4
 
-    filter = TanimotoSamplingFilter(filter_name="Tani", sample_size=10, weight=weight)
+    filter = TanimotoSamplingFilter(sample_size=10, weight=weight)
     pk.processes = 2
+    pk.react_targets = True
     pk.filters.append(filter)
     pk.transform_all(generations=2)
 
@@ -128,10 +121,7 @@ def test_tani_sample_multiprocess(pk):
 def test_MCS_list(pk):
     """Test tanimoto cutoff filter"""
     MCS_threshold = [0.1, 0.5]
-    filter = MCSFilter(
-        filter_name="MCS",
-        crit_mcs=MCS_threshold,
-    )
+    filter = MCSFilter(crit_mcs=MCS_threshold)
     pk.filters.append(filter)
     pk.transform_all(generations=2)
 

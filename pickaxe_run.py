@@ -306,20 +306,17 @@ if __name__ == '__main__':  # required for parallelization on Windows
     # Apply filters
     if tani_filter:
         taniFilter = TanimotoFilter(
-            filter_name="Tani",
             crit_tani=tani_threshold,
             increasing_tani=increasing_tani
         )
         pk.filters.append(taniFilter)
 
     if tani_sample:
-        taniSampleFilter = TanimotoSamplingFilter(filter_name="Tani_Sample",
-                                                  sample_size=sample_size,
-                                                  weight=weight)
+        taniSampleFilter = TanimotoSamplingFilter(sample_size=sample_size, weight=weight)
         pk.filters.append(taniSampleFilter)
 
     if mcs_filter:
-        mcsFilter = MCSFilter(filter_name="MCS", crit_mcs=crit_mcs)
+        mcsFilter = MCSFilter(crit_mcs=crit_mcs)
         pk.filters.append(mcsFilter)
 
     if metabolomics_filter:
