@@ -18,8 +18,8 @@ sys.path.insert(0, os.path.abspath('../'))
 # -- Project information -----------------------------------------------------
 
 project = 'MINE-Database'
-copyright = '2021, Kevin Shebek'
-author = 'Kevin Shebek'
+copyright = '2021, Tyo Lab'
+author = 'Tyo Lab'
 
 
 # -- General configuration ---------------------------------------------------
@@ -27,7 +27,7 @@ author = 'Kevin Shebek'
 # Add any Sphinx extension module names here, as strings. They can be
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
-extensions = ["sphinx.ext.autodoc", "sphinxcontrib.napoleon"]
+extensions = ["sphinx.ext.autodoc", "numpydoc"]
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
