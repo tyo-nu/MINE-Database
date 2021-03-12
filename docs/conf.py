@@ -39,6 +39,10 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 
 numpydoc_show_class_members = False
 
+# rdkit isn't found and can't be installed via pip for readthedocs
+# add a mock import
+autodoc_mock_imports = ["rdkit"]
+
 # -- Options for HTML output -------------------------------------------------
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
