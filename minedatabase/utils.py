@@ -216,30 +216,6 @@ def save_dotted_field(accessor_string: str, data: dict):
         data = {chunk: data}
     return data
 
-
-def memoize(func: Callable):
-    """Memoization decorator for a function taking one or more arguments.
-
-    Parameters
-    ----------
-    func : Callable
-        Function to memoize.
-    """
-
-    class MemoDict(dict):
-        """Class to store outputs for previous inputs. If not previously input
-        into func, gets added to the dict."""
-
-        def __getitem__(self, *key):
-            return dict.__getitem__(self, key)
-
-        def __missing__(self, key):
-            ret = self[key] = func(*key)
-            return ret
-
-    return MemoDict().__getitem__
-
-
 def prevent_overwrite(write_path: str) -> str:
     """Prevents overwrite of existing output files by appending "_new" when
     needed.
@@ -542,26 +518,7 @@ def score_compounds(
     return compounds
 
 
-def get_smiles_from_mol_string(mol_string: str) -> str:
-    """Convert a molfile in string format to a SMILES string.
-
-    Parameters
-    ----------
-    mol_string : str
-        molfile in string format.
-
-    Returns
-    -------
-    str
-        SMILES string.
-    """
-    mol = AllChem.MolFromMolBlock(mol_string)
-    smiles = AllChem.MolToSmiles(mol)
-
-    return smiles
-
-
-def _getatom_count(mol, radical_check=False):
+def getatom_count(mol, radical_check=False):
     """Takes a set of mol objects and returns a counter with each element
     type in the set"""
     atoms = collections.Counter()

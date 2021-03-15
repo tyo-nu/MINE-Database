@@ -246,6 +246,7 @@ class MINE:
         self.core_compounds.drop_indexes()
         self.core_compounds.create_index([("Mass", pymongo.ASCENDING)])
         self.core_compounds.create_index("Inchikey")
+        self.core_compounds.create_index("MINES")
         self.compounds.create_index("Inchikey")
         self.compounds.create_index("Inchi")
         self.compounds.create_index("SMILES")

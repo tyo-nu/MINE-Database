@@ -11,11 +11,12 @@ MINE-Database Documentation
    :maxdepth: 2
 
    install.rst
-   support.rst
-
+   Example.rst
+   Inputs.rst
+   
    pickaxe.rst
    reactions.rst
    metabolomics.rst
    filters.rst
 
-   Example.rst
+   support.rst

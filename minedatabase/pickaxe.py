@@ -494,7 +494,7 @@ class Pickaxe:
                     "InChI_key": inchi_key,
                     "Type": cpd_type,
                     "Generation": self.generation,
-                    "atom_count": utils._getatom_count(mol, self.radical_check),
+                    "atom_count": utils.getatom_count(mol, self.radical_check),
                     "Reactant_in": [],
                     "Product_of": [],
                     "Expand": expand,

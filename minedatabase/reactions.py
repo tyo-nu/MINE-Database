@@ -131,7 +131,7 @@ def _run_reaction(
                     "InChI_key": inchi_key,
                     "Type": "Predicted",
                     "Generation": generation,
-                    "atom_count": utils._getatom_count(mol),
+                    "atom_count": utils.getatom_count(mol),
                     "Reactant_in": [],
                     "Product_of": [],
                     "Expand": True,
