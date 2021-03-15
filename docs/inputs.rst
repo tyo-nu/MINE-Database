@@ -85,7 +85,7 @@ which represent reactions in a string. Importantly, these reaction rules specify
 which keeps track of the species throughout the reaction. To higlight a simple reaction rule generation,
 a deesterification reaction will be used.
 
-.. image:: figures/full_rule.png
+.. image:: _static/figures/full_rule.png
     :width: 600
     :align: center
 
@@ -96,7 +96,7 @@ and it matches the exact pattern of the reaction, which is not useful as it will
 Instead of using an exact reaction, a generic reaction rule can be used to match more molecules. In this case,
 the radius of the atom away from the reactive site is decreased.
 
-.. image:: figures/generic_rule.png
+.. image:: _static/figures/generic_rule.png
     :width: 500
     :align: center
 
@@ -116,7 +116,7 @@ as a predefined coreactant.
 
 Below is an example of a reaction rule made for a deesterification reaction.
 
-.. image:: figures/deesterification.png
+.. image:: _static/figures/deesterification.png
     :width: 500
     :align: center
 
@@ -145,7 +145,7 @@ Summarized here is the input files for a deesterification reaction.
 
 Reaction
 ~~~~~~~~
-.. image:: figures/deesterification.png
+.. image:: _static/figures/deesterification.png
     :width: 500
     :align: center
 

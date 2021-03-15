@@ -1,5 +1,5 @@
 Running Pickaxe
-===================
+================
 
 Pickaxe is the program that is used to generate the data that is stored in the MINE-Database. The database is used for
 metabolomics applications, but pickaxe can be extended for use in general reaction network generation and analysis. An 
