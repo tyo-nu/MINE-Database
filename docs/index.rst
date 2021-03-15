@@ -11,8 +11,8 @@ MINE-Database Documentation
    :maxdepth: 2
 
    install.rst
-   Example.rst
-   Inputs.rst
+   pickaxe_run.rst
+   inputs.rst
    
    pickaxe.rst
    reactions.rst
