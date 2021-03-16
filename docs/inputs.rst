@@ -68,6 +68,7 @@ but they can be trimmed down significantly while still retaining high coverage o
 | 1221            | 100                 |
 +-----------------+---------------------+
 
+
 Generating Custom Rules
 ~~~~~~~~~~~~~~~~~~~~~~~
 In the event that the default rules do not contain a reaction of interest, it is pososible

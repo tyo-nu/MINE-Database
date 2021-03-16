@@ -71,7 +71,21 @@ The file consists of an id and a SMILES string. An example of a .csv file is
 
 Coreactant and Rule lists
 ^^^^^^^^^^^^^^^^^^^^^^^^^
-Pickaxe is provided with a rule list generated from approximately 70,000 MetaCyc reactions.
+Pickaxe is provided with a default rule list generated from approximately 70,000 MetaCyc reactions.
+
+The following code allows you to select then number of rules by either a number or by coverage:
+
+.. code-block:: python
+
+    from minedatabase.rules import metacyc_generalized
+    # Select by number
+    rule_list, coreactant_list, rule_name = metacyc_generalized(n_rules=20)
+
+    # Select by fraction coverage
+    rule_list, coreactant_list, rule_name = metacyc_generalized(fraction_coverage=0.5)
+
+
+
 When choosing how many reactions to use, you can refer to the following table:
 
 +-----------------+---------------------+
@@ -93,26 +107,33 @@ When choosing how many reactions to use, you can refer to the following table:
 | 1221            | 100                 |
 +-----------------+---------------------+
 
-For more information on creating rules and cofactors see: TODO RULES
+.. note:: 
+    Rules and coreactants can be generated manually as well, which is outlined in 
+    :doc:`inputs`.
 
 Code snippet from Pickaxe_run.py
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-These input filse are specified as follows in :code:`Pickaxe_Run.py`
+These input files are specified as follows:
 
 .. code-block:: python
 
-    # Input compounds
-    input_cpds = './example_data/starting_cpds_ten.csv'
+    input_cpds = './example_data/starting_cpds_single.csv'
 
-    # Metacyc Rules
-    coreactant_list = './minedatabase/data/metacyc_rules/MetaCyc_Coreactants.tsv'
+    # Generate rules automatically from metacyc generalized. n_rules takes precedence over 
+    # fraction_coverage if both specified. Passing nothing returns all rules.
+    rule_list, coreactant_list, rule_name = metacyc_generalized(
+        n_rules=20,
+        fraction_coverage=None
+    )
 
-    # See ./example_data/metacyc_rule_selection/rule_selection.ipynb
-    # to generate sets of rules from metacyc based on reaction mapping, where
-    # the reactions being mapped are the reactions the rules are derived from.
-    rule_list = './minedatabase/data/metacyc_rules/metacyc_27percent_10rules.tsv'
+If you generated a file manually then specify the file directly as follows:
 
+.. code-block:: python
+
+    rule_list = "path/to/rules"
+    coreactant_list = "path/to/coreactants"
+    rule_name = "rule name"
 
 
 Core Pickaxe Options
