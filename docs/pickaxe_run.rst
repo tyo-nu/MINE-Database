@@ -14,11 +14,16 @@ and explain the components of running pickaxe. Generally, pickaxe_run.py operate
 2. Specifying the various run inputs
 3. Core Pickaxe options
 4. Specification of Filters
-5. Specifying stdout output options
-6. Running Pickaxe
 
-This document gives the relevant code snippets from pickaxe_run and expands on existing comments. Additionally, brief
-examples of relevant inputs will be created. For more detailed descriptions please see RULES LINK and FILTERS LINK.
+This document gives the relevant code snippets from a template and expands on existing comments. Additionally, brief 
+examples of relevant inputs will be created. For more detailed descriptions please see :doc:`inputs` and :doc:`filters`.
+
+Example Template
+----------------
+This document details the specifics of a template file, pickaxe_run.py, that highlights
+common Pickaxe runs.
+
+:download:`pickaxe_run.py can be downloaded here. <_static/files/pickaxe_run.py>`
 
 Run Output
 ----------
@@ -29,23 +34,25 @@ There are two ways to output data:
 
 .. code-block:: python
 
-    # Database to write results to
-    write_db = True
-    database_overwrite = True
+    # Whether or not to write to a mongodb
+    write_db = False
+    database_overwrite = False
     # database = "APAH_100Sam_50rule"
-    database = "Example_Run"
+    database = "example_pathway"
     # Message to insert into metadata
-    message = ("Example run to show how pickaxe is ran.")
+    message = ("Example run to show how pickaxe is run.")
 
     # mongo DB information
-    use_local = True
-    if use_local:
+    use_local = False
+    if write_db == False:
+        mongo_uri = None
+    elif use_local:
         mongo_uri = 'mongodb://localhost:27017'
     else:
-        mongo_uri = open('mongo_uri.csv').readline().strip('\n')
+        mongo_uri = open('mongo_uri1.csv').readline().strip('\n')
 
     # Write output .csv files locally
-    write_local = False
+    write_to_csv = False
     output_dir = '.'
 
 .. _mongo uri: https://docs.mongodb.com/manual/reference/connection-string/
