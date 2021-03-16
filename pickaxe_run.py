@@ -24,6 +24,7 @@ from minedatabase.filters import (
     TanimotoSamplingFilter,
 )
 from minedatabase.pickaxe import Pickaxe
+from minedatabase.rules import metacyc_generalized, metacyc_intermediate_uniprot
 
 
 # pylint: disable=invalid-name
@@ -63,13 +64,12 @@ output_dir = '.'
 # Input compounds
 input_cpds = './example_data/starting_cpds_single.csv'
 
-# Rules from Joseph Ni
-coreactant_list = './minedatabase/data/metacyc_rules/metacyc_coreactants.tsv'
-
-# See ./example_data/metacyc_rule_selection/rule_selection.ipynb
-# to generate sets of rules from metacyc based on reaction mapping, where
-# the reactions being mapped are the reactions the rules are derived from.
-rule_list = './minedatabase/data/metacyc_rules/metacyc_27percent_10rules.tsv'
+# Generate rules automatically from metacyc generalized. n_rules takes precedence over 
+# fraction_coverage if both specified. Passing nothing returns all rules.
+rule_list, coreactant_list, rule_name = metacyc_generalized(
+    n_rules=20,
+    fraction_coverage=None
+)
 
 ###############################################################################
 
@@ -216,7 +216,7 @@ def print_run_parameters():
     print('\n-------------Run Parameters-------------')
 
     print('\nRun Info')
-    print_parameter_list(['coreactant_list', 'rule_list', 'input_cpds'])
+    print_parameter_list(['coreactant_list', 'rule_name', 'input_cpds'])
 
     print('\nExpansion Options')
     print_parameter_list(['generations', 'processes'])
@@ -350,8 +350,7 @@ if __name__ == '__main__':  # required for parallelization on Windows
         db.meta_data.insert_one({"Timestamp": datetime.datetime.now(),
                                  "Run Time": f"{round(time.time() - start, 2)}",
                                  "Generations": f"{generations}",
-                                 "Operator file": f"{rule_list}",
-                                 "Coreactant file": f"{coreactant_list}",
+                                 "Rule Name": f"{rule_name}",
                                  "Input compound file": f"{input_cpds}"
                                  })
 

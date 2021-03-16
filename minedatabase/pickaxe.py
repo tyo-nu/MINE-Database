@@ -9,6 +9,8 @@ import os
 import pickle
 import time
 from argparse import ArgumentParser
+from io import StringIO
+from pathlib import Path, PosixPath
 from sys import exit
 from typing import List, Set, Tuple
 
@@ -370,7 +372,14 @@ class Pickaxe:
 
         """
         skipped = 0
-        with open(rule_path) as infile:
+
+        # Get the stream for rule input
+        if type(rule_path) in [str, Path, PosixPath]:
+            infile = open(rule_path)
+        elif type(rule_path) == StringIO:
+            infile = rule_path
+
+        with infile:
             # Get all reaction rules from tsv file and store in dict (rdr)
             rdr = csv.DictReader(
                 (row for row in infile if not row.startswith("#")), delimiter="\t"

@@ -216,6 +216,7 @@ def save_dotted_field(accessor_string: str, data: dict):
         data = {chunk: data}
     return data
 
+
 def prevent_overwrite(write_path: str) -> str:
     """Prevents overwrite of existing output files by appending "_new" when
     needed.
