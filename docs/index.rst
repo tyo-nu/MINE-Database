@@ -11,6 +11,7 @@ MINE-Database Documentation
    :maxdepth: 2
 
    install.rst
+   command_line.rst
    pickaxe_run.rst
    inputs.rst
    

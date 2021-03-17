@@ -139,7 +139,7 @@ class Pickaxe:
         self,
         rule_list: str = None,
         coreactant_list: str = None,
-        explicit_h: bool = True,
+        explicit_h: bool = False,
         kekulize: bool = True,
         neutralise: bool = True,
         errors: bool = True,
@@ -148,7 +148,7 @@ class Pickaxe:
         database_overwrite: bool = False,
         mongo_uri: bool = "mongodb://localhost:27017",
         image_dir: str = None,
-        quiet: bool = False,
+        quiet: bool = True,
         react_targets: bool = True,
         filter_after_final_gen: bool = True,
     ):
@@ -576,7 +576,7 @@ class Pickaxe:
         ----------
         processes : int, optional
             Number of processes to run in parallel, by default 1.
-        max_generations : int, optional
+        generations : int, optional
             Number of generations to create, by default 1.
         """
 
@@ -1271,6 +1271,7 @@ class Pickaxe:
 
 
 if __name__ == "__main__":
+    print(os.getcwd())
     # Get initial time to calculate execution time at end
     t1 = time.time()  # pylint: disable=invalid-name
     # Parse all command line arguments
@@ -1280,19 +1281,19 @@ if __name__ == "__main__":
         "-C",
         "--coreactant_list",
         default="./tests/data/test_coreactants.tsv",
-        help="Specify a list of coreactants as a " "tab-separated file",
+        help="Specify a list of coreactants as a .tsv",
     )
     parser.add_argument(
         "-r",
         "--rule_list",
         default="./tests/data/test_reaction_rules.tsv",
-        help="Specify a list of reaction rules as a " "tab-separated file",
+        help="Specify a list of reaction rules as a .tsv",
     )
     parser.add_argument(
         "-c",
         "--compound_file",
         default="./tests/data/test_compounds.tsv",
-        help="Specify a list of starting compounds as a " "tab-separated file",
+        help="Specify a list of starting compounds as .tsv or .csv",
     )
     parser.add_argument(
         "-v",
@@ -1308,7 +1309,7 @@ if __name__ == "__main__":
         "-H",
         "--explicit_h",
         action="store_true",
-        default=True,
+        default=False,
         help="Specify explicit hydrogen for use in reaction rules.",
     )
     parser.add_argument(
@@ -1323,60 +1324,83 @@ if __name__ == "__main__":
         "--neutralise",
         action="store_true",
         default=True,
-        help="Specify whether to kekulize compounds.",
+        help="Specify whether to neturalise compounds.",
     )
 
     parser.add_argument(
         "-m",
-        "--max_workers",
+        "--processes",
         default=1,
         type=int,
         help="Set the max number of processes.",
     )
+
     parser.add_argument(
         "-g",
         "--generations",
         default=1,
         type=int,
-        help="Set the numbers of time to apply the reaction "
-        "rules to the compound set.",
+        help="Set the numbers of time to apply the reaction rules to the compound set.",
     )
+
     parser.add_argument(
         "-q",
         "--quiet",
         action="store_true",
-        default=False,
-        help="Silence warnings about imbalenced reactions",
+        default=True,
+        help="Silence warnings about imbalanced reactions",
     )
+
     parser.add_argument(
-        "-s", "--smiles", default=None, help="Specify a starting compound as SMILES."
+        "-s", "--smiles", default=None, help="Specify a starting compound SMILES."
     )
+
     # Result args
     parser.add_argument(
         "-p",
         "--pruning_whitelist",
         default=None,
-        help="Specify a list of target compounds to prune reaction network down",
+        help="Specify a list of target compounds to prune reaction network down to.",
     )
     parser.add_argument(
-        "-o", "--output_dir", default=".", help="The directory in which to place files"
+        "-o",
+        "--output_dir",
+        default=None,
+        help="The directory in which to write files.",
     )
     parser.add_argument(
         "-d",
         "--database",
         default=None,
-        help="The name of the database in which to store "
-        "output. If not specified, data is still written "
+        help="The URI of the database in which to store "
+        "output. If not specified, data is written "
         "as tsv files",
+    )
+    parser.add_argument(
+        "-u",
+        "--mongo_uri",
+        default="mongodb://localhost:27017",
+        help="The URI of the mongo database to connect to. Defaults to"
+        " mongodb://localhost:27017",
     )
     parser.add_argument(
         "-i",
         "--image_dir",
         default=None,
-        help="Specify a directory to store images of all " "created compounds",
+        help="Specify a directory to store images of all created compounds",
+    )
+    parser.add_argument(
+        "-wc",
+        "--write_core",
+        default=False,
+        help="Whether or not to write results into core database.",
     )
 
     OPTIONS = parser.parse_args()
+
+    if not any([OPTIONS.database, OPTIONS.output_dir]):
+        exit("No output selected, terminating run.")
+
     pk = Pickaxe(
         coreactant_list=OPTIONS.coreactant_list,
         rule_list=OPTIONS.rule_list,
@@ -1385,30 +1409,33 @@ if __name__ == "__main__":
         kekulize=OPTIONS.kekulize,
         neutralise=OPTIONS.neutralise,
         image_dir=OPTIONS.image_dir,
-        database=OPTIONS.database,
         quiet=OPTIONS.quiet,
+        database=OPTIONS.database,
+        mongo_uri=OPTIONS.mongo_uri,
     )
     # Create a directory for image output file if it doesn't already exist
     if OPTIONS.image_dir and not os.path.exists(OPTIONS.image_dir):
         os.mkdir(OPTIONS.image_dir)
     # If starting compound specified as SMILES string, then add it
     if OPTIONS.smiles:
-        # pylint: disable=protected-access
         pk._add_compound("Start", OPTIONS.smiles, cpd_type="Starting Compound")
     else:
         pk.load_compound_set(compound_file=OPTIONS.compound_file)
     # Generate reaction network
-    pk.transform_all(processes=OPTIONS.max_workers, max_generations=OPTIONS.generations)
+    pk.transform_all(processes=OPTIONS.processes, generations=OPTIONS.generations)
     if OPTIONS.pruning_whitelist:
-        # pylint: disable=invalid-name,protected-access
         mols = [
             pk._mol_from_dict(line)
             for line in utils.file_to_dict_list(OPTIONS.pruning_whitelist)
         ]
         pk.prune_network([utils.compound_hash(x) for x in mols if x])
 
-    pk.assign_ids()
-    pk.write_compound_output_file(OPTIONS.output_dir + "/compounds.tsv")
-    pk.write_reaction_output_file(OPTIONS.output_dir + "/reactions.tsv")
+    if OPTIONS.output_dir:
+        pk.assign_ids()
+        pk.write_compound_output_file(OPTIONS.output_dir + "/compounds.tsv")
+        pk.write_reaction_output_file(OPTIONS.output_dir + "/reactions.tsv")
+
+    if OPTIONS.database:
+        pk.save_to_mine(processes=OPTIONS.processes, write_core=OPTIONS.write_core)
 
     print(f"Execution took {time.time() - t1} seconds.")

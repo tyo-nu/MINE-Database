@@ -200,7 +200,7 @@ def metacyc_intermediate_uniprot(
         pat = "|".join(list(rule_counts.iloc[0:n_rules]["rule"]))
         rule_name = (
             f"Metacyc_intermediate_uniprot_{fraction_coverage}"
-            "_fraction_coverage".replace(",", ".")
+            "_fraction_coverage".replace(".", ",")
         )
     else:
         pat = "|".join(list(rule_counts["rule"]))

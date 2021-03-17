@@ -40,7 +40,6 @@ start = time.time()
 # Whether or not to write to a mongodb
 write_db = False
 database_overwrite = False
-# database = "APAH_100Sam_50rule"
 database = "example_pathway"
 # Message to insert into metadata
 message = ("Example run to show how pickaxe is run.")
@@ -50,19 +49,19 @@ use_local = False
 if write_db == False:
     mongo_uri = None
 elif use_local:
-    mongo_uri = 'mongodb://localhost:27017'
+    mongo_uri = "mongodb://localhost:27017"
 else:
-    mongo_uri = open('mongo_uri.csv').readline().strip('\n')
+    mongo_uri = open("mongo_uri.csv").readline().strip("\n")
 
 # Write output .csv files locally
-write_to_csv = False
-output_dir = '.'
+write_to_csv = True
+output_dir = "."
 ###############################################################################
 
 ###############################################################################
 #    Starting Compounds, Cofactors, and Rules
 # Input compounds
-input_cpds = './example_data/starting_cpds_single.csv'
+input_cpds = "./example_data/starting_cpds_single.csv"
 
 # Generate rules automatically from metacyc generalized. n_rules takes precedence over
 # fraction_coverage if both specified. Passing nothing returns all rules.
@@ -93,7 +92,7 @@ indexing = False
 # Global Filtering Options
 
 # Path to target cpds file (not required for metabolomics filter)
-target_cpds = './example_data/target_list_many.csv'
+target_cpds = "./example_data/target_list_many.csv"
 
 # Wheter or not to load targets even without filter
 # This allows for the pruning of a network without actually filternig
@@ -175,15 +174,15 @@ metabolomics_filter = False
 # Peak1, 6.33, 74.0373, negative, propionic acid, CCC(=O)O, yes
 # Peak2, 26.31, 84.06869909, positive, , , no
 # ...
-met_data_path = './local_data/ADP1_Metabolomics_PeakList_final.csv'
+met_data_path = "./local_data/ADP1_Metabolomics_PeakList_final.csv"
 
 # Name of dataset
-met_data_name = 'ADP1_metabolomics'
+met_data_name = "ADP1_metabolomics"
 
 # Adducts to add to each mass in mass list to create final list of possible
 # masses.
 # See "./minedatabase/data/adducts/All adducts.txt" for options.
-possible_adducts = ['[M+H]+', '[M-H]-']
+possible_adducts = ["[M+H]+", "[M-H]-"]
 
 # Tolerance in Da
 mass_tolerance = 0.001
@@ -191,14 +190,14 @@ mass_tolerance = 0.001
 # Retention Time Filter Options (optional but included in metabolomics filter)
 
 # Path to pickled machine learning predictor (SMILES => RT)
-rt_predictor_pickle_path = '../RT_Prediction/final_RT_model.pickle'
+rt_predictor_pickle_path = "../RT_Prediction/final_RT_model.pickle"
 
 # Allowable deviation in predicted RT (units just have to be consistent with dataset)
 rt_threshold = 4.5
 
 # Mordred descriptors to use as input to model (must be in same order as in trained model)
 # If None, will try to use all (including 3D) mordred descriptors
-rt_important_features = ['nAcid', 'ETA_dEpsilon_D', 'NsNH2', 'MDEO-11']
+rt_important_features = ["nAcid", "ETA_dEpsilon_D", "NsNH2", "MDEO-11"]
 
 ###############################################################################
 
@@ -213,61 +212,61 @@ def print_run_parameters():
         for i in plist:
             print(f"--{i}: {eval(i)}")
 
-    print('\n-------------Run Parameters-------------')
+    print("\n-------------Run Parameters-------------")
 
-    print('\nRun Info')
-    print_parameter_list(['coreactant_list', 'rule_name', 'input_cpds'])
+    print("\nRun Info")
+    print_parameter_list(["coreactant_list", "rule_name", "input_cpds"])
 
-    print('\nExpansion Options')
-    print_parameter_list(['generations', 'processes'])
+    print("\nExpansion Options")
+    print_parameter_list(["generations", "processes"])
 
-    print('\nGeneral Filter Options')
+    print("\nGeneral Filter Options")
     print_parameter_list(
         [
-            'filter_after_final_gen',
-            'react_targets',
-            'prune_to_targets',
+            "filter_after_final_gen",
+            "react_targets",
+            "prune_to_targets",
         ]
     )
 
     if tani_sample:
-        print('\nTanimoto Sampling Filter Options')
-        print_parameter_list(['sample_size', 'weight_representation'])
+        print("\nTanimoto Sampling Filter Options")
+        print_parameter_list(["sample_size", "weight_representation"])
 
     if tani_filter:
-        print('\nTanimoto Threshold Filter Options')
-        print_parameter_list(['tani_threshold', 'increasing_tani'])
+        print("\nTanimoto Threshold Filter Options")
+        print_parameter_list(["tani_threshold", "increasing_tani"])
 
     if mcs_filter:
-        print('\nMaximum Common Substructure Filter Options')
-        print_parameter_list(['crit_mcs'])
+        print("\nMaximum Common Substructure Filter Options")
+        print_parameter_list(["crit_mcs"])
 
     if metabolomics_filter:
-        print('\nMetabolomics Filter Options')
-        print_parameter_list(['met_data_path', 'met_data_name',
-                              'possible_adducts', 'mass_tolerance'])
+        print("\nMetabolomics Filter Options")
+        print_parameter_list(["met_data_path", "met_data_name",
+                              "possible_adducts", "mass_tolerance"])
 
-    print('\nPickaxe Options')
+    print("\nPickaxe Options")
     print_parameter_list(
         [
-            'verbose',
-            'explicit_h',
-            'kekulize',
-            'neutralise',
-            'image_dir',
-            'quiet',
-            'indexing'
+            "verbose",
+            "explicit_h",
+            "kekulize",
+            "neutralise",
+            "image_dir",
+            "quiet",
+            "indexing"
         ]
     )
-    print('----------------------------------------\n')
+    print("----------------------------------------\n")
 ###############################################################################
 
 
 ###############################################################################
-#   Running pickaxe, don't touch unless you know what you are doing
-if __name__ == '__main__':  # required for parallelization on Windows
-    # Use 'spawn' for multiprocessing
-    multiprocessing.set_start_method('spawn')
+#   Running pickaxe, don"t touch unless you know what you are doing
+if __name__ == "__main__":  # required for parallelization on Windows
+    # Use "spawn" for multiprocessing
+    multiprocessing.set_start_method("spawn")
     # Initialize the Pickaxe class
     if write_db is False:
         database = None
@@ -321,7 +320,7 @@ if __name__ == '__main__':  # required for parallelization on Windows
 
     if metabolomics_filter:
         if rt_predictor_pickle_path:
-            with open(rt_predictor_pickle_path, 'rb') as infile:
+            with open(rt_predictor_pickle_path, "rb") as infile:
                 rt_predictor = pickle.load(infile)
         else:
             rt_predictor = None
@@ -372,9 +371,9 @@ if __name__ == '__main__':  # required for parallelization on Windows
 
     if write_to_csv:
         pk.assign_ids()
-        pk.write_compound_output_file(output_dir + '/compounds.tsv')
-        pk.write_reaction_output_file(output_dir + '/reactions.tsv')
+        pk.write_compound_output_file(output_dir + "/compounds.tsv")
+        pk.write_reaction_output_file(output_dir + "/reactions.tsv")
 
-    print('----------------------------------------')
-    print(f'Overall run took {round(time.time() - start, 2)} seconds.')
-    print('----------------------------------------')
+    print("----------------------------------------")
+    print(f"Overall run took {round(time.time() - start, 2)} seconds.")
+    print("----------------------------------------")
