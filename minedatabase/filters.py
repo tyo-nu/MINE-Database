@@ -29,7 +29,8 @@ from rdkit.DataStructs import FingerprintSimilarity
 from scipy.stats import rv_discrete
 
 from minedatabase import utils
-from minedatabase.metabolomics import MetabolomicsDataset, Peak
+
+from minedatabase.metabolomics import MetabolomicsDataset, MetabolomicsOptions, Peak
 from minedatabase.pickaxe import Pickaxe
 from minedatabase.utils import Chunks, get_fp
 
@@ -574,13 +575,6 @@ def _calc_max_T(t_df: pd.DataFrame, min_T: float, df: pd.DataFrame) -> pd.DataFr
 # Metabolomics data filter
 
 
-class _Options:
-    """Object containing adducts property required for MetabolomicsDataset init."""
-
-    def __init__(self, adducts):
-        self.adducts = adducts
-
-
 class MetabolomicsFilter(Filter):
     """A metabolomics filter short description.
 
@@ -632,7 +626,7 @@ class MetabolomicsFilter(Filter):
         self.possible_adducts = possible_adducts
         self.mass_tolerance = mass_tolerance
 
-        options = _Options(possible_adducts)
+        options = MetabolomicsOptions(possible_adducts)
         self.metabolomics_dataset = MetabolomicsDataset(self.met_data_name, options)
 
         # Load Metabolomics peaks
