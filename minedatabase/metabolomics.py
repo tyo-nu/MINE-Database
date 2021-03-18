@@ -166,7 +166,7 @@ class MetabolomicsDataset:
                         possible_mass - tolerance,
                         possible_mass + tolerance,
                         peak.name,
-                        adduct[1],
+                        adduct[0],
                     )
                 )
 

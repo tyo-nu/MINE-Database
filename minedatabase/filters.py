@@ -575,19 +575,50 @@ def _calc_max_T(t_df: pd.DataFrame, min_T: float, df: pd.DataFrame) -> pd.DataFr
 
 
 class MetabolomicsFilter(Filter):
-    """A metabolomics filter short description.
+    """Filters out compounds that don't align with a metabolomics dataset.
 
-    A longer description.
+    This filter compares the masses (and optionally, predicted retention times)
+    of MINE compounds against peak masses (and retention times) in a
+    metabolomics dataset. Tolerances for mass (in Da) and retention times
+    (in units consistent with dataset) are specified by the user. If a
+    compound's mass (and predicted retention time, if desired) does not match
+    that for any peak in the dataset, it is filtered out.
 
     Parameters
     ----------
-    please_jon : float
-        Fill me in
+    filter_name : str
+        Name of the filter, should be unique
+    met_data_name : str
+        Name of the metabolomics dataset
+    met_data_path : str
+        Path to metabolomics data CSV file with list of peak masses/RTs/etc
+    possible_adducts : List[str]
+        List of possible adducts, see data/adducts for options
+    mass_tolerance : float
+        Mass tolerance for peak matching in daltons
+    rt_predictor : sklearn.ensemble.RandomForestRegressor, optional
+        Random forest regression model that takes a subset of a compound's 2D
+        mordred fingerprint values (specified by rt_important_features) as
+        input, defaults to None
+    rt_threshold : float, optional
+        Retention time tolerance for peak matching in whatever units are used
+        in the metabolomics dataset (e.g. seconds, minutes, etc.), defaults to
+        None
+    rt_important_features : List[str], optional
+        List of mordred descriptors to use as input into rt_predictor, make
+        sure that the order is the same as how the model was trained, defaults
+        to None
 
     Attributes
     ----------
-    I_believe_in_you : bool
-        Do I believe in you?, by default True.
+    filter_by_rt : Bool
+        Whether the filter will filter by both mass and retention time (RT)
+    fp_calculator : mordred.calculator.Calculator
+        Calculator loaded with provided mordred descriptors
+    met_df : pd.DataFrame
+        Dataframe containing metabolomics peak data
+    metabolomics_dataset : minedatabase.metabolomics.MetabolomicsDataset
+        Instance of MetabolomicsDataset with loaded metabolomics data
     """
 
     def __init__(
@@ -625,9 +656,13 @@ class MetabolomicsFilter(Filter):
         self.possible_adducts = possible_adducts
         self.mass_tolerance = mass_tolerance
 
-        options = None  # TODO: fix this
-        # options = MetabolomicsOptions(possible_adducts)
-        self.metabolomics_dataset = MetabolomicsDataset(self.met_data_name, options)
+        self.metabolomics_dataset = MetabolomicsDataset(
+            name=self.met_data_name,
+            adducts=self.possible_adducts,
+            tolerance=self.mass_tolerance,
+        )
+        self.metabolomics_dataset.known_peaks = []
+        self.metabolomics_dataset.unknown_peaks = []
 
         # Load Metabolomics peaks
         for _, row in self.met_df.iterrows():
@@ -654,7 +689,7 @@ class MetabolomicsFilter(Filter):
             if inchi_key:
                 self.metabolomics_dataset.known_peaks.append(peak)
             else:
-                self.metabolomics_dataset.unk_peaks.append(peak)
+                self.metabolomics_dataset.unknown_peaks.append(peak)
 
         # Calculate possible peak masses, they get saved to object
         self.metabolomics_dataset.enumerate_possible_masses(self.mass_tolerance)
