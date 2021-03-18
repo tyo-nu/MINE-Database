@@ -34,7 +34,6 @@ jobs:
     - name: Test with pytest
       if: always()
       run: |
-        $CONDA/bin/conda activate base
         $CONDA/bin/conda install pytest
         $CONDA/bin/conda pytest-cov
       
