@@ -25,14 +25,18 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install flake8 tox black
-        conda env update --file environment.yml
+        $CONDA/bin/conda env update --file environment.yml --name base
       # if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-    - name: Run tox
-      run: |
-        tox -e py
+#     - name: Run tox
+#       run: |
+#         pip install flake8 tox black flake8-bugbear flake8-docstrings isort
+#         tox
     - name: Test with pytest
+      if: always()
       run: |
-        pip install pytest
-        pip install pytest-cov
-        pytest tests/ --cov-report xml:cov.xml --cov minedatabase
+        $CONDA/bin/conda init bash
+        $CONDA/bin/conda activate base
+        $CONDA/bin/conda install pytest
+        $CONDA/bin/conda pytest-cov
+      
+        $CONDA/bin/pytest tests/ --cov-report xml:cov.xml --cov minedatabase
