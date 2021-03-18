@@ -4,7 +4,6 @@ channels:
   - defaults
 dependencies:
   - alabaster=0.7.12
-  - appnope=0.1.2
   - attrs=20.3.0
   - babel=2.9.0
   - backcall=0.2.0
@@ -55,7 +54,6 @@ dependencies:
   - libcxx=11.1.0
   - libedit=3.1.20191231
   - libffi=3.3
-  - libgfortran=5.0.0
   - libgfortran5=9.3.0
   - libiconv=1.16
   - liblapack=3.9.0
@@ -142,6 +140,7 @@ dependencies:
   - zlib=1.2.11
   - zstd=1.4.9
   - pip:
+    - appnope=0.1.2
     - appdirs==1.4.4
     - black==20.8b1
     - click==7.1.2
@@ -177,4 +176,3 @@ dependencies:
     - ujson==1.35
     - virtualenv==20.4.2
     - watchdog==1.0.2
-prefix: /Users/kevbot/miniconda3/envs/minedb
