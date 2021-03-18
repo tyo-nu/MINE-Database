@@ -35,7 +35,7 @@ class MetabolomicsDataset:
         ppm: bool = False,
         tolerance: float = 0.001,
         halogens: bool = False,
-        verbose: bool = False
+        verbose: bool = False,
     ):
         """Metabolomics Dataset initialization.
 
@@ -135,18 +135,18 @@ class MetabolomicsDataset:
             ('adduct name', m/z multiplier, adduct mass change)
         """
         adducts = []
-        with open(filepath, 'r') as infile:
+        with open(filepath, "r") as infile:
             for line in infile:
-                if line.startswith('#'):
+                if line.startswith("#"):
                     continue
-                adduct = line.strip().split('\t')
+                adduct = line.strip().split("\t")
                 adduct[0] = adduct[0].strip()
                 adduct[1] = float(adduct[1])
                 adduct[2] = float(adduct[2])
                 adducts.append(tuple(adduct))
         return adducts
 
-    def enumerate_possible_masses(self, tolerance: float):
+    def enumerate_possible_masses(self, tolerance: float) -> None:
         """Generate all possible masses from unknown peaks and list of
         adducts. Saves these mass ranges to self.possible_ranges.
 
@@ -194,7 +194,9 @@ class MetabolomicsDataset:
                 break
         return rt
 
-    def find_db_hits(self, peak: Peak, db: MINE, adducts: List[Tuple[str, float, float]]):
+    def find_db_hits(
+        self, peak: Peak, db: MINE, adducts: List[Tuple[str, float, float]]
+    ) -> None:
         """This function searches the database for matches of a peak given
         adducts and updates the peak object with that information.
 
@@ -210,13 +212,13 @@ class MetabolomicsDataset:
         """
         # find nominal mass for a given m/z for each adduct and the max and
         # min values for db
-        potential_masses = (peak.mz - adducts["f2"]) / adducts["f1"]
+        potential_masses = [(peak.mz - adduct[2]) / adduct[1] for adduct in adducts]
         if self.ppm:
             precision = (self.tolerance / 100000.0) * potential_masses
         else:
             precision = self.tolerance * 0.001  # convert to mDa
-        upper_bounds = potential_masses + precision
-        lower_bounds = potential_masses - precision
+        upper_bounds = [pm + precision for pm in potential_masses]
+        lower_bounds = [pm - precision for pm in potential_masses]
 
         # search database for hits in the each adducts mass range that have no
         # innate charge.
@@ -227,7 +229,7 @@ class MetabolomicsDataset:
                 {"Mass": {"$lte": float(upper_bounds[i])}},
                 {"Charge": 0},
             ]
-            if adduct["f0"] == "[M]+":
+            if adduct[0] == "[M]+":
                 query_terms[2] = {"Charge": 1}
             for compound in db.compounds.find(
                 {"$and": query_terms}, self.hit_projection
@@ -251,11 +253,11 @@ class MetabolomicsDataset:
                     peak.min_steps = compound["Generation"]
 
                 peak.formulas.add(compound["Formula"])
-                compound["adduct"] = adduct["f0"]
+                compound["adduct"] = adduct[0]
                 compound["peak_name"] = peak.name
                 peak.isomers.append(compound)
 
-    def annotate_peaks(self, db: MINE):
+    def annotate_peaks(self, db: MINE) -> None:
         """This function iterates through the unknown peaks in the dataset and
         searches the database for compounds that match a peak m/z given the
         adducts permitted. Statistics on the annotated data set are printed.
@@ -301,6 +303,7 @@ class MetabolomicsDataset:
 
 # Scoring functions appear before the Peak class because dot_product method is
 # default object for Peak.score_isomers
+
 
 def dot_product(x: List[tuple], y: List[tuple], epsilon: float = 0.01) -> float:
     """Calculate the dot product of two spectra, allowing for some variability
@@ -361,8 +364,9 @@ def jaccard(x: List[tuple], y: List[tuple], epsilon: float = 0.01) -> float:
     return jaccard_index
 
 
-def _approximate_matches(list1: List[tuple], list2: List[tuple],
-                         epsilon: float = 0.01) -> Generator:
+def _approximate_matches(
+    list1: List[tuple], list2: List[tuple], epsilon: float = 0.01
+) -> Generator:
     """Takes two list of tuples and searches for matches of tuples first value
     within the supplied epsilon. Emits tuples with the tuples second values
     where found. if a value in one dist does not match the other list, it is
@@ -419,12 +423,12 @@ class Peak:
 
     def __init__(
         self,
-        name : str,
-        r_time : float,
-        mz : float,
-        charge : str,
-        inchi_key : str = None,
-        ms2 : List[(float, float)] = None
+        name: str,
+        r_time: float,
+        mz: float,
+        charge: str,
+        inchi_key: str = None,
+        ms2: List[(float, float)] = None,
     ):
         """Peak object which contains peak metadata as well as mass, retention
         time, spectra, and any MINE database hits.
@@ -472,7 +476,7 @@ class Peak:
         metric: Callable[[list, list], float] = dot_product,
         energy_level: int = 20,
         tolerance: float = 0.005,
-    ):
+    ) -> None:
         """Scores and sorts isomers based on mass spectra data.
 
         Calculates the cosign similarity score between the provided ms2 peak
@@ -514,11 +518,9 @@ class Peak:
         self.isomers.sort(key=lambda x: x["Spectral_score"], reverse=True)
 
 
-
 def get_KEGG_comps(
-    db: MINE,
-    kegg_db: pymongo.database.Database,
-    model_ids: List[str]) -> set:
+    db: MINE, kegg_db: pymongo.database.Database, model_ids: List[str]
+) -> set:
     """Get KEGG IDs from KEGG MINE database for compounds in model(s).
 
     Parameters
@@ -638,10 +640,8 @@ def read_msp(input_string: str, charge: bool) -> List[Peak]:
                 mass = sl[1]
             elif sl[0] == "NAME":
                 name = sl[1]
-            # elif sl[0] == "RETENTIONTIME":
-            # r_time = sl[1]
-            # elif sl[0] == "IONMODE":
-            # charge = sl[1].capitalize()
+            elif sl[0] == "RETENTIONTIME":
+                r_time = sl[1]
             elif sl[0] == "INCHIKEY":
                 inchikey = sl[1]
             elif line and line[0].isdigit():
@@ -674,6 +674,7 @@ def read_mzxml(input_string: str, charge: bool) -> List[Peak]:
     prefix = root.tag.strip("mzXML")
 
     for scan in root.findall(f".//{prefix}scan"):
+        print(scan)
         # somewhat counter intuitively we will get the peak info from the
         # second fragments precursor info.
         if scan.attrib["msLevel"] == "2":
@@ -695,11 +696,8 @@ class Struct:
 
 
 def ms_adduct_search(
-    db: MINE,
-    keggdb: pymongo.database.Database,
-    text: str,
-    text_type: str,
-    ms_params) -> List:
+    db: MINE, keggdb: pymongo.database.Database, text: str, text_type: str, ms_params
+) -> List:
     """Search for compound-adducts matching precursor mass.
 
     Parameters
@@ -785,11 +783,8 @@ def ms_adduct_search(
 
 
 def ms2_search(
-    db: MINE,
-    keggdb: pymongo.database.Database,
-    text: str,
-    text_type: str,
-    ms_params):
+    db: MINE, keggdb: pymongo.database.Database, text: str, text_type: str, ms_params
+) -> List:
     """Search for compounds matching MS2 spectra.
 
     Parameters
@@ -916,10 +911,8 @@ def ms2_search(
 
 
 def spectra_download(
-    db: MINE,
-    mongo_query: str = None,
-    parent_filter: str = None,
-    putative: bool = True) -> str:
+    db: MINE, mongo_query: str = None, parent_filter: str = None, putative: bool = True
+) -> str:
     """Download one or more spectra for compounds matching a given query.
 
     Parameters
@@ -994,7 +987,7 @@ def spectra_download(
             for alt in compound["Names"][1:]:
                 header.append(f"Synonym: {alt}")
         else:
-            header.append("Name: MINE Compound {compound{'MINE_id']")
+            header.append(f"Name: MINE Compound {compound['_id']}")
 
         for k, v in compound.items():
             if k not in {"Names", "Pos_CFM_spectra", "Neg_CFM_spectra"}:

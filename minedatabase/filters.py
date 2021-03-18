@@ -509,7 +509,7 @@ class MetabolomicsFilter(Filter):
 
         self.possible_adducts = possible_adducts
         self.mass_tolerance = mass_tolerance
-        
+
         options = MetabolomicsOptions(possible_adducts)
         self.metabolomics_dataset = MetabolomicsDataset(self.met_data_name, options)
 
