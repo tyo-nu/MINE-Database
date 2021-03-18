@@ -35,6 +35,6 @@ jobs:
       if: always()
       run: |
         $CONDA/bin/conda install pytest
-        $CONDA/bin/conda pytest-cov
+        $CONDA/bin/conda install pytest-cov
       
         $CONDA/bin/pytest tests/ --cov-report xml:cov.xml --cov minedatabase
