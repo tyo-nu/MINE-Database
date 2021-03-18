@@ -2,6 +2,7 @@
 
 import os
 
+import pymongo
 import pytest
 from pymongo.errors import ServerSelectionTimeoutError
 
@@ -17,6 +18,14 @@ from minedatabase.metabolomics import (
     spectra_download,
 )
 
+
+try:
+    client = pymongo.MongoClient(ServerSelectionTimeoutMS=2000)
+    del client
+    is_mongo = True
+except ServerSelectionTimeoutError as err:
+    is_mongo = False
+valid_db = pytest.mark.skipif(not is_mongo, reason="No MongoDB Connection")
 
 # -------------------------------- Fixtures --------------------------------- #
 @pytest.fixture()
@@ -155,6 +164,7 @@ def test_metabolomics_dataset_get_rt(metabolomics_dataset):
     assert metabolomics_dataset.get_rt("InvalidID") is None
 
 
+@valid_db
 def test_metabolomics_dataset_find_db_hits(test_db, metabolomics_dataset):
     """Search for expected metaoblomics hits in test database
     GIVEN a MINE database and metabolomics dataset
@@ -167,6 +177,7 @@ def test_metabolomics_dataset_find_db_hits(test_db, metabolomics_dataset):
     assert len(peak.isomers) == 1
 
 
+@valid_db
 def test_metabolomics_dataset_annotate_peaks(test_db, metabolomics_dataset):
     """Uses find_db_hits to try to annotate all unknown peaks in dataset
     GIVEN a metabolomics dataset and MINE db
@@ -338,6 +349,7 @@ def test_read_mzxml():
 # ----------------------------- Spectra Download ---------------------------- #
 
 
+@valid_db
 def test_spectra_download(test_db):
     """Test download of spectra from MINE database.
     GIVEN a MINE database

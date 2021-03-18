@@ -1,13 +1,47 @@
-"""Tests for queries.py using pytest."""
-# pylint: disable=redefined-outer-name
+"""Tests for utils.py using pytest."""
 
 import os
 from collections import OrderedDict
 
 import minedatabase.utils as utils
+from rdkit.DataStructs.cDataStructs import ExplicitBitVect
 
 
 DATA_DIR = os.path.dirname(__file__) + "/data/"
+
+
+def test_compound_hash():
+    """Test compound to hash."""
+    assert utils.compound_hash("CCO", "Coreactant") == (
+        "Xa41fe8492d86f214ba494e3d04da2f0854c0e2ea",
+        "LFQSCWFLJHTTHZ",
+    )
+    assert utils.compound_hash("CCO", "Predicted") == (
+        "Ca41fe8492d86f214ba494e3d04da2f0854c0e2ea",
+        "LFQSCWFLJHTTHZ-UHFFFAOYSA-N",
+    )
+    assert utils.compound_hash("CCO", "Starting Compound") == (
+        "Ca41fe8492d86f214ba494e3d04da2f0854c0e2ea",
+        "LFQSCWFLJHTTHZ-UHFFFAOYSA-N",
+    )
+
+
+def test_get_fp():
+    smiles = "C([C@@H]1[C@H]([C@@H]([C@H]([C@H](O1)O)O)O)O)O"
+    assert type(utils.get_fp(smiles)) == ExplicitBitVect
+
+
+def test_compound_hash_two_blocks():
+    smiles = "C([C@@H]1[C@H]([C@@H]([C@H]([C@H](O1)O)O)O)O)O"
+    assert utils.compound_hash(smiles, "Starting Compound", inchi_blocks=2) == (
+        "Cf95a3c17f908e427c3127b4e8c3d8575c286d6ce",
+        "WQZGKKKJIJFFOK-DVKNGEFBSA-N",
+    )
+
+    assert utils.compound_hash(smiles, "Starting Compound", inchi_blocks=1) == (
+        "C9ab1a08d72c90a8167d1f3a668d8f1138e534a07",
+        "WQZGKKKJIJFFOK-DVKNGEFBSA-N",
+    )
 
 
 def test_file_to_dict_list():

@@ -4,11 +4,19 @@
 import json
 from os.path import dirname
 
+import pymongo
 import pytest
 from pymongo.errors import ServerSelectionTimeoutError
 
 from minedatabase import databases, queries
 from minedatabase.databases import MINE
+
+
+try:
+    client = pymongo.MongoClient(ServerSelectionTimeoutMS=2000)
+    del client
+except ServerSelectionTimeoutError as err:
+    pytest.skip(reason="No MongoDB Connection")
 
 
 @pytest.fixture()

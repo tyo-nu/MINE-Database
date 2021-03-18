@@ -9,7 +9,9 @@ import subprocess
 from filecmp import cmp
 from pathlib import Path
 
+import pymongo
 import pytest
+from pymongo.errors import ServerSelectionTimeoutError
 from rdkit.Chem import AllChem
 
 from minedatabase import pickaxe
@@ -17,6 +19,14 @@ from minedatabase.databases import MINE
 
 
 DATA_DIR = os.path.dirname(__file__) + "/data"
+
+try:
+    client = pymongo.MongoClient(ServerSelectionTimeoutMS=2000)
+    del client
+    is_mongo = True
+except ServerSelectionTimeoutError as err:
+    is_mongo = False
+valid_db = pytest.mark.skipif(not is_mongo, reason="No MongoDB Connection")
 
 
 @pytest.fixture
@@ -265,6 +275,7 @@ def test_target_generation(default_rule, smiles_dict, coreactant_dict):
     assert len(pk.compounds) == 6
 
 
+@valid_db
 def test_save_as_mine(default_rule, smiles_dict, coreactant_dict):
     """Test saving compounds to database.
 
@@ -304,6 +315,7 @@ def test_save_as_mine(default_rule, smiles_dict, coreactant_dict):
         purge(DATA_DIR, r".*\.svg$")
 
 
+@valid_db
 def test_save_target_mine(default_rule, smiles_dict, coreactant_dict):
     """Test saving the target run to a MINE."""
     delete_database("MINE_test")
@@ -359,6 +371,7 @@ def test_database_already_exists(default_rule, smiles_dict, coreactant_dict):
 
 
 # TODO When is  this necessary?
+@valid_db
 def test_save_no_rxn_mine():
     """Test saving no reactions.
 
@@ -421,6 +434,7 @@ def test_local_cli():
     purge("tests/", r".*\.tsv$")
 
 
+@valid_db
 def test_mongo_cli():
     """Test command line interface writing to mongo."""
     mine = MINE("tests")
