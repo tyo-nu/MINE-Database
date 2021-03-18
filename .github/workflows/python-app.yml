@@ -27,13 +27,14 @@ jobs:
         python -m pip install --upgrade pip
         $CONDA/bin/conda env update --file environment.yml --name base
       # if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-    - name: Run tox
-      run: |
-        pip install flake8 tox black flake8-bugbear flake8-docstrings isort
-        tox
+#     - name: Run tox
+#       run: |
+#         pip install flake8 tox black flake8-bugbear flake8-docstrings isort
+#         tox
     - name: Test with pytest
       if: always()
       run: |
+        $CONDA/bin/conda init bash
         $CONDA/bin/conda activate base
         $CONDA/bin/conda install pytest
         $CONDA/bin/conda pytest-cov
