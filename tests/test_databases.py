@@ -19,6 +19,7 @@ from minedatabase.databases import (
     write_reactions_to_mine,
 )
 
+
 try:
     client = pymongo.MongoClient(ServerSelectionTimeoutMS=2000)
     del client

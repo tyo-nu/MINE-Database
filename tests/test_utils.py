@@ -3,8 +3,9 @@
 import os
 from collections import OrderedDict
 
-import minedatabase.utils as utils
 from rdkit.DataStructs.cDataStructs import ExplicitBitVect
+
+import minedatabase.utils as utils
 
 
 DATA_DIR = os.path.dirname(__file__) + "/data/"
