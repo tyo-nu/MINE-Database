@@ -29,7 +29,6 @@ from rdkit.DataStructs import FingerprintSimilarity
 from scipy.stats import rv_discrete
 
 from minedatabase import utils
-
 from minedatabase.metabolomics import MetabolomicsDataset, Peak
 from minedatabase.pickaxe import Pickaxe
 from minedatabase.utils import Chunks, get_fp
@@ -626,7 +625,8 @@ class MetabolomicsFilter(Filter):
         self.possible_adducts = possible_adducts
         self.mass_tolerance = mass_tolerance
 
-        options = MetabolomicsOptions(possible_adducts)
+        options = None  # TODO: fix this
+        # options = MetabolomicsOptions(possible_adducts)
         self.metabolomics_dataset = MetabolomicsDataset(self.met_data_name, options)
 
         # Load Metabolomics peaks
