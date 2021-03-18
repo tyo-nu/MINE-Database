@@ -8,7 +8,6 @@ import pytest
 from pymongo.errors import ServerSelectionTimeoutError
 
 from minedatabase import databases, queries
-
 from minedatabase.databases import MINE
 
 
@@ -19,7 +18,7 @@ def test_db():
     try:
         testdb = MINE("mongotest")
     except ServerSelectionTimeoutError:
-        print('No Mongo DB server detected')
+        print("No Mongo DB server detected")
     yield testdb
 
 
@@ -33,7 +32,7 @@ def test_molfile():
 @pytest.fixture()
 def glucose():
     """MongoDB document (.json) for glucose compound."""
-    with open(dirname(__file__) + '/data/glucose.json') as infile:
+    with open(dirname(__file__) + "/data/glucose.json") as infile:
         glucose = json.load(infile)
     return glucose
 
@@ -41,7 +40,7 @@ def glucose():
 @pytest.fixture
 def glucose_id():
     """ID in MongoDB for glucose."""
-    glucose_id = {'_id': 'Ccffda1b2e82fcdb0e1e710cad4d5f70df7a5d74f'}
+    glucose_id = {"_id": "Ccffda1b2e82fcdb0e1e710cad4d5f70df7a5d74f"}
     return glucose_id
 
 
@@ -51,18 +50,20 @@ def test_quick_search(test_db, glucose, glucose_id):
     WHEN quick search is used to search based on that query
     THEN make sure that quick search provides the correct results
     """
-    assert glucose not in queries.quick_search(test_db,
-                                               'WQZGKKKJIJFFOK-UHFFFAOYSA-N')
+    assert glucose not in queries.quick_search(test_db, "WQZGKKKJIJFFOK-UHFFFAOYSA-N")
     assert glucose in queries.quick_search(
-        test_db, 'InChIKey=WQZGKKKJIJFFOK-GASJEMHNSA-N')
+        test_db, "InChIKey=WQZGKKKJIJFFOK-GASJEMHNSA-N"
+    )
     assert glucose in queries.quick_search(
-        test_db, "Ccffda1b2e82fcdb0e1e710cad4d5f70df7a5d74f")
+        test_db, "Ccffda1b2e82fcdb0e1e710cad4d5f70df7a5d74f"
+    )
     assert glucose in queries.quick_search(test_db, "917030")
     assert glucose in queries.quick_search(test_db, "cpd00027")
-    assert glucose in queries.quick_search(test_db, 'C00031')
-    assert glucose in queries.quick_search(test_db, 'Glucose')
+    assert glucose in queries.quick_search(test_db, "C00031")
+    assert glucose in queries.quick_search(test_db, "Glucose")
     assert glucose_id in queries.quick_search(
-        test_db, 'WQZGKKKJIJFFOK-GASJEMHNSA-N', {'_id': 1})
+        test_db, "WQZGKKKJIJFFOK-GASJEMHNSA-N", {"_id": 1}
+    )
 
 
 def test_database_query(test_db, glucose, glucose_id):
@@ -72,14 +73,14 @@ def test_database_query(test_db, glucose, glucose_id):
     THEN make sure that advanced search provides the correct results
     """
     with pytest.raises(ValueError):
-        queries.advanced_search(databases.MINE('admin'), "{'MINE_id': 19160}")
+        queries.advanced_search(databases.MINE("admin"), "{'MINE_id': 19160}")
     with pytest.raises(ValueError):
         queries.advanced_search(test_db, "")
     assert queries.advanced_search(test_db, "{'MINE_id': 917030}") == [glucose]
-    assert queries.advanced_search(test_db,
-                                   "{'Names': 'Glucose'}") == [glucose]
-    assert queries.advanced_search(test_db, "{'MINE_id': 917030}",
-                                   {'_id': 1}) == [glucose_id]
+    assert queries.advanced_search(test_db, "{'Names': 'Glucose'}") == [glucose]
+    assert queries.advanced_search(test_db, "{'MINE_id': 917030}", {"_id": 1}) == [
+        glucose_id
+    ]
 
 
 def test_similarity_search(test_db, test_molfile, glucose):
@@ -88,11 +89,19 @@ def test_similarity_search(test_db, test_molfile, glucose):
     WHEN similarity search is used to search based on that query
     THEN make sure the similarity search provides the correct results
     """
-    assert len(queries.similarity_search(
-        test_db, 'Cc1cc2c(cc1C)N(CC(O)C(O)C(O)COP(=O)(O)OP(=O)(O)OCC1OC(n3cn'
-        'c4c(N)ncnc43)C(O)C1O)c1nc(O)nc(O)c1N2', 0.9, 100)) == 8
-    result = queries.similarity_search(test_db, test_molfile, 0.5, 100,
-                                       fp_type='MACCS')
+    assert (
+        len(
+            queries.similarity_search(
+                test_db,
+                "Cc1cc2c(cc1C)N(CC(O)C(O)C(O)COP(=O)(O)OP(=O)(O)OCC1OC(n3cn"
+                "c4c(N)ncnc43)C(O)C1O)c1nc(O)nc(O)c1N2",
+                0.9,
+                100,
+            )
+        )
+        == 8
+    )
+    result = queries.similarity_search(test_db, test_molfile, 0.5, 100, fp_type="MACCS")
     assert glucose in result
     assert len(result) == 3
 
@@ -106,7 +115,7 @@ def test_substructure_search(test_db, glucose):
     result = queries.substructure_search(test_db, "CO", 100)
     assert glucose in result
     assert len(result) == 22
-    result = queries.substructure_search(test_db, 'O=P(O)(O)O', 100)
+    result = queries.substructure_search(test_db, "O=P(O)(O)O", 100)
     assert len(result) == 15
     assert isinstance(result[0], dict)
 
@@ -118,5 +127,6 @@ def test_structure_search(test_db, test_molfile, glucose):
     THEN make sure that structure search provides the correct results
     """
     assert glucose in queries.structure_search(
-        test_db, 'OC[C@H]1OC(O)[C@H](O)[C@@H](O)[C@@H]1O', True)
+        test_db, "OC[C@H]1OC(O)[C@H](O)[C@@H](O)[C@@H]1O", True
+    )
     assert glucose in queries.structure_search(test_db, test_molfile, False)

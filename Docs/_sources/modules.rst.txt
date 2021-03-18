@@ -1,7 +1,0 @@
-minedatabase
-============
-
-.. toctree::
-   :maxdepth: 4
-
-   minedatabase
