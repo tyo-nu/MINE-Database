@@ -31,10 +31,10 @@ jobs:
     - name: Run tox
       run: |
         conda activate test
-        tox -e py
+        tox
     - name: Test with pytest
       run: |
-        conda activate test
         pip install pytest
         pip install pytest-cov
+        conda activate test
         pytest tests/ --cov-report xml:cov.xml --cov minedatabase
