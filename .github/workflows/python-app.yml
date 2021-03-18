@@ -32,6 +32,7 @@ jobs:
         pip install flake8 tox black flake8-bugbear flake8-docstrings isort
         tox
     - name: Test with pytest
+      if: always()
       run: |
         $CONDA/bin/conda activate base
         $CONDA/bin/conda install pytest
