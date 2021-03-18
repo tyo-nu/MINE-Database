@@ -55,6 +55,8 @@ def pk():
     return pickaxe.Pickaxe(
         coreactant_list=DATA_DIR + "/test_coreactants.tsv",
         rule_list=DATA_DIR + "/test_reaction_rules.tsv",
+        explicit_h=True,
+        quiet=False,
     )
 
 
@@ -67,7 +69,7 @@ def default_rule(pk):
 @pytest.fixture
 def pk_transformed(default_rule, smiles_dict, coreactant_dict):
     """Create Pickaxe object with a few predicted reactions."""
-    pk_transformed = pickaxe.Pickaxe()
+    pk_transformed = pickaxe.Pickaxe(explicit_h=True)
     pk_transformed._add_compound(
         "Start", smi=smiles_dict["FADH"], cpd_type="Starting Compound"
     )
@@ -143,7 +145,7 @@ def test_transform_all(default_rule, smiles_dict, coreactant_dict):
     WHEN we run pickaxe to predict potential transformations
     THEN make sure all expected transformations are predicted
     """
-    pk = pickaxe.Pickaxe(errors=False)
+    pk = pickaxe.Pickaxe(errors=False, explicit_h=True)
     pk._load_coreactant(coreactant_dict["ATP"])
     pk._load_coreactant(coreactant_dict["ADP"])
     pk._add_compound(
@@ -221,7 +223,7 @@ def test_pruning(default_rule, smiles_dict, coreactant_dict):
     THEN make sure that the pruned compounds no longer exist in the network
     """
 
-    pk = pickaxe.Pickaxe(database=None, image_dir=None)
+    pk = pickaxe.Pickaxe(explicit_h=True)
     pk.operators["2.7.1.a"] = default_rule
     pk._load_coreactant(coreactant_dict["ATP"])
     pk._load_coreactant(coreactant_dict["ADP"])
@@ -249,7 +251,7 @@ def test_pruning(default_rule, smiles_dict, coreactant_dict):
 
 def test_target_generation(default_rule, smiles_dict, coreactant_dict):
     """Test generating a target from starting compounds."""
-    pk = pickaxe.Pickaxe(database=None)
+    pk = pickaxe.Pickaxe(explicit_h=True)
     pk.operators["2.7.1.a"] = default_rule
     pk._load_coreactant(coreactant_dict["ATP"])
     pk._load_coreactant(coreactant_dict["ADP"])
@@ -271,7 +273,7 @@ def test_save_as_mine(default_rule, smiles_dict, coreactant_dict):
     THEN make sure that all features are saved in the MongoDB as expected
     """
     delete_database("MINE_test")
-    pk = pickaxe.Pickaxe(database="MINE_test", image_dir=DATA_DIR)
+    pk = pickaxe.Pickaxe(database="MINE_test", image_dir=DATA_DIR, explicit_h=True)
     pk.operators["2.7.1.a"] = default_rule
     pk._load_coreactant(coreactant_dict["ATP"])
     pk._load_coreactant(coreactant_dict["ADP"])
@@ -305,7 +307,7 @@ def test_save_as_mine(default_rule, smiles_dict, coreactant_dict):
 def test_save_target_mine(default_rule, smiles_dict, coreactant_dict):
     """Test saving the target run to a MINE."""
     delete_database("MINE_test")
-    pk = pickaxe.Pickaxe(database="MINE_test")
+    pk = pickaxe.Pickaxe(database="MINE_test", explicit_h=True)
     pk.operators["2.7.1.a"] = default_rule
     pk._load_coreactant(coreactant_dict["ATP"])
     pk._load_coreactant(coreactant_dict["ADP"])
@@ -380,7 +382,7 @@ def test_pickle(coreactant_dict, smiles_dict, default_rule):
     """Test pickling of pickaxe objects."""
     pickle_path = Path("test_pickle.pk")
 
-    pk = pickaxe.Pickaxe(errors=False)
+    pk = pickaxe.Pickaxe(errors=False, explicit_h=True)
     pk._load_coreactant(coreactant_dict["ATP"])
     pk._load_coreactant(coreactant_dict["ADP"])
     pk._add_compound(
@@ -403,9 +405,8 @@ def test_pickle(coreactant_dict, smiles_dict, default_rule):
     pickle_path.unlink()
 
 
-@pytest.mark.skip(reason="Need to look into command line with current state.")
-def test_cli():
-    """Test command line interface.
+def test_local_cli():
+    """Test command line interface writing locally.
 
     GIVEN the pickaxe CLI
     WHEN pickaxe is run from the command line
@@ -413,8 +414,26 @@ def test_cli():
     """
     os.chdir(DATA_DIR + "/../..")
     rc = subprocess.call(
-        "python minedatabase/pickaxe.py -o tests -r " "tests/data/test_cd_rxn_rule.tsv",
+        "python minedatabase/pickaxe.py -o tests -r tests/data/test_cd_rxn_rule.tsv",
         shell=True,
     )
     assert not rc
+    purge("tests/", r".*\.tsv$")
+
+
+def test_mongo_cli():
+    """Test command line interface writing to mongo."""
+    mine = MINE("tests")
+    os.chdir(DATA_DIR + "/../..")
+    rc = subprocess.call(
+        "python minedatabase/pickaxe.py -d tests -r tests/data/test_cd_rxn_rule.tsv",
+        shell=True,
+    )
+    assert not rc
+
+    try:
+        assert mine.compounds.estimated_document_count() == 51
+    finally:
+        mine.client.drop_database("tests")
+
     purge("tests/", r".*\.tsv$")

@@ -7,14 +7,17 @@ MINE-Database Documentation
 ===========================
 
 .. toctree::
+   :numbered:
    :maxdepth: 2
 
    install.rst
-   support.rst
-
+   command_line.rst
+   pickaxe_run.rst
+   inputs.rst
+   
    pickaxe.rst
    reactions.rst
    metabolomics.rst
    filters.rst
 
-   Example.rst
+   support.rst

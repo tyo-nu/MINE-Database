@@ -9,6 +9,8 @@ import os
 import pickle
 import time
 from argparse import ArgumentParser
+from io import StringIO
+from pathlib import Path, PosixPath
 from sys import exit
 from typing import List, Set, Tuple
 
@@ -51,13 +53,93 @@ class Pickaxe:
     compounds using a set of SMARTS-based reaction rules. It may be initialized
     with a text file containing the reaction rules and coreactants or this may
     be done on an ad hoc basis.
+
+    Parameters
+    ----------
+    rule_list : str
+        Filepath of rules.
+    coreactant_list : str
+        Filepath of coreactants.
+    explicit_h : bool, optional
+        Whether rules utilize explicit hydrogens, by default True.
+    kekulize : bool, optional
+        Whether or not to kekulize compounds before reaction,
+        by default True.
+    neutralise : bool, optional
+        Whether or not to neutralise compounds, by default True.
+    errors : bool, optional
+        Whether or not to print errors to stdout, by default True.
+    inchikey_blocks_for_cid : int, optional
+        How many blocks of the InChI key to use for the compound id,
+        by default 1.
+    database : str, optional
+        Name of the database where to save results, by default None.
+    database_overwrite : bool, optional
+        Whether or not to erase existing database in event of a collision,
+        by default False.
+    mongo_uri : bool, optional
+        uri for the mongo client, by default 'mongodb://localhost:27017'.
+    image_dir : str, optional
+        Filepath where images should be saved, by default None.
+    quiet : bool, optional
+        Whether to silence warnings, by default False.
+    react_targets : bool, optional
+        Whether or not to apply reactions to generated compounds that match
+        targets, by default True.
+    filter_after_final_gen : bool, optional
+        Whether to apply filters after final expansion, by default True.
+
+    Attributes
+    ----------
+    operators: dict
+        Reaction operators to transform compounds with.
+    coreactants: dict
+        Coreactants required by the operators.
+    compounds: dict
+        Compounds in the pickaxe network.
+    reactions: dict
+        Reactions in the pickaxe network.
+    generation: int
+        The current generation
+    explicit_h : bool
+        Whether rules utilize explicit hydrogens.
+    kekulize : bool
+        Whether or not to kekulize compounds before reaction.
+    neutralise : bool
+        Whether or not to neutralise compounds.
+    fragmented_mols : bool
+        Whether or not to allow fragmented molecules.
+    radical_check : bool
+        Whether or not to check and remove radicals.
+    image_dir : str, optional
+        Filepath where images should be saved.
+    errors : bool
+        Whether or not to print errors to stdout.
+    quiet : bool
+        Whether or not to silence warnings.
+    filters: List[object]
+        A list of filters to apply during the expansion.
+    targets : dict
+        Molecules to be targeted during expansions.
+    target_smiles: list
+        The SMILES of all the targets.
+    target_fps : list[RDKFingerprint]
+        Fingerprints of the targets.
+    react_targets : bool
+        Whether or not to react targets when generated.
+    filter_after_final_gen : bool
+        Whether or not to filter after the last expansion.
+    mongo_uri : str
+        The connection string to the mongo database.
+    cid_num_inchi_blocks : int
+        How many blocks of the inchi-blocks to use to generate the compound id.
     """
 
     def __init__(
         self,
         rule_list: str = None,
         coreactant_list: str = None,
-        explicit_h: bool = True,
+        explicit_h: bool = False,
         kekulize: bool = True,
         neutralise: bool = True,
         errors: bool = True,
@@ -66,48 +148,10 @@ class Pickaxe:
         database_overwrite: bool = False,
         mongo_uri: bool = "mongodb://localhost:27017",
         image_dir: str = None,
-        quiet: bool = False,
+        quiet: bool = True,
         react_targets: bool = True,
         filter_after_final_gen: bool = True,
     ):
-        """Pickaxe class initialization.
-
-        Parameters
-        ----------
-        rule_list : str
-            Filepath of rules
-        coreactant_list : str
-            Filepath of coreactants
-        explicit_h : bool, optional
-            Whether rules utilize explicit hydrogens, by default True
-        kekulize : bool, optional
-            Whether or not to kekulize compounds before reaction,
-            by default True
-        neutralise : bool, optional
-            Whether or not to neutralise compounds, by default True
-        errors : bool, optional
-            Whether or not to print errors to stdout, by default True
-        inchikey_blocks_for_cid : int, optional
-            How many blocks of the InChI key to use for the compound id,
-            by default 1
-        database : str, optional
-            Name of the database where to save results, by default None
-        database_overwrite : bool, optional
-            Whether or not to erase existing database in event of a collision,
-            by default False
-        mongo_uri : bool, optional
-            uri for the mongo client, by default 'mongodb://localhost:27017'
-        image_dir : str, optional
-            Filepath where images should be saved, by default None
-        quiet : bool, optional
-            Whether to silence warnings, by default False
-        react_targets : bool, optional
-            Whether or not to apply reactions to generated compounds that match
-            targets, by default True
-        filter_after_final_gen : bool, optional
-            Whether to apply filters after final expansion, by default True
-        """
-
         # Main pickaxe properties
         self.operators = {}
         self.coreactants = {}
@@ -203,12 +247,12 @@ class Pickaxe:
         Parameters
         ----------
         target_compound_file : str
-            Filepath of target compounds
+            Filepath of target compounds.
         id_field : str, optional
             Header value of compound id in input file, by default 'id'
-        calc_fp : bool, optional
+        calc_fp : bool, optional.
             Whether or not to calculate fingerprints of targets for use with
-            filters, by default True
+            filters, by default True.
         """
         for target_dict in utils.file_to_dict_list(target_compound_file):
             mol = self._mol_from_dict(target_dict)
@@ -236,19 +280,19 @@ class Pickaxe:
         Parameters
         ----------
         compound_file : str, optional
-            Filepath of compounds, by default None
+            Filepath of compounds, by default None.
         id_field : str, optional
-            Header value of compound id in input file, by default 'id'
+            Header value of compound id in input file, by default 'id'.
 
         Returns
         -------
         str
-            List of SMILES that were succesfully loaded into pickaxe
+            List of SMILES that were succesfully loaded into pickaxe.
 
         Raises
         ------
         ValueError
-            No file specified for loading
+            No file specified for loading.
         """
 
         # load compounds
@@ -324,11 +368,18 @@ class Pickaxe:
         Parameters
         ----------
         rule_path : str
-            Filepath of reaction rules
+            Filepath of reaction rules.
 
         """
         skipped = 0
-        with open(rule_path) as infile:
+
+        # Get the stream for rule input
+        if type(rule_path) in [str, Path, PosixPath]:
+            infile = open(rule_path)
+        elif type(rule_path) == StringIO:
+            infile = rule_path
+
+        with infile:
             # Get all reaction rules from tsv file and store in dict (rdr)
             rdr = csv.DictReader(
                 (row for row in infile if not row.startswith("#")), delimiter="\t"
@@ -426,14 +477,12 @@ class Pickaxe:
         cpd_type : str
             Type of compound
         mol : rdkitmol, optional
-            RDKit Molecule, by default None
+            RDKit Molecule, by default None.
 
         Returns
         -------
-        str
-            compound ID
-        dict
-            compound dict
+        Tuple[str, dict]
+            Compound id and compound dict.
         """
         cpd_dict = {}
         cpd_id, inchi_key = utils.compound_hash(
@@ -454,7 +503,7 @@ class Pickaxe:
                     "InChI_key": inchi_key,
                     "Type": cpd_type,
                     "Generation": self.generation,
-                    "atom_count": utils._getatom_count(mol, self.radical_check),
+                    "atom_count": utils.getatom_count(mol, self.radical_check),
                     "Reactant_in": [],
                     "Product_of": [],
                     "Expand": expand,
@@ -483,12 +532,12 @@ class Pickaxe:
         cpd_type : str
             Type of compound
         mol : rdkitmol, optional
-            RDKit Molecule, by default None
+            RDKit Molecule, by default None.
 
         Returns
         -------
         str
-            compound ID
+            compound ID.
         """
 
         # We don't want to overwrite the same compound from a prior
@@ -526,9 +575,9 @@ class Pickaxe:
         Parameters
         ----------
         processes : int, optional
-            Number of processes to run in parallel, by default 1
-        max_generations : int, optional
-            Number of generations to create, by default 1
+            Number of processes to run in parallel, by default 1.
+        generations : int, optional
+            Number of generations to create, by default 1.
         """
 
         while self.generation < generations or (
@@ -832,7 +881,7 @@ class Pickaxe:
             f"{n_white} whitelisted compounds."
         )
 
-    def prune_network_to_targets(self):
+    def prune_network_to_targets(self) -> None:
         """Prune the reaction network to the target compounds.
 
         Prune the predicted reaction network to only compounds and reactions
@@ -854,12 +903,12 @@ class Pickaxe:
         """Find the minimal set of compounds and reactions given a white list.
 
         Given a whitelist this function finds the minimal set of compound and
-        reactions ids that comprise the set
+        reactions ids that comprise the set.
 
         Parameters
         ----------
         white_list : Set[str]
-            List of compound_ids to use to filter reaction network to
+            List of compound_ids to use to filter reaction network to.
 
         Returns
         -------
@@ -963,9 +1012,9 @@ class Pickaxe:
         Parameters
         ----------
         path : str
-            Path to write data
+            Path to write data.
         dialect : str, optional
-            Dialect of the output, by default 'excel-tab'
+            Dialect of the output, by default 'excel-tab'.
         """
         path = utils.prevent_overwrite(path)
 
@@ -991,9 +1040,9 @@ class Pickaxe:
         Parameters
         ----------
         path : str
-            Path to write data
+            Path to write data.
         delimiter : str, optional
-            Delimiter for the output file, by default '\t'
+            Delimiter for the output file, by default '\t'.
         """
         path = utils.prevent_overwrite(path)
         with open(path, "w") as outfile:
@@ -1023,11 +1072,11 @@ class Pickaxe:
         Parameters
         ----------
         processes : int, optional
-            Number of processes to use, by default 1
+            Number of processes to use, by default 1.
         indexing : bool, optional
-            Whether or not to add indexes, by default True
+            Whether or not to add indexes, by default True.
         write_core : bool, optional
-            Whether or not to write to core database, by default True
+            Whether or not to write to core database, by default True.
         """
         print("\n----------------------------------------")
         print(f"Writing results to {self.mine} Database")
@@ -1100,9 +1149,9 @@ class Pickaxe:
         Parameters
         ----------
         compound_smiles : List[str]
-            A list of SMILES to expand
+            A list of SMILES to expand.
         processes : int
-            Number of processes to run
+            Number of processes to run.
         """
 
         def update_cpds_rxns(new_cpds, new_rxns):
@@ -1177,12 +1226,12 @@ class Pickaxe:
     def pickle_pickaxe(self, fname: str) -> None:
         """Pickle key pickaxe items.
 
-        Pickle pickaxe object to be loaded in later
+        Pickle pickaxe object to be loaded in later.
 
         Parameters
         ----------
         fname : str
-            filename to save (must be .pk)
+            filename to save (must be .pk).
         """
         dict_to_pickle = {
             "compounds": self.compounds,
@@ -1197,12 +1246,12 @@ class Pickaxe:
     def load_pickled_pickaxe(self, fname: str) -> None:
         """Load pickaxe from pickle.
 
-        Load pickled pickaxe object
+        Load pickled pickaxe object.
 
         Parameters
         ----------
         fname : str
-            filename to read (must be .pk)
+            filename to read (must be .pk).
         """
         start_load = time.time()
         print(f"Loading {fname} pickled data.")
@@ -1222,6 +1271,7 @@ class Pickaxe:
 
 
 if __name__ == "__main__":
+    print(os.getcwd())
     # Get initial time to calculate execution time at end
     t1 = time.time()  # pylint: disable=invalid-name
     # Parse all command line arguments
@@ -1231,19 +1281,19 @@ if __name__ == "__main__":
         "-C",
         "--coreactant_list",
         default="./tests/data/test_coreactants.tsv",
-        help="Specify a list of coreactants as a " "tab-separated file",
+        help="Specify a list of coreactants as a .tsv",
     )
     parser.add_argument(
         "-r",
         "--rule_list",
         default="./tests/data/test_reaction_rules.tsv",
-        help="Specify a list of reaction rules as a " "tab-separated file",
+        help="Specify a list of reaction rules as a .tsv",
     )
     parser.add_argument(
         "-c",
         "--compound_file",
         default="./tests/data/test_compounds.tsv",
-        help="Specify a list of starting compounds as a " "tab-separated file",
+        help="Specify a list of starting compounds as .tsv or .csv",
     )
     parser.add_argument(
         "-v",
@@ -1259,7 +1309,7 @@ if __name__ == "__main__":
         "-H",
         "--explicit_h",
         action="store_true",
-        default=True,
+        default=False,
         help="Specify explicit hydrogen for use in reaction rules.",
     )
     parser.add_argument(
@@ -1274,60 +1324,83 @@ if __name__ == "__main__":
         "--neutralise",
         action="store_true",
         default=True,
-        help="Specify whether to kekulize compounds.",
+        help="Specify whether to neturalise compounds.",
     )
 
     parser.add_argument(
         "-m",
-        "--max_workers",
+        "--processes",
         default=1,
         type=int,
         help="Set the max number of processes.",
     )
+
     parser.add_argument(
         "-g",
         "--generations",
         default=1,
         type=int,
-        help="Set the numbers of time to apply the reaction "
-        "rules to the compound set.",
+        help="Set the numbers of time to apply the reaction rules to the compound set.",
     )
+
     parser.add_argument(
         "-q",
         "--quiet",
         action="store_true",
-        default=False,
-        help="Silence warnings about imbalenced reactions",
+        default=True,
+        help="Silence warnings about imbalanced reactions",
     )
+
     parser.add_argument(
-        "-s", "--smiles", default=None, help="Specify a starting compound as SMILES."
+        "-s", "--smiles", default=None, help="Specify a starting compound SMILES."
     )
+
     # Result args
     parser.add_argument(
         "-p",
         "--pruning_whitelist",
         default=None,
-        help="Specify a list of target compounds to prune reaction network down",
+        help="Specify a list of target compounds to prune reaction network down to.",
     )
     parser.add_argument(
-        "-o", "--output_dir", default=".", help="The directory in which to place files"
+        "-o",
+        "--output_dir",
+        default=None,
+        help="The directory in which to write files.",
     )
     parser.add_argument(
         "-d",
         "--database",
         default=None,
-        help="The name of the database in which to store "
-        "output. If not specified, data is still written "
+        help="The URI of the database in which to store "
+        "output. If not specified, data is written "
         "as tsv files",
+    )
+    parser.add_argument(
+        "-u",
+        "--mongo_uri",
+        default="mongodb://localhost:27017",
+        help="The URI of the mongo database to connect to. Defaults to"
+        " mongodb://localhost:27017",
     )
     parser.add_argument(
         "-i",
         "--image_dir",
         default=None,
-        help="Specify a directory to store images of all " "created compounds",
+        help="Specify a directory to store images of all created compounds",
+    )
+    parser.add_argument(
+        "-wc",
+        "--write_core",
+        default=False,
+        help="Whether or not to write results into core database.",
     )
 
     OPTIONS = parser.parse_args()
+
+    if not any([OPTIONS.database, OPTIONS.output_dir]):
+        exit("No output selected, terminating run.")
+
     pk = Pickaxe(
         coreactant_list=OPTIONS.coreactant_list,
         rule_list=OPTIONS.rule_list,
@@ -1336,30 +1409,33 @@ if __name__ == "__main__":
         kekulize=OPTIONS.kekulize,
         neutralise=OPTIONS.neutralise,
         image_dir=OPTIONS.image_dir,
-        database=OPTIONS.database,
         quiet=OPTIONS.quiet,
+        database=OPTIONS.database,
+        mongo_uri=OPTIONS.mongo_uri,
     )
     # Create a directory for image output file if it doesn't already exist
     if OPTIONS.image_dir and not os.path.exists(OPTIONS.image_dir):
         os.mkdir(OPTIONS.image_dir)
     # If starting compound specified as SMILES string, then add it
     if OPTIONS.smiles:
-        # pylint: disable=protected-access
         pk._add_compound("Start", OPTIONS.smiles, cpd_type="Starting Compound")
     else:
         pk.load_compound_set(compound_file=OPTIONS.compound_file)
     # Generate reaction network
-    pk.transform_all(processes=OPTIONS.max_workers, max_generations=OPTIONS.generations)
+    pk.transform_all(processes=OPTIONS.processes, generations=OPTIONS.generations)
     if OPTIONS.pruning_whitelist:
-        # pylint: disable=invalid-name,protected-access
         mols = [
             pk._mol_from_dict(line)
             for line in utils.file_to_dict_list(OPTIONS.pruning_whitelist)
         ]
         pk.prune_network([utils.compound_hash(x) for x in mols if x])
 
-    pk.assign_ids()
-    pk.write_compound_output_file(OPTIONS.output_dir + "/compounds.tsv")
-    pk.write_reaction_output_file(OPTIONS.output_dir + "/reactions.tsv")
+    if OPTIONS.output_dir:
+        pk.assign_ids()
+        pk.write_compound_output_file(OPTIONS.output_dir + "/compounds.tsv")
+        pk.write_reaction_output_file(OPTIONS.output_dir + "/reactions.tsv")
+
+    if OPTIONS.database:
+        pk.save_to_mine(processes=OPTIONS.processes, write_core=OPTIONS.write_core)
 
     print(f"Execution took {time.time() - t1} seconds.")

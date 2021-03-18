@@ -11,15 +11,13 @@ from subprocess import call
 from typing import List, Union
 
 import pymongo
+from pymongo.database import Collection
 from pymongo.errors import ServerSelectionTimeoutError
 from rdkit.Chem import AllChem
 from rdkit.RDLogger import logger
 
 from minedatabase import utils
 
-
-# from minedatabase import utils
-# from minedatabase.NP_Score import npscorer as nps
 
 # from minedatabase.NP_Score import npscorer as nps
 
@@ -30,7 +28,7 @@ lg.setLevel(4)
 
 
 def establish_db_client(uri: str = None) -> pymongo.MongoClient:
-    """Establish a connection to a mongo database given a URI
+    """Establish a connection to a mongo database given a URI.
 
     Uses the provided URI to connect to a mongoDB. If none is given
     the default URI is used when using pymongo.
@@ -38,7 +36,7 @@ def establish_db_client(uri: str = None) -> pymongo.MongoClient:
     Parameters
     ----------
     uri : str, optional
-        URI to connect to mongo DB, by default None
+        URI to connect to mongo DB, by default None.
 
     Returns
     -------
@@ -66,18 +64,39 @@ def establish_db_client(uri: str = None) -> pymongo.MongoClient:
 class MINE:
     """
     This class provides an interface to the MongoDB and some useful functions.
+
+    Parameters
+    ----------
+    name : str
+        Name of the database to work with.
+    uri : str, optional
+        uri of the mongo server, by default "mongodb://localhost:27017/".
+
+    Attributes
+    ----------
+    client : pymongo.MongoClient
+        client connection to the MongoDB.
+    compounds : Collection
+        Compounds collection.
+    core_compounds : Collection
+        Core compounds collection.
+    meta_data : Collection
+        Metadata collection.
+    models : Collection
+        Models collection.
+    name : str
+        Name of the database
+    operators : Collection
+        Operators collection.
+    reactions : Collection
+        Reactions collection.
+    target_compounds : Collection
+        Target compounds collection.
+    uri : str
+        MongoDB connection string.
     """
 
     def __init__(self, name: str, uri: str = "mongodb://localhost:27017/"):
-        """Intialize class.
-
-        Parameters
-        ----------
-        name : str
-            Name of the database to work with
-        uri : str, optional
-            uri of the mongo server, by default "mongodb://localhost:27017/"
-        """
         self.client = establish_db_client(uri)
         self.uri = uri
         self._db = self.client[name]
@@ -103,12 +122,12 @@ class MINE:
         Parameters
         ----------
         reaction : str, optional
-            Reaction ID to calculate the mass change for, by default None
+            Reaction ID to calculate the mass change for, by default None.
 
         Returns
         -------
         float, optional
-            Mass change of specified reaction
+            Mass change of specified reaction.
 
         """
 
@@ -160,25 +179,24 @@ class MINE:
         img_type: str = "svg:-a,nosource,w500,h500",
         convert_r: bool = False,
     ) -> None:
-        """Generates image files for compounds in database using ChemAxon's
-        MolConvert.
+        """Generates image files for compounds in database using ChemAxon's MolConvert.
 
         Parameters
         ----------
         path : str
-            Target directory for image file
+            Target directory for image file.
         query : dict, optional
-            Query to limit number of files generated, by default None
+            Query to limit number of files generated, by default None.
         dir_depth : int, optional
             The number of directory levels to split the compounds
             into for files system efficiency. Ranges from 0 (all in top
             level directory) to the length of the file name (40 for MINE hashes),
-            by default 0
+            by default 0.
         img_type : str, optional
             Type of image file to be generated. See molconvert
-            documentation for valid options, by default 'svg:-a,nosource,w500,h500'
+            documentation for valid options, by default 'svg:-a,nosource,w500,h500'.
         convert_r : bool, optional
-            Convert R in the smiles to *, by default False
+            Convert R in the smiles to *, by default False.
         """
         ids = []
         extension = img_type.split(":")[0]
@@ -228,6 +246,7 @@ class MINE:
         self.core_compounds.drop_indexes()
         self.core_compounds.create_index([("Mass", pymongo.ASCENDING)])
         self.core_compounds.create_index("Inchikey")
+        self.core_compounds.create_index("MINES")
         self.compounds.create_index("Inchikey")
         self.compounds.create_index("Inchi")
         self.compounds.create_index("SMILES")
@@ -294,7 +313,7 @@ def write_reactions_to_mine(
     db : MINE
         MINE object to write reactions with.
     chunk_size : int, optional
-        Size of chunks to break reactions into when writing, by default 10000
+        Size of chunks to break reactions into when writing, by default 10000.
     """
     n_rxns = len(reactions)
     for i, rxn_chunk in enumerate(utils.Chunks(reactions, chunk_size)):
@@ -321,7 +340,7 @@ def write_compounds_to_mine(
     db : MINE
         MINE object to write compounds with.
     chunk_size : int, optional
-        Size of chunks to break compounds into when writing, by default 10000
+        Size of chunks to break compounds into when writing, by default 10000.
     """
 
     def _get_cpd_insert(cpd_dict: dict):
@@ -371,9 +390,9 @@ def write_core_compounds(
     mine : str
         Name of the MINE.
     chunk_size : int, optional
-        Size of chunks to break compounds into when writing, by default 10000
+        Size of chunks to break compounds into when writing, by default 10000.
     processes : int, optional
-        The number of processors to use, by default 1
+        The number of processors to use, by default 1.
     """
     n_cpds = len(compounds)
     pool = multiprocessing.Pool(processes)
@@ -404,7 +423,7 @@ def _get_core_cpd_update(cpd_dict: dict, mine: str) -> pymongo.UpdateOne:
 
 
 def _get_core_cpd_insert(cpd_dict: dict) -> pymongo.InsertOne:
-    # cpd_dict = deepcopy(cpd_dict)
+    """Generate core compound to be inserted"""
     core_keys = ["_id", "SMILES", "Inchi", "InchiKey", "Mass", "Formula"]
     core_dict = {
         key: cpd_dict.get(key) for key in core_keys if cpd_dict.get(key) != None
@@ -447,7 +466,7 @@ def write_targets_to_mine(
     db : MINE
         MINE object to write targets with.
     chunk_size : int, optional
-        [description], by default 10000
+        [description], by default 10000.
     """
 
     def _get_cpd_insert(cpd_dict: dict):

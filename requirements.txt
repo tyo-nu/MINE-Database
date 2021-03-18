@@ -6,4 +6,6 @@ pytest==5.3.2
 pytest-cov==2.8.1
 scikit-learn
 scipy
+sphinxcontrib-napoleon
+numpydoc
 # install rdkit separately
