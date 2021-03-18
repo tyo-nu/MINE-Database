@@ -30,7 +30,7 @@ from scipy.stats import rv_discrete
 
 from minedatabase import utils
 
-from minedatabase.metabolomics import MetabolomicsDataset, MetabolomicsOptions, Peak
+from minedatabase.metabolomics import MetabolomicsDataset, Peak
 from minedatabase.pickaxe import Pickaxe
 from minedatabase.utils import Chunks, get_fp
 
