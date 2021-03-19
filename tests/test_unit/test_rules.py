@@ -13,10 +13,10 @@ from minedatabase.rules import (
 )
 
 
-pwd = Path(__file__)
-pwd = pwd.parent
-print(f"{pwd}/data/test_rules/rules_to_assert.json")
-with open(f"{pwd}/data/test_rules/rules_to_assert.json", "r") as f:
+file_path = Path(__file__)
+file_dir = file_path.parent
+
+with open((file_dir / "../data/test_rules/rules_to_assert.json"), "r") as f:
     rule_assert_dict = json.load(f)
 
 

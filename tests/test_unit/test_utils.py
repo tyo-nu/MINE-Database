@@ -2,13 +2,17 @@
 
 import os
 from collections import OrderedDict
+from pathlib import Path
 
 from rdkit.DataStructs.cDataStructs import ExplicitBitVect
 
 import minedatabase.utils as utils
 
 
-DATA_DIR = os.path.dirname(__file__) + "/data/"
+file_path = Path(__file__)
+file_dir = file_path.parent
+
+DATA_DIR = (file_dir / "../data/").resolve()
 
 
 def test_compound_hash():
@@ -78,6 +82,6 @@ def test_file_to_dict_list():
     filenames = ["test_compounds.tsv", "test_compounds.csv", "test_compounds.json"]
 
     for file in filenames:
-        res = utils.file_to_dict_list(DATA_DIR + file)
+        res = utils.file_to_dict_list(DATA_DIR / file)
         assert len(res) == 15
         assert res[7] == res_7
