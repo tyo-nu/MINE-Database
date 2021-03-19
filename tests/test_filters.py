@@ -1,5 +1,6 @@
 """Tests for pickaxe.py using pytest."""
 import os
+
 import pytest
 from rdkit.RDLogger import logger
 
@@ -33,10 +34,10 @@ def pk():
 
 @pytest.fixture()
 def metabolomics_data_path():
-    data_path = os.path.join(os.path.dirname(__file__),
-                             "data/metabolomics/test_metabolomics_data.csv")
+    data_path = os.path.join(
+        os.path.dirname(__file__), "data/metabolomics/test_metabolomics_data.csv"
+    )
     return data_path
-
 
 
 def test_tani_cutoff_single(pk):
@@ -89,19 +90,23 @@ def test_tani_cutoff_multi_short_list(pk):
 def test_met_filter_mass(pk, metabolomics_data_path):
     """Test MetabolomicsFilter output without RT predictor."""
     met_filter = MetabolomicsFilter(
-        filter_name='test_metabolomics_filter',
-        met_data_name='test_metabolomics_data',
+        filter_name="test_metabolomics_filter",
+        met_data_name="test_metabolomics_data",
         met_data_path=metabolomics_data_path,
-        possible_adducts=['[M+H]+', '[M-H]-'],
+        possible_adducts=["[M+H]+", "[M-H]-"],
         mass_tolerance=0.001,
     )
     pk.filters.append(met_filter)
     pk.transform_all(generations=2)
 
-    gen1_cpds = [pk.compounds[cpd] for cpd in pk.compounds if pk.compounds[cpd]['Generation'] == 1]
+    gen1_cpds = [
+        pk.compounds[cpd]
+        for cpd in pk.compounds
+        if pk.compounds[cpd]["Generation"] == 1
+    ]
 
     assert len(gen1_cpds) == 1
-    assert gen1_cpds[0]['Matched_Peak_IDs'] == ['Test3']
+    assert gen1_cpds[0]["Matched_Peak_IDs"] == ["Test3"]
 
 
 def test_tani_sample_default_weight(pk):

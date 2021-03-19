@@ -132,10 +132,10 @@ def test_metabolomics_dataset_enumerate_possible_masses(metabolomics_dataset):
     # possible ranges are possible masses +/- tolerance
     possible_ranges = set(
         [
-            (426.02112400000004, 426.023124, "Test1Unknown", 1.0),
-            (428.035676, 428.037676, "Test1Unknown", 1.0),
-            (178.991724, 178.99372400000001, "Test2Unknown", 1.0),
-            (181.00627599999999, 181.008276, "Test2Unknown", 1.0),
+            (426.02112400000004, 426.023124, "Test1Unknown", "[M+H]+"),
+            (428.035676, 428.037676, "Test1Unknown", "[M-H]-"),
+            (178.991724, 178.99372400000001, "Test2Unknown", "[M+H]+"),
+            (181.00627599999999, 181.008276, "Test2Unknown", "[M-H]-"),
         ]
     )
     assert set(metabolomics_dataset.possible_ranges) == possible_ranges

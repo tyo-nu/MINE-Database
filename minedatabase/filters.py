@@ -12,12 +12,13 @@ import copy
 import multiprocessing
 import time
 from functools import partial
-from typing import Callable, List, Tuple
+from typing import Callable, Dict, List, Optional, Set, Tuple
 
 import numpy as np
 import pandas as pd
 import rdkit.rdBase as rkrb
 import rdkit.RDLogger as rkl
+import sklearn
 from mordred import Calculator, descriptors
 from rdkit.Chem import AddHs, AllChem, CanonSmiles
 from rdkit.Chem import rdFMCS as mcs
@@ -59,8 +60,16 @@ class Filter(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def _choose_cpds_to_filter(self, pickaxe, processes):
-        """Return list of compounds to remove from pickaxe object."""
+    def _choose_cpds_to_filter(self, pickaxe: Pickaxe, processes: int):
+        """Return list of compounds to remove from pickaxe object.
+
+        Parameters
+        ----------
+        pickaxe : Pickaxe
+            Instance of Pickaxe being used to expand and filter the network
+        processes : int
+            The number of processes to use, by default 1
+        """
         pass
 
     def apply_filter(self, pickaxe: Pickaxe, processes: int = 1, print_on: bool = True):
@@ -69,11 +78,11 @@ class Filter(metaclass=abc.ABCMeta):
         Parameters
         ----------
         pickaxe : Pickaxe
-            The Pickaxe object to filter.
+            The Pickaxe object to filter
         processes : int
-            The number of processes to use, by default 1.
+            The number of processes to use, by default 1
         print_on : bool
-            Whether or not to print filtering results.
+            Whether or not to print filtering results
         """
         time_sample = time.time()
 
@@ -89,11 +98,17 @@ class Filter(metaclass=abc.ABCMeta):
 
         if print_on:
             n_filtered = self._get_n(pickaxe, "filtered")
-            self._post_print(pickaxe, n_total, n_filtered, time_sample)
+            self._post_print(n_total, n_filtered, time_sample)
             self._post_print_footer(pickaxe)
 
-    def _pre_print_header(self, pickaxe):
-        """Print header before filtering."""
+    def _pre_print_header(self, pickaxe: Pickaxe):
+        """Print header before filtering.
+
+        Parameters
+        ----------
+        pickaxe : Pickaxe
+            Instance of Pickaxe being used to expand and filter the network
+        """
         print("----------------------------------------")
         print(f"Filtering Generation {pickaxe.generation}\n")
 
@@ -101,21 +116,50 @@ class Filter(metaclass=abc.ABCMeta):
         """Print filter being applied."""
         print(f"Applying filter: {self.filter_name}")
 
-    def _post_print(self, pickaxe, n_total, n_filtered, time_sample):
-        """Print results of filtering."""
+    def _post_print(self, n_total: int, n_filtered: int, time_sample: float):
+        """Print results of filtering.
+
+        Parameters
+        ----------
+        n_total : int
+            Total number of compounds
+        n_filtered : int
+            Number of compounds remaining after filtering
+        times_sample : float
+            Time in seconds from time.time()
+        """
         print(
             f"{n_filtered} of {n_total} compounds remain after applying "
             f"filter: {self.filter_name}"
             f"--took {round(time.time() - time_sample, 2)}s.\n"
         )
 
-    def _post_print_footer(self, pickaxe):
-        """Print end of filtering."""
+    def _post_print_footer(self, pickaxe: Pickaxe):
+        """Print end of filtering.
+
+        Parameters
+        ----------
+        pickaxe : Pickaxe
+            Instance of Pickaxe being used to expand and filter the network
+        """
         print(f"Done filtering Generation {pickaxe.generation}")
         print("----------------------------------------\n")
 
-    def _get_n(self, pickaxe, n_type):
-        """Get current number of compounds to be filtered."""
+    def _get_n(self, pickaxe: Pickaxe, n_type: str) -> int:
+        """Get current number of compounds to be filtered.
+
+        Parameters
+        ----------
+        pickaxe : Pickaxe
+            Instance of Pickaxe being used to expand and filter the network
+        n_type : str
+            Whether to return "total" number of "filtered" number of compounds
+
+        Returns
+        -------
+        n : int
+            Either the total or filtered number of compounds
+        """
         n = 0
         for cpd_dict in pickaxe.compounds.values():
             is_in_current_gen = cpd_dict["Generation"] == pickaxe.generation
@@ -127,7 +171,7 @@ class Filter(metaclass=abc.ABCMeta):
                     n += 1
         return n
 
-    def _apply_filter_results(self, pickaxe, compound_ids_to_check):
+    def _apply_filter_results(self, pickaxe: Pickaxe, compound_ids_to_check: List[str]):
         """Apply filter results to Pickaxe object.
 
         Remove compounds and reactions that can be removed
@@ -135,9 +179,29 @@ class Filter(metaclass=abc.ABCMeta):
             1. Not be flagged for expansion
             2. Not have a coproduct in a reaction marked for expansion
             3. Start with "C"
+
+        Parameters
+        ----------
+        pickaxe : Pickaxe
+            Instance of Pickaxe being used to expand and filter the network,
+            this method modifies the Pickaxe object's compound documents
+        compound_ids_to_check : List[str]
+            List of compound IDs to try to remove, if possible
         """
 
-        def should_delete_reaction(rxn_id):
+        def should_delete_reaction(rxn_id: str) -> bool:
+            """Whether we should delete reaction with supplied ID.
+
+            Parameters
+            ----------
+            rxn_id : str
+                ID of reaction
+
+            Returns
+            -------
+            bool
+                True if we should delete, False otherwise
+            """
             products = pickaxe.reactions[rxn_id]["Products"]
             for _, c_id in products:
                 if c_id.startswith("C") and c_id not in cpds_to_remove:
@@ -145,7 +209,23 @@ class Filter(metaclass=abc.ABCMeta):
             # Every compound isn't in cpds_to_remove
             return True
 
-        def get_compounds_to_check_from_ids(pickaxe, cpd_ids_to_check):
+        def get_compounds_to_check_from_ids(
+            pickaxe: Pickaxe, cpd_ids_to_check: List[str]
+        ) -> List[Dict]:
+            """Get compound documents from their IDs
+
+            Parameters
+            ----------
+            pickaxe : Pickaxe
+                Instance of Pickaxe being used to expand and filter the network
+            cpd_ids_to_check : List[str]
+                List of compound IDs to get compound documents for
+
+            Returns
+            -------
+            cpds_to_check : List[Dict]
+                List of compound documents
+            """
             cpds_to_check = []
             for cpd in pickaxe.compounds.values():
                 if cpd["_id"] in cpd_ids_to_check:
@@ -623,14 +703,14 @@ class MetabolomicsFilter(Filter):
 
     def __init__(
         self,
-        filter_name,
-        met_data_name,
-        met_data_path,
-        possible_adducts,
-        mass_tolerance,
-        rt_predictor=None,
-        rt_threshold=None,
-        rt_important_features=None,
+        filter_name: str,
+        met_data_name: str,
+        met_data_path: str,
+        possible_adducts: List[str],
+        mass_tolerance: float,
+        rt_predictor: sklearn.ensemble.RandomForestRegressor = None,
+        rt_threshold: float = None,
+        rt_important_features: List[str] = None,
     ):
         """Load metabolomics data into a MetabolomicsDataset object."""
 
@@ -695,17 +775,31 @@ class MetabolomicsFilter(Filter):
         self.metabolomics_dataset.enumerate_possible_masses(self.mass_tolerance)
 
     @property
-    def filter_name(self):
+    def filter_name(self) -> str:
+        """Return filter name
+
+        Returns
+        -------
+        str
+            Name of filter
+        """
         return self._filter_name
 
-    def _choose_cpds_to_filter(self, pickaxe, processes):
+    def _choose_cpds_to_filter(self, pickaxe: Pickaxe, processes: int) -> Set[str]:
         """Choose compounds to expand based on whether they are found in a
         metabolomics dataset.
 
         Parameters
         ----------
-        self : Pickaxe
+        pickaxe : Pickaxe
             Instance of Pickaxe class.
+        processes : int
+            Number of processes (uses parallelization if > 1)
+
+        Returns
+        -------
+        cpds_remove_set : Set[str]
+            Set of IDs for compounds to try to remove from the expansion
         """
         if pickaxe.generation == 0:
             return None
@@ -791,9 +885,29 @@ class MetabolomicsFilter(Filter):
 
         return cpds_remove_set
 
-    def _filter_by_mass_and_rt(self, possible_ranges, cpd_info):
+    def _filter_by_mass_and_rt(
+        self,
+        possible_ranges: List[Tuple[float, float, str, str]],
+        cpd_info: List[Tuple[str]],
+    ) -> Tuple(Optional[str], Dict):
         """Check to see if compound masses  (and optionally, retention time)
-        each lie in any possible mass ranges."""
+        each lie in any possible mass ranges.
+
+        Parameters
+        ----------
+        possible_ranges : List[Tuple[float, float, str, str]]
+            Possible mass ranges based on peak masses and tolerance
+        cpd_info : List[Tuple[str]]
+            Tuple of compound ID, SMILES, peak ID, and adduct name
+
+        Returns
+        -------
+        c_id_if_matched : str, optional
+            Contains the compound ID if a hit is found, None by default
+        cpd_dict : Dict
+            Contains predicted retention time, matched peak IDs (if any), and
+            matched adduct names (if any)
+        """
         c_id_if_matched = None
         cpd_dict = {"Predicted_RT": None, "Matched_Peak_IDs": [], "Matched_Adducts": []}
 
@@ -827,8 +941,21 @@ class MetabolomicsFilter(Filter):
 
         return c_id_if_matched, cpd_dict
 
-    def _predict_rt(self, smiles):
-        """Predict Retention Time from SMILES string using provided predictor."""
+    def _predict_rt(self, smiles: str) -> Optional[float]:
+        """Predict Retention Time from SMILES string using provided predictor.
+
+        Parameters
+        ----------
+        smiles : str
+            SMILES string of input compound
+
+        Returns
+        -------
+        predicted_rt : Optional[float]
+            Predicted retention time, None if errors occur during prediction,
+            for example if certain features of the input compound that are
+            required for the prediction cannot be calculated
+        """
         mol = MolFromSmiles(smiles)
         mol = AddHs(mol)
 
@@ -839,8 +966,19 @@ class MetabolomicsFilter(Filter):
                 [fp[feature] for feature in self.rt_important_features]
             ).reshape(1, -1)
 
-        def validate_np_val(val):
-            """Make sure value is numeric, not NaN, and not infinity."""
+        def validate_np_val(val: float) -> bool:
+            """Make sure value is numeric, not NaN, and not infinity.
+
+            Parameters
+            ----------
+            val : float
+                Value to check
+
+            Returns
+            -------
+            bool
+                True if input value is numeric, False otherwise
+            """
             if isinstance(val, float) and not np.isnan(val) and not np.isinf(val):
                 return True
             return False
