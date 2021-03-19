@@ -4,6 +4,7 @@
 import json
 from os.path import dirname
 
+import pymongo
 import pytest
 from pymongo.errors import ServerSelectionTimeoutError
 
@@ -11,37 +12,15 @@ from minedatabase import databases, queries
 from minedatabase.databases import MINE
 
 
-@pytest.fixture()
-def test_db():
-    """Create a test MINE database. Created and torn down before and after each
-    test it is used in."""
-    try:
-        testdb = MINE("mongotest")
-    except ServerSelectionTimeoutError:
-        print("No Mongo DB server detected")
-    yield testdb
+try:
+    client = pymongo.MongoClient(ServerSelectionTimeoutMS=2000)
+    client.server_info()
+    del client
+    is_mongo = True
+except ServerSelectionTimeoutError as err:
+    is_mongo = False
 
-
-@pytest.fixture()
-def test_molfile():
-    """Mol file for glucose compound."""
-    test_molfile = open(dirname(__file__) + "/data/glucose.mol", "r").read()
-    return test_molfile
-
-
-@pytest.fixture()
-def glucose():
-    """MongoDB document (.json) for glucose compound."""
-    with open(dirname(__file__) + "/data/glucose.json") as infile:
-        glucose = json.load(infile)
-    return glucose
-
-
-@pytest.fixture
-def glucose_id():
-    """ID in MongoDB for glucose."""
-    glucose_id = {"_id": "Ccffda1b2e82fcdb0e1e710cad4d5f70df7a5d74f"}
-    return glucose_id
+valid_db = pytest.mark.skipif(not is_mongo, reason="No MongoDB Connection")
 
 
 def test_quick_search(test_db, glucose, glucose_id):

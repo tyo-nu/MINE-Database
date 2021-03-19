@@ -67,7 +67,6 @@ class MetabolomicsDataset:
             Prints more info to stdout if True, by default False
         """
         # Load adducts
-        dtype = "np.str, np.float, np.float"
         pos_fp = os.path.join(MINEDB_DIR, "data/adducts/Positive Adducts full.txt")
         neg_fp = os.path.join(MINEDB_DIR, "data/adducts/Negative Adducts full.txt")
         all_pos_adducts = self._read_adduct_file(pos_fp)
@@ -96,8 +95,8 @@ class MetabolomicsDataset:
 
         # Load peak data and initialize other attributes
         self.name = name
-        self.known_peaks = known_peaks
-        self.unknown_peaks = unknown_peaks
+        self.known_peaks = known_peaks if known_peaks else []
+        self.unknown_peaks = unknown_peaks if unknown_peaks else []
         self.native_set = native_set
         self.ppm = ppm
         self.tolerance = tolerance

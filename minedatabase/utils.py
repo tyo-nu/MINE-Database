@@ -70,6 +70,8 @@ def file_to_dict_list(filepath: str) -> list:
     list
         Dictionary list.
     """
+    filepath = str(filepath)
+
     if ".tsv" in filepath:
         reader = csv.DictReader(open(filepath), dialect="excel-tab")
     elif ".csv" in filepath:
@@ -231,6 +233,7 @@ def prevent_overwrite(write_path: str) -> str:
     str
         Updated path to write.
     """
+    write_path = str(write_path)
     while path.exists(write_path):
         split = write_path.split(".")
         # Make sure that files without an extension are still valid (otherwise,

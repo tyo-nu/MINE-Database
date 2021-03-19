@@ -1,0 +1,150 @@
+"""Tests for pickaxe.py using pytest."""
+from pathlib import Path
+
+import pytest
+
+from minedatabase.filters import (
+    MCSFilter,
+    MetabolomicsFilter,
+    TanimotoFilter,
+    TanimotoSamplingFilter,
+)
+
+
+file_path = Path(__file__)
+file_dir = file_path.parent
+DATA_DIR = (file_dir / "../data/").resolve()
+
+
+def test_tani_cutoff_single(pk_target):
+    """Test tanimoto cutoff filter"""
+    tani_threshold = 0.5
+    filter = TanimotoFilter(crit_tani=tani_threshold, increasing_tani=False)
+    pk_target.filters.append(filter)
+    pk_target.transform_all(generations=2)
+
+    assert len(pk_target.compounds) == 355
+    assert (
+        pk_target.compounds["C779bfa0d747509f0499664b390657a336edec104"]["Expand"]
+        == True
+    )
+
+
+@pytest.mark.skip("Heisenbug Test")
+def test_filter_after(pk_target):
+    """Test tanimoto cutoff filter"""
+    tani_threshold = 0.5
+    filter = TanimotoFilter(crit_tani=tani_threshold, increasing_tani=False)
+    pk_target.filter_after_final_gen = True
+    pk_target.filters.append(filter)
+    pk_target.transform_all(generations=2)
+
+    assert len(pk_target.compounds) == 257
+    assert (
+        pk_target.compounds["C779bfa0d747509f0499664b390657a336edec104"]["Expand"]
+        == False
+    )
+
+
+def test_tani_cutoff_multi(pk_target):
+    """Test tanimoto cutoff filter"""
+    tani_threshold = [0, 0.3, 0.5]
+    filter = TanimotoFilter(crit_tani=tani_threshold, increasing_tani=False)
+    pk_target.filters.append(filter)
+    pk_target.transform_all(generations=2)
+
+    assert len(pk_target.compounds) == 1094
+    assert (
+        pk_target.compounds["C779bfa0d747509f0499664b390657a336edec104"]["Expand"]
+        == True
+    )
+
+
+def test_tani_cutoff_multi_short_list(pk_target):
+    """Test tanimoto filter when the tani_threshold is shorter than generations."""
+    tani_threshold = [0.5]
+    filter = TanimotoFilter(crit_tani=tani_threshold, increasing_tani=False)
+    pk_target.filters.append(filter)
+    pk_target.transform_all(generations=2)
+
+    assert len(pk_target.compounds) == 355
+    assert (
+        pk_target.compounds["C779bfa0d747509f0499664b390657a336edec104"]["Expand"]
+        == True
+    )
+
+
+def test_tani_sample_default_weight(pk_target):
+    """Test tanimoto cutoff filter"""
+    filter = TanimotoSamplingFilter(sample_size=10, weight=None)
+    pk_target.filters.append(filter)
+    pk_target.transform_all(generations=2)
+
+    # Filter must return less compounds than non-filter
+    # Non-deterministic results, so no exact value can be used
+    assert len(pk_target.compounds) < 1452
+
+
+def test_tani_sample_user_weight(pk_target):
+    """Test tanimoto cutoff filter"""
+
+    def weight(T):
+        return T ** 4
+
+    filter = TanimotoSamplingFilter(sample_size=10, weight=weight)
+    pk_target.filters.append(filter)
+    pk_target.transform_all(generations=2)
+
+    # Filter must return less compounds than non-filter
+    # Non-deterministic results, so no exact value can be used
+    assert len(pk_target.compounds) < 1452
+
+
+def test_tani_sample_multiprocess(pk_target):
+    """Test tanimoto cutoff filter"""
+
+    def weight(T):
+        return T ** 4
+
+    filter = TanimotoSamplingFilter(sample_size=10, weight=weight)
+    pk_target.processes = 2
+    pk_target.react_targets = True
+    pk_target.filters.append(filter)
+    pk_target.transform_all(generations=2)
+
+    # Filter must return less compounds than non-filter
+    # Non-deterministic results, so no exact value can be used
+    assert len(pk_target.compounds) < 1452
+
+
+def test_MCS_list(pk_target):
+    """Test tanimoto cutoff filter"""
+    MCS_threshold = [0.1, 0.5]
+    filter = MCSFilter(crit_mcs=MCS_threshold)
+    pk_target.filters.append(filter)
+    pk_target.transform_all(generations=2)
+
+    assert len(pk_target.compounds) == 340
+
+
+def test_met_filter_mass(pk_target):
+    """Test MetabolomicsFilter output without RT predictor."""
+    metabolomics_data_path = DATA_DIR / "test_metabolomics/test_metabolomics_data.csv"
+    met_filter = MetabolomicsFilter(
+        filter_name="test_metabolomics_filter",
+        met_data_name="test_metabolomics_data",
+        met_data_path=metabolomics_data_path,
+        possible_adducts=["[M+H]+", "[M-H]-"],
+        mass_tolerance=0.001,
+    )
+    pk_target.filters.append(met_filter)
+    pk_target.transform_all(generations=2)
+
+    gen1_cpds = [
+        pk_target.compounds[cpd]
+        for cpd in pk_target.compounds
+        if pk_target.compounds[cpd]["Generation"] == 1
+    ]
+
+    assert len(gen1_cpds) == 1
+    assert gen1_cpds[0]["Matched_Peak_IDs"] == ["Test3"]

@@ -9,76 +9,28 @@ import subprocess
 from filecmp import cmp
 from pathlib import Path
 
+import pymongo
 import pytest
+from pymongo.errors import ServerSelectionTimeoutError
 from rdkit.Chem import AllChem
 
 from minedatabase import pickaxe
 from minedatabase.databases import MINE
 
 
-DATA_DIR = os.path.dirname(__file__) + "/data"
+try:
+    client = pymongo.MongoClient(ServerSelectionTimeoutMS=20)
+    client.server_info()
+    del client
+    is_mongo = True
+except ServerSelectionTimeoutError as err:
+    is_mongo = False
+valid_db = pytest.mark.skipif(not is_mongo, reason="No MongoDB Connection")
 
+file_path = Path(__file__)
+file_dir = file_path.parent
 
-@pytest.fixture
-def smiles_dict():
-    """Store SMILES for compounds used in test cases here."""
-    smiles = {
-        "ATP": "Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)OP(=O)(O)O)[C"
-        + "@@H](O)[C@H]1O",
-        "ADP": "Nc1ncnc2c1ncn2[C@@H]1O[C@H](COP(=O)(O)OP(=O)(O)O)[C@@H](O)[C" + "@H]1O",
-        "meh": "CCC(=O)C(=O)O",
-        "l_ala": "C[C@H](N)C(=O)O",
-        "d_ala": "C[C@@H](N)C(=O)O",
-        "FADH": "Cc1cc2c(cc1C)N(CC(O)C(O)C(O)COP(=O)(O)OP(=O)(O)OCC1OC(n3cnc"
-        + "4c(N)ncnc43)C(O)C1O)c1nc(O)nc(O)c1N2",
-        "S-Adenosylmethionine": "C[S+](CC[C@H](N)C(=O)O)C[C@H]1O[C@@H](n2cnc"
-        + "3c(N)ncnc32)[C@H](O)[C@@H]1O",
-    }
-    return smiles
-
-
-@pytest.fixture
-def coreactant_dict(smiles_dict):
-    """Create tab-formatted coreactant entries."""
-    coreactants = {
-        "ATP": "ATP		" + smiles_dict["ATP"],
-        "ADP": "ADP		" + smiles_dict["ADP"],
-        "S-Adenosylmethionine": "S-Adenosylmethionine		"
-        + smiles_dict["S-Adenosylmethionine"],
-    }
-    return coreactants
-
-
-@pytest.fixture
-def pk():
-    """Create default Pickaxe object."""
-    return pickaxe.Pickaxe(
-        coreactant_list=DATA_DIR + "/test_coreactants.tsv",
-        rule_list=DATA_DIR + "/test_reaction_rules.tsv",
-        explicit_h=True,
-        quiet=False,
-    )
-
-
-@pytest.fixture
-def default_rule(pk):
-    """Set default operator."""
-    return pk.operators["2.7.1.a"]
-
-
-@pytest.fixture
-def pk_transformed(default_rule, smiles_dict, coreactant_dict):
-    """Create Pickaxe object with a few predicted reactions."""
-    pk_transformed = pickaxe.Pickaxe(explicit_h=True)
-    pk_transformed._add_compound(
-        "Start", smi=smiles_dict["FADH"], cpd_type="Starting Compound"
-    )
-    pk_transformed._load_coreactant(coreactant_dict["ATP"])
-    pk_transformed._load_coreactant(coreactant_dict["ADP"])
-    pk_transformed.operators["2.7.1.a"] = default_rule
-    pk_transformed.transform_all()
-    pk_transformed.assign_ids()
-    return pk_transformed
+DATA_DIR = (file_dir / "../data/").resolve()
 
 
 def purge(directory, pattern):
@@ -133,7 +85,7 @@ def test_compound_loading(pk):
     THEN check that they are loaded correctly
     """
     compound_smiles = pk.load_compound_set(
-        compound_file=DATA_DIR + "/test_compounds.tsv"
+        compound_file=file_dir / "../data/test_compounds.tsv"
     )
     assert len(compound_smiles) == 14
 
@@ -166,16 +118,17 @@ def test_compound_output_writing(pk_transformed):
     WHEN all compounds (including predicted) are written to an output file
     THEN make sure they are correctly written, and that they are all present
     """
-    with open(DATA_DIR + "/testcompoundsout.tsv", "rb") as infile:
+
+    with open(file_dir / "../data/testcompoundsout.tsv", "rb") as infile:
         expected = hashlib.sha256(infile.read()).hexdigest()
-    pk_transformed.write_compound_output_file(DATA_DIR + "/testcompoundsout.tsv")
-    assert os.path.exists(DATA_DIR + "/testcompoundsout_new.tsv")
+    pk_transformed.write_compound_output_file(file_dir / "../data/testcompoundsout.tsv")
+    assert os.path.exists(file_dir / "../data/testcompoundsout_new.tsv")
     try:
-        with open(DATA_DIR + "/testcompoundsout_new.tsv", "rb") as infile:
+        with open(file_dir / "../data/testcompoundsout_new.tsv", "rb") as infile:
             output_compounds = hashlib.sha256(infile.read()).hexdigest()
         assert expected == output_compounds
     finally:
-        os.remove(DATA_DIR + "/testcompoundsout_new.tsv")
+        os.remove(file_dir / "../data/testcompoundsout_new.tsv")
 
 
 def test_reaction_output_writing(pk_transformed):
@@ -185,16 +138,16 @@ def test_reaction_output_writing(pk_transformed):
     WHEN all reactions (including predicted) are written to an output file
     THEN make sure they are correctly written, and that they are all present
     """
-    with open(DATA_DIR + "/testreactionsout.tsv", "rb") as infile:
+    with open(file_dir / "../data/testreactionsout.tsv", "rb") as infile:
         expected = hashlib.sha256(infile.read()).hexdigest()
-    pk_transformed.write_reaction_output_file(DATA_DIR + "/testreactionsout.tsv")
-    assert os.path.exists(DATA_DIR + "/testreactionsout_new.tsv")
+    pk_transformed.write_reaction_output_file(file_dir / "../data/testreactionsout.tsv")
+    assert os.path.exists(file_dir / "../data/testreactionsout_new.tsv")
     try:
-        with open(DATA_DIR + "/testreactionsout_new.tsv", "rb") as infile:
+        with open(file_dir / "../data/testreactionsout_new.tsv", "rb") as infile:
             output_compounds = hashlib.sha256(infile.read()).hexdigest()
         assert expected == output_compounds
     finally:
-        os.remove(DATA_DIR + "/testreactionsout_new.tsv")
+        os.remove(file_dir / "../data/testreactionsout_new.tsv")
 
 
 def test_multiprocessing(pk, smiles_dict, coreactant_dict):
@@ -237,16 +190,18 @@ def test_pruning(default_rule, smiles_dict, coreactant_dict):
     ]
     pk.prune_network(ids)
     pk.assign_ids()
-    pk.write_compound_output_file(DATA_DIR + "/pruned_comps")
-    pk.write_reaction_output_file(DATA_DIR + "/pruned_rxns")
-    assert os.path.exists(DATA_DIR + "/pruned_comps_new")
-    assert os.path.exists(DATA_DIR + "/pruned_rxns_new")
+
+    DATA_DIR = (file_dir / "../data").resolve()
+    pk.write_compound_output_file(DATA_DIR / "pruned_comps.tsv")
+    pk.write_reaction_output_file(DATA_DIR / "pruned_rxns.tsv")
+    assert os.path.exists(DATA_DIR / "pruned_comps_new.tsv")
+    assert os.path.exists(DATA_DIR / "pruned_rxns_new.tsv")
     try:
-        assert cmp(DATA_DIR + "/pruned_comps", DATA_DIR + "/pruned_comps_new")
-        assert cmp(DATA_DIR + "/pruned_rxns", DATA_DIR + "/pruned_rxns_new")
+        assert cmp(DATA_DIR / "pruned_comps.tsv", DATA_DIR / "pruned_comps_new.tsv")
+        assert cmp(DATA_DIR / "pruned_rxns.tsv", DATA_DIR / "pruned_rxns_new.tsv")
     finally:
-        os.remove(DATA_DIR + "/pruned_comps_new")
-        os.remove(DATA_DIR + "/pruned_rxns_new")
+        os.remove((DATA_DIR / "pruned_comps_new.tsv").resolve())
+        os.remove((DATA_DIR / "pruned_rxns_new.tsv").resolve())
 
 
 def test_target_generation(default_rule, smiles_dict, coreactant_dict):
@@ -256,7 +211,7 @@ def test_target_generation(default_rule, smiles_dict, coreactant_dict):
     pk._load_coreactant(coreactant_dict["ATP"])
     pk._load_coreactant(coreactant_dict["ADP"])
     pk._add_compound("FADH", smiles_dict["FADH"], cpd_type="Starting Compound")
-    pk.load_targets(DATA_DIR + "/test_targets.csv")
+    pk.load_targets(file_dir / "../data/test_targets.csv")
     pk.transform_all(generations=2)
     pk.prune_network_to_targets()
 
@@ -265,6 +220,7 @@ def test_target_generation(default_rule, smiles_dict, coreactant_dict):
     assert len(pk.compounds) == 6
 
 
+@valid_db
 def test_save_as_mine(default_rule, smiles_dict, coreactant_dict):
     """Test saving compounds to database.
 
@@ -272,6 +228,7 @@ def test_save_as_mine(default_rule, smiles_dict, coreactant_dict):
     WHEN that expansion is saved as a MINE DB in the MongoDB
     THEN make sure that all features are saved in the MongoDB as expected
     """
+    DATA_DIR = (file_dir / "../data").resolve()
     delete_database("MINE_test")
     pk = pickaxe.Pickaxe(database="MINE_test", image_dir=DATA_DIR, explicit_h=True)
     pk.operators["2.7.1.a"] = default_rule
@@ -283,12 +240,13 @@ def test_save_as_mine(default_rule, smiles_dict, coreactant_dict):
     mine_db = MINE("MINE_test")
 
     try:
+
         assert mine_db.compounds.estimated_document_count() == 31
         assert mine_db.reactions.estimated_document_count() == 49
         assert mine_db.operators.estimated_document_count() == 1
         assert mine_db.operators.find_one()["Reactions_predicted"] == 49
         assert os.path.exists(
-            DATA_DIR + "/X9c29f84930a190d9086a46c344020283c85fb917.svg"
+            DATA_DIR / "X9c29f84930a190d9086a46c344020283c85fb917.svg"
         )
         start_comp = mine_db.compounds.find_one({"Type": "Starting Compound"})
         assert len(start_comp["Reactant_in"]) > 0
@@ -304,6 +262,7 @@ def test_save_as_mine(default_rule, smiles_dict, coreactant_dict):
         purge(DATA_DIR, r".*\.svg$")
 
 
+@valid_db
 def test_save_target_mine(default_rule, smiles_dict, coreactant_dict):
     """Test saving the target run to a MINE."""
     delete_database("MINE_test")
@@ -312,7 +271,7 @@ def test_save_target_mine(default_rule, smiles_dict, coreactant_dict):
     pk._load_coreactant(coreactant_dict["ATP"])
     pk._load_coreactant(coreactant_dict["ADP"])
     pk._add_compound("FADH", smiles_dict["FADH"], cpd_type="Starting Compound")
-    pk.load_targets(DATA_DIR + "/test_targets.csv")
+    pk.load_targets(file_dir / "../data/test_targets.csv")
     pk.transform_all(generations=2)
     pk.prune_network_to_targets()
 
@@ -359,6 +318,7 @@ def test_database_already_exists(default_rule, smiles_dict, coreactant_dict):
 
 
 # TODO When is  this necessary?
+@valid_db
 def test_save_no_rxn_mine():
     """Test saving no reactions.
 
@@ -368,7 +328,7 @@ def test_save_no_rxn_mine():
     """
     delete_database("MINE_test")
     pk = pickaxe.Pickaxe(database="MINE_test")
-    pk.load_compound_set(compound_file=DATA_DIR + "/test_compounds.tsv")
+    pk.load_compound_set(compound_file=file_dir / "../data/test_compounds.tsv")
     pk.save_to_mine(processes=1)
     mine_db = MINE("MINE_test")
     try:
@@ -412,19 +372,20 @@ def test_local_cli():
     WHEN pickaxe is run from the command line
     THEN make sure it exits with exit code 0 (no errors)
     """
-    os.chdir(DATA_DIR + "/../..")
+    os.chdir(file_dir / "../data/../..")
     rc = subprocess.call(
-        "python minedatabase/pickaxe.py -o tests -r tests/data/test_cd_rxn_rule.tsv",
+        f"python minedatabase/pickaxe.py -o tests/ -r tests/data/test_cd_rxn_rule.tsv",
         shell=True,
     )
     assert not rc
-    purge("tests/", r".*\.tsv$")
+    purge(DATA_DIR / "..", r".*\.tsv$")
 
 
+@valid_db
 def test_mongo_cli():
     """Test command line interface writing to mongo."""
     mine = MINE("tests")
-    os.chdir(DATA_DIR + "/../..")
+    os.chdir(file_dir / "../data/../..")
     rc = subprocess.call(
         "python minedatabase/pickaxe.py -d tests -r tests/data/test_cd_rxn_rule.tsv",
         shell=True,
@@ -436,4 +397,4 @@ def test_mongo_cli():
     finally:
         mine.client.drop_database("tests")
 
-    purge("tests/", r".*\.tsv$")
+    purge(file_dir / "..", r".*\.svg$")

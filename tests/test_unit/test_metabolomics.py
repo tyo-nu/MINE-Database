@@ -1,7 +1,9 @@
 """Tests for metabolomics.py using pytest."""
 
 import os
+from pathlib import Path
 
+import pymongo
 import pytest
 from pymongo.errors import ServerSelectionTimeoutError
 
@@ -17,6 +19,20 @@ from minedatabase.metabolomics import (
     spectra_download,
 )
 
+
+try:
+    client = pymongo.MongoClient(ServerSelectionTimeoutMS=20)
+    client.server_info()
+    del client
+    is_mongo = True
+except ServerSelectionTimeoutError as err:
+    is_mongo = False
+valid_db = pytest.mark.skipif(not is_mongo, reason="No MongoDB Connection")
+
+file_path = Path(__file__)
+file_dir = file_path.parent
+
+DATA_DIR = (file_dir / "../data/").resolve()
 
 # -------------------------------- Fixtures --------------------------------- #
 @pytest.fixture()
@@ -155,6 +171,8 @@ def test_metabolomics_dataset_get_rt(metabolomics_dataset):
     assert metabolomics_dataset.get_rt("InvalidID") is None
 
 
+# TODO Jon fix me!
+@valid_db
 def test_metabolomics_dataset_find_db_hits(test_db, metabolomics_dataset):
     """Search for expected metaoblomics hits in test database
     GIVEN a MINE database and metabolomics dataset
@@ -167,6 +185,7 @@ def test_metabolomics_dataset_find_db_hits(test_db, metabolomics_dataset):
     assert len(peak.isomers) == 1
 
 
+@valid_db
 def test_metabolomics_dataset_annotate_peaks(test_db, metabolomics_dataset):
     """Uses find_db_hits to try to annotate all unknown peaks in dataset
     GIVEN a metabolomics dataset and MINE db
@@ -268,7 +287,7 @@ def test_read_mgf():
     WHEN that MGF file is parsed into a list of Peak objects
     THEN make sure those Peak objects are correct
     """
-    mgf_path = os.path.join(os.path.dirname(__file__), "data/metabolomics/test.mgf")
+    mgf_path = DATA_DIR / "test_metabolomics/test.mgf"
     with open(mgf_path, "r") as infile:
         mgf_data = infile.read()
 
@@ -293,7 +312,7 @@ def test_read_msp():
     WHEN that MSP file is parsed into a list of Peak objects
     THEN make sure those Peak objects are correct
     """
-    msp_path = os.path.join(os.path.dirname(__file__), "data/metabolomics/test.msp")
+    msp_path = DATA_DIR / "test_metabolomics/test.msp"
     with open(msp_path, "r") as infile:
         msp_data = infile.read()
 
@@ -318,7 +337,7 @@ def test_read_mzxml():
     WHEN that mzXML file is parsed into a list of Peak objects
     THEN make sure those Peak objects are correct
     """
-    mzxml_path = os.path.join(os.path.dirname(__file__), "data/metabolomics/test.mzXML")
+    mzxml_path = DATA_DIR / "test_metabolomics/test.mzXML"
     with open(mzxml_path, "r") as infile:
         mzxml_data = infile.read()
 
@@ -338,6 +357,7 @@ def test_read_mzxml():
 # ----------------------------- Spectra Download ---------------------------- #
 
 
+@valid_db
 def test_spectra_download(test_db):
     """Test download of spectra from MINE database.
     GIVEN a MINE database
@@ -363,9 +383,8 @@ def test_spectra_download(test_db):
     cpd_query = '{"_id": "ms2_test"}'
     spectra = spectra_download(test_db, cpd_query)
 
-    spectra_path = os.path.join(
-        os.path.dirname(__file__), "data/metabolomics/test_spectra.txt"
-    )
+    spectra_path = DATA_DIR / "test_metabolomics/test_spectra.txt"
+
     with open(spectra_path, "r") as infile:
         spectra_data = infile.read()
 
