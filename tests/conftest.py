@@ -53,16 +53,13 @@ def test_db():
 
 @pytest.fixture(scope="function")
 def pk():
-    """Generate pickaxe to expand and filter."""
-    new_pk = Pickaxe(
-        rule_list=file_dir / "data/test_filters/test_filter_rules.tsv",
-        coreactant_list=file_dir / "data/test_filters/metacyc_coreactants.tsv",
-        filter_after_final_gen=False,
+    """Create default Pickaxe object."""
+    return Pickaxe(
+        coreactant_list=file_dir / "data/test_coreactants.tsv",
+        rule_list=file_dir / "data/test_reaction_rules.tsv",
+        explicit_h=True,
+        quiet=False,
     )
-    new_pk.load_compound_set(file_dir / "data/test_filters/test_filter_compounds.csv")
-    new_pk.load_targets(file_dir / "data/test_filters/test_filter_targets.csv")
-
-    return new_pk
 
 
 # test pickaxe
@@ -94,17 +91,6 @@ def coreactant_dict(smiles_dict):
         + smiles_dict["S-Adenosylmethionine"],
     }
     return coreactants
-
-
-@pytest.fixture
-def pk():
-    """Create default Pickaxe object."""
-    return Pickaxe(
-        coreactant_list=file_dir / "data/test_coreactants.tsv",
-        rule_list=file_dir / "data/test_reaction_rules.tsv",
-        explicit_h=True,
-        quiet=False,
-    )
 
 
 @pytest.fixture

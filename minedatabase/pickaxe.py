@@ -10,7 +10,7 @@ import pickle
 import time
 from argparse import ArgumentParser
 from io import StringIO
-from pathlib import Path, PosixPath
+from pathlib import Path, PosixPath, WindowsPath
 from sys import exit
 from typing import List, Set, Tuple
 
@@ -374,7 +374,7 @@ class Pickaxe:
         skipped = 0
 
         # Get the stream for rule input
-        if type(rule_path) in [str, Path, PosixPath]:
+        if type(rule_path) in [str, Path, PosixPath, WindowsPath]:
             infile = open(rule_path)
         elif type(rule_path) == StringIO:
             infile = rule_path

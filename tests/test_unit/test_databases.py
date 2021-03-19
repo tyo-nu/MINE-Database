@@ -4,6 +4,7 @@
 
 import json
 import os
+import shutil
 from copy import copy, deepcopy
 from pathlib import Path
 from shutil import rmtree
@@ -99,7 +100,7 @@ def test_generate_image_files(test_db):
             img_dir / "C/c/f" / "Ccffda1b2e82fcdb0e1e710cad4d5f70df7a5d74f.png"
         ).is_file()
     finally:
-        rmtree(img_dir)
+        shutil.rmtree(img_dir)
 
 
 def test_insert_single_mine_compound(test_db):

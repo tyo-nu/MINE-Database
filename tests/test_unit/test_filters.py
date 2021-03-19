@@ -1,18 +1,19 @@
 """Tests for pickaxe.py using pytest."""
+from pathlib import Path
+
 import pytest
-from rdkit.RDLogger import logger
 
 from minedatabase.filters import (
     MCSFilter,
+    MetabolomicsFilter,
     TanimotoFilter,
     TanimotoSamplingFilter,
 )
-from minedatabase.pickaxe import Pickaxe
 
 
-# Default to no errors
-lg = logger()
-lg.setLevel(4)
+file_path = Path(__file__)
+file_dir = file_path.parent
+DATA_DIR = (file_dir / "../data/").resolve()
 
 
 def test_tani_cutoff_single(pk_target):
@@ -29,7 +30,7 @@ def test_tani_cutoff_single(pk_target):
     )
 
 
-@pytest.mark.skip("Schrodingers Test")
+@pytest.mark.skip("Heisenbug Test")
 def test_filter_after(pk_target):
     """Test tanimoto cutoff filter"""
     tani_threshold = 0.5
@@ -124,3 +125,26 @@ def test_MCS_list(pk_target):
     pk_target.transform_all(generations=2)
 
     assert len(pk_target.compounds) == 340
+
+
+def test_met_filter_mass(pk_target):
+    """Test MetabolomicsFilter output without RT predictor."""
+    metabolomics_data_path = DATA_DIR / "test_metabolomics/test_metabolomics_data.csv"
+    met_filter = MetabolomicsFilter(
+        filter_name="test_metabolomics_filter",
+        met_data_name="test_metabolomics_data",
+        met_data_path=metabolomics_data_path,
+        possible_adducts=["[M+H]+", "[M-H]-"],
+        mass_tolerance=0.001,
+    )
+    pk_target.filters.append(met_filter)
+    pk_target.transform_all(generations=2)
+
+    gen1_cpds = [
+        pk_target.compounds[cpd]
+        for cpd in pk_target.compounds
+        if pk_target.compounds[cpd]["Generation"] == 1
+    ]
+
+    assert len(gen1_cpds) == 1
+    assert gen1_cpds[0]["Matched_Peak_IDs"] == ["Test3"]

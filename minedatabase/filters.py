@@ -654,7 +654,7 @@ class MetabolomicsFilter(Filter):
             if inchi_key:
                 self.metabolomics_dataset.known_peaks.append(peak)
             else:
-                self.metabolomics_dataset.unk_peaks.append(peak)
+                self.metabolomics_dataset.unknown_peaks.append(peak)
 
         # Calculate possible peak masses, they get saved to object
         self.metabolomics_dataset.enumerate_possible_masses(self.mass_tolerance)
