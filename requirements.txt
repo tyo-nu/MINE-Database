@@ -4,7 +4,7 @@ pandas==0.25.3
 pymongo==3.9.0
 pytest==5.3.2
 pytest-cov==2.8.1
-scikit-learn
+scikit-learn==0.23.2
 scipy
 sphinxcontrib-napoleon
 numpydoc

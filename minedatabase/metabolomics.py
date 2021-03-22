@@ -1001,7 +1001,7 @@ def spectra_download(
                 # he had spec_type as a argument to this function
                 # if not spec_type or [True, int(energy[:2])] in spec_type:
                 spectral_library += header
-                spectral_library += [f"Ionization: Positive", "Energy: {energy}"]
+                spectral_library += [f"Ionization: Positive", f"Energy: {energy}"]
                 spectral_library += print_peaklist(spec)
 
         if "Neg_CFM_spectra" in compound:
@@ -1009,7 +1009,7 @@ def spectra_download(
                 # ??? not sure what James meant with this conditional:
                 # if not spec_type or [False, int(energy[:2])] in spec_type:
                 spectral_library += header
-                spectral_library += [f"Ionization Mode: Negative", "Energy: {energy}"]
+                spectral_library += [f"Ionization Mode: Negative", f"Energy: {energy}"]
                 spectral_library += print_peaklist(spec)
 
     spectral_library = "\n".join(spectral_library)

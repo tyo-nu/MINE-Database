@@ -1,13 +1,11 @@
 """Tests for metabolomics.py using pytest."""
 
-import os
 from pathlib import Path
 
 import pymongo
 import pytest
 from pymongo.errors import ServerSelectionTimeoutError
 
-from minedatabase.databases import MINE
 from minedatabase.metabolomics import (
     MetabolomicsDataset,
     Peak,
@@ -35,17 +33,6 @@ file_dir = file_path.parent
 DATA_DIR = (file_dir / "../data/").resolve()
 
 # -------------------------------- Fixtures --------------------------------- #
-@pytest.fixture()
-def test_db():
-    """Create a test MINE database. Created and torn down before and after each
-    test it is used in."""
-    try:
-        testdb = MINE("mongotest")
-    except ServerSelectionTimeoutError:
-        print("No Mongo DB server detected")
-    yield testdb
-
-
 @pytest.fixture
 def known_peaks():
     """Return a list of Peak instances with data (identified)."""

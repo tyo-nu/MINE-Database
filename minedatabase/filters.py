@@ -12,7 +12,7 @@ import copy
 import multiprocessing
 import time
 from functools import partial
-from typing import Callable, List, Tuple
+from typing import Callable, Dict, List, Optional, Set, Tuple
 
 import numpy as np
 import pandas as pd
@@ -27,6 +27,7 @@ from rdkit.Chem.inchi import MolToInchiKey
 from rdkit.Chem.rdmolfiles import MolFromSmiles
 from rdkit.DataStructs import FingerprintSimilarity
 from scipy.stats import rv_discrete
+from sklearn.ensemble import RandomForestRegressor
 
 from minedatabase import utils
 from minedatabase.metabolomics import MetabolomicsDataset, Peak
@@ -54,26 +55,36 @@ class Filter(metaclass=abc.ABCMeta):
 
     @property
     @abc.abstractmethod
-    def filter_name(self):
+    def filter_name(self) -> str:
         """Obtain name of filter."""
         pass
 
     @abc.abstractmethod
-    def _choose_cpds_to_filter(self, pickaxe, processes):
-        """Return list of compounds to remove from pickaxe object."""
+    def _choose_cpds_to_filter(self, pickaxe: Pickaxe, processes: int) -> Set[str]:
+        """Return list of compounds to remove from pickaxe object.
+
+        Parameters
+        ----------
+        pickaxe : Pickaxe
+            Instance of Pickaxe being used to expand and filter the network
+        processes : int
+            The number of processes to use, by default 1
+        """
         pass
 
-    def apply_filter(self, pickaxe: Pickaxe, processes: int = 1, print_on: bool = True):
+    def apply_filter(
+        self, pickaxe: Pickaxe, processes: int = 1, print_on: bool = True
+    ) -> None:
         """Apply filter from Pickaxe object.
 
         Parameters
         ----------
         pickaxe : Pickaxe
-            The Pickaxe object to filter.
+            The Pickaxe object to filter
         processes : int
-            The number of processes to use, by default 1.
+            The number of processes to use, by default 1
         print_on : bool
-            Whether or not to print filtering results.
+            Whether or not to print filtering results
         """
         time_sample = time.time()
 
@@ -92,30 +103,69 @@ class Filter(metaclass=abc.ABCMeta):
             self._post_print(pickaxe, n_total, n_filtered, time_sample)
             self._post_print_footer(pickaxe)
 
-    def _pre_print_header(self, pickaxe):
-        """Print header before filtering."""
+    def _pre_print_header(self, pickaxe: Pickaxe) -> None:
+        """Print header before filtering.
+
+        Parameters
+        ----------
+        pickaxe : Pickaxe
+            Instance of Pickaxe being used to expand and filter the network
+        """
         print("----------------------------------------")
         print(f"Filtering Generation {pickaxe.generation}\n")
 
-    def _pre_print(self):
+    def _pre_print(self) -> None:
         """Print filter being applied."""
         print(f"Applying filter: {self.filter_name}")
 
-    def _post_print(self, pickaxe, n_total, n_filtered, time_sample):
-        """Print results of filtering."""
+    def _post_print(
+        self, pickaxe: Pickaxe, n_total: int, n_filtered: int, time_sample: float
+    ) -> None:
+        """Print results of filtering.
+
+        Parameters
+        ----------
+        pickaxe : Pickaxe
+            Instance of Pickaxe being used to expand and filter the network
+        n_total : int
+            Total number of compounds
+        n_filtered : int
+            Number of compounds remaining after filtering
+        times_sample : float
+            Time in seconds from time.time()
+        """
         print(
             f"{n_filtered} of {n_total} compounds remain after applying "
             f"filter: {self.filter_name}"
             f"--took {round(time.time() - time_sample, 2)}s.\n"
         )
 
-    def _post_print_footer(self, pickaxe):
-        """Print end of filtering."""
+    def _post_print_footer(self, pickaxe: Pickaxe) -> None:
+        """Print end of filtering.
+
+        Parameters
+        ----------
+        pickaxe : Pickaxe
+            Instance of Pickaxe being used to expand and filter the network
+        """
         print(f"Done filtering Generation {pickaxe.generation}")
         print("----------------------------------------\n")
 
-    def _get_n(self, pickaxe, n_type):
-        """Get current number of compounds to be filtered."""
+    def _get_n(self, pickaxe: Pickaxe, n_type: str) -> int:
+        """Get current number of compounds to be filtered.
+
+        Parameters
+        ----------
+        pickaxe : Pickaxe
+            Instance of Pickaxe being used to expand and filter the network
+        n_type : str
+            Whether to return "total" number of "filtered" number of compounds
+
+        Returns
+        -------
+        n : int
+            Either the total or filtered number of compounds
+        """
         n = 0
         for cpd_dict in pickaxe.compounds.values():
             is_in_current_gen = cpd_dict["Generation"] == pickaxe.generation
@@ -127,7 +177,9 @@ class Filter(metaclass=abc.ABCMeta):
                     n += 1
         return n
 
-    def _apply_filter_results(self, pickaxe, compound_ids_to_check):
+    def _apply_filter_results(
+        self, pickaxe: Pickaxe, compound_ids_to_check: List[str]
+    ) -> None:
         """Apply filter results to Pickaxe object.
 
         Remove compounds and reactions that can be removed
@@ -135,9 +187,29 @@ class Filter(metaclass=abc.ABCMeta):
             1. Not be flagged for expansion
             2. Not have a coproduct in a reaction marked for expansion
             3. Start with "C"
+
+        Parameters
+        ----------
+        pickaxe : Pickaxe
+            Instance of Pickaxe being used to expand and filter the network,
+            this method modifies the Pickaxe object's compound documents
+        compound_ids_to_check : List[str]
+            List of compound IDs to try to remove, if possible
         """
 
-        def should_delete_reaction(rxn_id):
+        def should_delete_reaction(rxn_id: str) -> bool:
+            """Whether we should delete reaction with supplied ID.
+
+            Parameters
+            ----------
+            rxn_id : str
+                ID of reaction
+
+            Returns
+            -------
+            bool
+                True if we should delete, False otherwise
+            """
             products = pickaxe.reactions[rxn_id]["Products"]
             for _, c_id in products:
                 if c_id.startswith("C") and c_id not in cpds_to_remove:
@@ -145,7 +217,23 @@ class Filter(metaclass=abc.ABCMeta):
             # Every compound isn't in cpds_to_remove
             return True
 
-        def get_compounds_to_check_from_ids(pickaxe, cpd_ids_to_check):
+        def get_compounds_to_check_from_ids(
+            pickaxe: Pickaxe, cpd_ids_to_check: List[str]
+        ) -> List[Dict]:
+            """Get compound documents from their IDs
+
+            Parameters
+            ----------
+            pickaxe : Pickaxe
+                Instance of Pickaxe being used to expand and filter the network
+            cpd_ids_to_check : List[str]
+                List of compound IDs to get compound documents for
+
+            Returns
+            -------
+            cpds_to_check : List[Dict]
+                List of compound documents
+            """
             cpds_to_check = []
             for cpd in pickaxe.compounds.values():
                 if cpd["_id"] in cpd_ids_to_check:
@@ -230,16 +318,16 @@ class TanimotoSamplingFilter(Filter):
         Function to weight the tanimoto similarity score with.
     """
 
-    def __init__(self, sample_size: int, weight: Callable = None):
+    def __init__(self, sample_size: int, weight: Callable = None) -> None:
         self._filter_name = "Tanimoto Sampling Filter"
         self.sample_size = sample_size
         self.sample_weight = weight
 
     @property
-    def filter_name(self):
+    def filter_name(self) -> str:
         return self._filter_name
 
-    def _pre_print(self):
+    def _pre_print(self) -> None:
         """Print before filtering."""
         print(
             (
@@ -248,7 +336,9 @@ class TanimotoSamplingFilter(Filter):
             )
         )
 
-    def _post_print(self, pickaxe, n_total, n_filtered, time_sample):
+    def _post_print(
+        self, pickaxe: Pickaxe, n_total: int, n_filtered: int, time_sample: float
+    ) -> None:
         """Print after filtering."""
         print(
             (
@@ -259,7 +349,7 @@ class TanimotoSamplingFilter(Filter):
             )
         )
 
-    def _choose_cpds_to_filter(self, pickaxe: Pickaxe, processes: int):
+    def _choose_cpds_to_filter(self, pickaxe: Pickaxe, processes: int) -> Set[str]:
         """
         Samples N compounds to expand based on the weighted Tanimoto distribution.
 
@@ -471,7 +561,7 @@ class TanimotoSamplingFilter(Filter):
         t_fp: List[RDKFingerprint],
         min_T: float = 0.05,
         processes: int = 1,
-    ):
+    ) -> pd.DataFrame:
         """Generate a dataframe from tanimoto
 
         Parameters
@@ -575,32 +665,63 @@ def _calc_max_T(t_df: pd.DataFrame, min_T: float, df: pd.DataFrame) -> pd.DataFr
 
 
 class MetabolomicsFilter(Filter):
-    """A metabolomics filter short description.
+    """Filters out compounds that don't align with a metabolomics dataset.
 
-    A longer description.
+    This filter compares the masses (and optionally, predicted retention times)
+    of MINE compounds against peak masses (and retention times) in a
+    metabolomics dataset. Tolerances for mass (in Da) and retention times
+    (in units consistent with dataset) are specified by the user. If a
+    compound's mass (and predicted retention time, if desired) does not match
+    that for any peak in the dataset, it is filtered out.
 
     Parameters
     ----------
-    please_jon : float
-        Fill me in
+    filter_name : str
+        Name of the filter, should be unique
+    met_data_name : str
+        Name of the metabolomics dataset
+    met_data_path : str
+        Path to metabolomics data CSV file with list of peak masses/RTs/etc
+    possible_adducts : List[str]
+        List of possible adducts, see data/adducts for options
+    mass_tolerance : float
+        Mass tolerance for peak matching in daltons
+    rt_predictor : sklearn.ensemble.RandomForestRegressor, optional
+        Random forest regression model that takes a subset of a compound's 2D
+        mordred fingerprint values (specified by rt_important_features) as
+        input, defaults to None
+    rt_threshold : float, optional
+        Retention time tolerance for peak matching in whatever units are used
+        in the metabolomics dataset (e.g. seconds, minutes, etc.), defaults to
+        None
+    rt_important_features : List[str], optional
+        List of mordred descriptors to use as input into rt_predictor, make
+        sure that the order is the same as how the model was trained, defaults
+        to None
 
     Attributes
     ----------
-    I_believe_in_you : bool
-        Do I believe in you?, by default True.
+    filter_by_rt : Bool
+        Whether the filter will filter by both mass and retention time (RT)
+    fp_calculator : mordred.calculator.Calculator
+        Calculator loaded with provided mordred descriptors
+    met_df : pd.DataFrame
+        Dataframe containing metabolomics peak data
+    metabolomics_dataset : minedatabase.metabolomics.MetabolomicsDataset
+        Instance of MetabolomicsDataset with loaded metabolomics data
     """
 
     def __init__(
         self,
-        filter_name,
-        met_data_name,
-        met_data_path,
-        possible_adducts,
-        mass_tolerance,
-        rt_predictor=None,
-        rt_threshold=None,
-        rt_important_features=None,
-    ):
+        filter_name: str,
+        met_data_name: str,
+        met_data_path: str,
+        possible_adducts: List[str],
+        mass_tolerance: float,
+        rt_predictor: RandomForestRegressor = None,
+        rt_threshold: float = None,
+        rt_important_features: List[str] = None,
+    ) -> None:
         """Load metabolomics data into a MetabolomicsDataset object."""
 
         self._filter_name = filter_name
@@ -625,9 +746,13 @@ class MetabolomicsFilter(Filter):
         self.possible_adducts = possible_adducts
         self.mass_tolerance = mass_tolerance
 
-        options = None  # TODO: fix this
-        # options = MetabolomicsOptions(possible_adducts)
-        self.metabolomics_dataset = MetabolomicsDataset(self.met_data_name, options)
+        self.metabolomics_dataset = MetabolomicsDataset(
+            name=self.met_data_name,
+            adducts=self.possible_adducts,
+            tolerance=self.mass_tolerance,
+        )
+        self.metabolomics_dataset.known_peaks = []
+        self.metabolomics_dataset.unknown_peaks = []
 
         # Load Metabolomics peaks
         for _, row in self.met_df.iterrows():
@@ -660,17 +785,31 @@ class MetabolomicsFilter(Filter):
         self.metabolomics_dataset.enumerate_possible_masses(self.mass_tolerance)
 
     @property
-    def filter_name(self):
+    def filter_name(self) -> str:
+        """Return filter name
+
+        Returns
+        -------
+        str
+            Name of filter
+        """
         return self._filter_name
 
-    def _choose_cpds_to_filter(self, pickaxe, processes):
+    def _choose_cpds_to_filter(self, pickaxe: Pickaxe, processes: int) -> Set[str]:
         """Choose compounds to expand based on whether they are found in a
         metabolomics dataset.
 
         Parameters
         ----------
-        self : Pickaxe
+        pickaxe : Pickaxe
             Instance of Pickaxe class.
+        processes : int
+            Number of processes (uses parallelization if > 1)
+
+        Returns
+        -------
+        cpds_remove_set : Set[str]
+            Set of IDs for compounds to try to remove from the expansion
         """
         if pickaxe.generation == 0:
             return None
@@ -756,9 +895,29 @@ class MetabolomicsFilter(Filter):
 
         return cpds_remove_set
 
-    def _filter_by_mass_and_rt(self, possible_ranges, cpd_info):
+    def _filter_by_mass_and_rt(
+        self,
+        possible_ranges: List[Tuple[float, float, str, str]],
+        cpd_info: List[Tuple[str]],
+    ) -> Tuple[Optional[str], Dict]:
         """Check to see if compound masses  (and optionally, retention time)
-        each lie in any possible mass ranges."""
+        each lie in any possible mass ranges.
+
+        Parameters
+        ----------
+        possible_ranges : List[Tuple[float, float, str, str]]
+            Possible mass ranges based on peak masses and tolerance
+        cpd_info : List[Tuple[str]]
+            Tuple of compound ID, SMILES, peak ID, and adduct name
+
+        Returns
+        -------
+        c_id_if_matched : str, optional
+            Contains the compound ID if a hit is found, None by default
+        cpd_dict : Dict
+            Contains predicted retention time, matched peak IDs (if any), and
+            matched adduct names (if any)
+        """
         c_id_if_matched = None
         cpd_dict = {"Predicted_RT": None, "Matched_Peak_IDs": [], "Matched_Adducts": []}
 
@@ -792,8 +951,21 @@ class MetabolomicsFilter(Filter):
 
         return c_id_if_matched, cpd_dict
 
-    def _predict_rt(self, smiles):
-        """Predict Retention Time from SMILES string using provided predictor."""
+    def _predict_rt(self, smiles: str) -> Optional[float]:
+        """Predict Retention Time from SMILES string using provided predictor.
+
+        Parameters
+        ----------
+        smiles : str
+            SMILES string of input compound
+
+        Returns
+        -------
+        predicted_rt : Optional[float]
+            Predicted retention time, None if errors occur during prediction,
+            for example if certain features of the input compound that are
+            required for the prediction cannot be calculated
+        """
         mol = MolFromSmiles(smiles)
         mol = AddHs(mol)
 
@@ -804,8 +976,19 @@ class MetabolomicsFilter(Filter):
                 [fp[feature] for feature in self.rt_important_features]
             ).reshape(1, -1)
 
-        def validate_np_val(val):
-            """Make sure value is numeric, not NaN, and not infinity."""
+        def validate_np_val(val: float) -> bool:
+            """Make sure value is numeric, not NaN, and not infinity.
+
+            Parameters
+            ----------
+            val : float
+                Value to check
+
+            Returns
+            -------
+            bool
+                True if input value is numeric, False otherwise
+            """
             if isinstance(val, float) and not np.isnan(val) and not np.isinf(val):
                 return True
             return False
@@ -817,10 +1000,12 @@ class MetabolomicsFilter(Filter):
 
         return predicted_rt
 
-    def _pre_print(self):
+    def _pre_print(self) -> None:
         print(f"Filtering compounds based on match with metabolomics data.")
 
-    def _post_print(self, pickaxe, n_total, n_filtered, time_sample):
+    def _post_print(
+        self, pickaxe: Pickaxe, n_total: int, n_filtered: int, time_sample: float
+    ) -> None:
         print(
             (
                 f"{n_filtered} of {n_total} compounds selected after "
@@ -860,16 +1045,16 @@ class TanimotoFilter(Filter):
         parent.
     """
 
-    def __init__(self, crit_tani: float, increasing_tani: bool):
+    def __init__(self, crit_tani: float, increasing_tani: bool) -> None:
         self._filter_name = "Tanimoto Cutoff"
         self.crit_tani = crit_tani
         self.increasing_tani = increasing_tani
 
     @property
-    def filter_name(self):
+    def filter_name(self) -> str:
         return self._filter_name
 
-    def _choose_cpds_to_filter(self, pickaxe: Pickaxe, processes: int = 1):
+    def _choose_cpds_to_filter(self, pickaxe: Pickaxe, processes: int = 1) -> Set[str]:
         """
         Compares the current generation to the target compound fingerprints
         marking compounds, who have a tanimoto similarity score to a target
@@ -946,9 +1131,13 @@ class TanimotoFilter(Filter):
         return cpds_remove_set
 
     def _filter_by_tani_helper(
-        self, compounds_info, target_fps, processes, this_crit_tani
-    ):
-        def print_progress(done, total, section):
+        self,
+        compounds_info: List[Tuple[str, str]],
+        target_fps: List[RDKFingerprint],
+        processes: int,
+        this_crit_tani: float,
+    ) -> List[Tuple[str, float]]:
+        def print_progress(done: int, total: int, section: str) -> None:
             # Use print_on to print % completion roughly every 5 percent
             # Include max to print no more than once per compound (e.g. if
             # less than 20 compounds)
@@ -988,7 +1177,12 @@ class TanimotoFilter(Filter):
 
         return cpds_to_filter
 
-    def _compare_target_fps(self, target_fps, this_crit_tani, compound_info):
+    def _compare_target_fps(
+        self,
+        target_fps: List[RDKFingerprint],
+        this_crit_tani: float,
+        compound_info: (str, str),
+    ) -> (str, float):
         # do finger print loop here
         """
         Helper function to allow parallel computation of tanimoto filtering.
@@ -1013,14 +1207,16 @@ class TanimotoFilter(Filter):
         except:  # noqa
             return (compound_info[0], -1)
 
-    def preprint(self, pickaxe):
+    def preprint(self, pickaxe: Pickaxe) -> None:
         if type(self.crit_tani) in [list, tuple]:
             print_tani = self.crit_tani[pickaxe.generation]
         else:
             print_tani = self.crit_tani
         print(f"Filtering out compounds with maximum tanimoto match < {print_tani}")
 
-    def _post_print(self, pickaxe, n_total, n_filtered, time_sample):
+    def _post_print(
+        self, pickaxe: Pickaxe, n_total: int, n_filtered: int, time_sample: float
+    ) -> None:
         if type(self.crit_tani) in [list, tuple]:
             if len(self.crit_tani) - 1 < pickaxe.generation:
                 print_tani = self.crit_tani[-1]
@@ -1055,15 +1251,15 @@ class MCSFilter(Filter):
         The maximum common substructure similarity score threshold.
     """
 
-    def __init__(self, crit_mcs: float):
+    def __init__(self, crit_mcs: float) -> None:
         self._filter_name = "MCS Cutoff"
         self.crit_mcs = crit_mcs
 
     @property
-    def filter_name(self):
+    def filter_name(self) -> str:
         return self._filter_name
 
-    def _choose_cpds_to_filter(self, pickaxe, processes=1):
+    def _choose_cpds_to_filter(self, pickaxe: Pickaxe, processes: int = 1) -> Set[str]:
         """
         Compares the current generation to the target compound fingerprints
         marking compounds, who have a tanimoto similarity score to a target
@@ -1125,9 +1321,14 @@ class MCSFilter(Filter):
         return cpds_remove_set
 
     def _filter_by_mcs_helper(
-        self, compounds_info, target_smiles, processes, this_crit_mcs, retro=False
-    ):
-        def print_progress(done, total, section):
+        self,
+        compounds_info: List[Tuple[str, str]],
+        target_smiles: List[str],
+        processes: int,
+        this_crit_mcs: float,
+        retro: bool = False,
+    ) -> List[Tuple[str, float]]:
+        def print_progress(done: int, total: int, section: str) -> None:
             # Use print_on to print % completion roughly every 5 percent
             # Include max to print no more than once per compound (e.g. if
             # less than 20 compounds)
@@ -1176,7 +1377,13 @@ class MCSFilter(Filter):
         print("Maximum Common Substructure filter progress:" " 100 percent complete")
         return cpds_to_filter
 
-    def _compare_target_mcs(self, target_smiles, retro, compound_info, this_crit_mcs):
+    def _compare_target_mcs(
+        self,
+        target_smiles: List[str],
+        retro: bool,
+        compound_info: (str, str),
+        this_crit_mcs: float,
+    ) -> (str, float):
         """Compare target MCS.
 
         Helper function to allow parallel computation of MCS filtering.
@@ -1186,7 +1393,7 @@ class MCSFilter(Filter):
 
         """
 
-        def get_mcs_overlap(mol, target_mol):
+        def get_mcs_overlap(mol, target_mol) -> float:
             mcs_out = mcs.FindMCS(
                 [mol, target_mol], matchValences=False, ringMatchesRingOnly=False
             )
@@ -1222,7 +1429,7 @@ class MCSFilter(Filter):
         except:  # noqa
             return (compound_info[0], -1)
 
-    def preprint(self, pickaxe):
+    def preprint(self, pickaxe: Pickaxe) -> None:
         if type(self.crit_mcs) in [list, tuple]:
             if len(self.crit_mcs) - 1 < pickaxe.generation:
                 crit_mcs = self.crit_mcs[-1]
@@ -1232,7 +1439,9 @@ class MCSFilter(Filter):
             crit_mcs = self.crit_mcs
         print(f"Filtering out compounds with maximum MCS match < {crit_mcs}")
 
-    def _post_print(self, pickaxe, n_total, n_filtered, time_sample):
+    def _post_print(
+        self, pickaxe: Pickaxe, n_total: int, n_filtered: int, time_sample: float
+    ) -> None:
         if type(self.crit_mcs) in [list, tuple]:
             if len(self.crit_mcs) - 1 < pickaxe.generation:
                 crit_mcs = self.crit_mcs[-1]

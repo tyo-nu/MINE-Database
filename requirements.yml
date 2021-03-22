@@ -46,6 +46,7 @@ dependencies:
   - pytz=2021.1=pyhd3eb1b0_0
   - rdkit=2020.09.1.0=py37h81f2deb_1
   - readline=8.1=h9ed2024_0
+  - scikit-learn=0.23.2=py38h47e9c7a_0
   - setuptools=52.0.0=py37hecd8cb5_0
   - six=1.15.0=py37hecd8cb5_0
   - sqlite=3.33.0=hffcf06c_0
