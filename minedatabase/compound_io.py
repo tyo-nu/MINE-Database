@@ -5,7 +5,7 @@ import csv
 import datetime
 import os
 import sys
-from typing import List, Union
+from typing import List, Tuple, Union
 
 from rdkit.Chem import AllChem
 
@@ -19,11 +19,11 @@ def export_sdf(mine_db: MINE, dir_path: str, max_compounds: int = None) -> None:
     Parameters
     ----------
     mine_db : MINE
-        MINE object that contains the database
+        MINE object that contains the database.
     dir_path : str
-        Directory for files
+        Directory for files.
     max_compounds : int, optional
-        Maximum number of compounds per file, by default None
+        Maximum number of compounds per file, by default None.
     """
 
     # Make sure that all compounds point to all their reactants
@@ -63,16 +63,16 @@ def export_sdf(mine_db: MINE, dir_path: str, max_compounds: int = None) -> None:
 
 
 def export_smiles(mine_db: MINE, dir_path: str, max_compounds: int = None) -> None:
-    """Exports compounds from the database as a SMILES file
+    """Exports compounds from the database as a SMILES file.
 
     Parameters
     ----------
     mine_db : MINE
-        MINE object that contains the database
+        MINE object that contains the database.
     dir_path : str
-        Directory for files
+        Directory for files.
     max_compounds : int, optional
-        Maximum number of compounds per file, by default None
+        Maximum number of compounds per file, by default None.
     """
     header = ["SMILES", "_id", "Generation", "Reactant_in", "Product_of"]
     # Make sure that all compounds point to all their reactants
@@ -115,11 +115,12 @@ def export_mol(mine_db: MINE, target: str, name_field: str = "_id") -> None:
     Parameters
     ----------
     mine_db : MINE
-        MINE object that contains the database
+        MINE object that contains the database.
     target : str
-        Directory in which to place the files
+        Directory in which to place the files.
     name_field : str
-        FIeld to provide names for the mol files. Must be unique and universal
+        FIeld to provide names for the mol files. Must be unique and universal.
+        By default, "_id".
     """
     # Create the file if it doesn't yet exist
     if not os.path.exists(target):
@@ -152,7 +153,7 @@ def export_mol(mine_db: MINE, target: str, name_field: str = "_id") -> None:
 def export_tsv(
     mine_db: MINE,
     target: str,
-    compound_fields: tuple = (
+    compound_fields: Tuple[str] = (
         "_id",
         "Names",
         "Model_SEED",
@@ -160,7 +161,7 @@ def export_tsv(
         "Charge",
         "Inchi",
     ),
-    reaction_fields: tuple = ("_id", "SMILES_rxn", "C_id_rxn"),
+    reaction_fields: Tuple[str] = ("_id", "SMILES_rxn", "C_id_rxn"),
 ) -> None:
     """Exports MINE compound and reaction data as tab-separated values files
     amenable to use in ModelSEED.
@@ -168,20 +169,15 @@ def export_tsv(
     Parameters
     ----------
     mine_db : MINE
-        The database to export
+        The database to export.
     target : str
-        Directory, in which to place the files
-    compound_fields : tuple, optional
+        Directory, in which to place the files.
+    compound_fields : Tuple[str], optional
         Fields to export in the compound table, by default
-        ('_id', 'Names', 'Model_SEED', 'Formula', 'Charge', 'Inchi')
-    reaction_fields : tuple, optional
+        ('_id', 'Names', 'Model_SEED', 'Formula', 'Charge', 'Inchi').
+    reaction_fields : Tuple[str], optional
         Fields to export in the reaction table, by default
-        ('_id', 'SMILES_rxn', 'C_id_rxn')
-
-    Returns
-    -------
-    [type]
-        [description]
+        ('_id', 'SMILES_rxn', 'C_id_rxn').
     """
     db_links = ("KEGG", "Model_SEED", "PubChem")
     print(f"Exporting {mine_db.compounds.count()} compounds from {mine_db.name} to tsv")
@@ -251,9 +247,9 @@ def export_kbase(mine_db: MINE, target: str) -> None:
     Parameters
     ----------
     mine_db : MINE
-        The database to export
-    target : [type]
-        Directory in which to place the files
+        The database to export.
+    target : str
+        Directory in which to place the files.
     """
     compound_fields = collections.OrderedDict(
         [
@@ -358,11 +354,11 @@ def export_inchi_rxns(
     Parameters
     ----------
     mine_db : MINE
-        Name of MongoDB to export reactions from
+        Name of MongoDB to export reactions from.
     target : str
-        Path to folder to save .tsv export file in
-    rxn_ids : list, optional
-        Only export reactions with these ids, by default None
+        Path to folder to save .tsv export file in.
+    rxn_ids : Union[List[str], None], optional
+        Only export reactions with these ids, by default None.
     """
     reaction_fields = collections.OrderedDict(
         [("Reaction Rule", "Operators"), ("ID", "_id"), ("Equation", "")]
@@ -425,14 +421,14 @@ def export_inchi_rxns(
 
 
 def import_sdf(mine_db: MINE, target: str) -> None:
-    """Imports a SDF file as a MINE database
+    """Imports a SDF file as a MINE database.
 
     Parameters
     ----------
     mine_db : MINE
-        The database to export
+        The database to export.
     target : str
-        Directory in which to place the files
+        Directory in which to place the files.
     """
     # SDMolSupplier (rdkit) takes entries from sdf file and returns Mol objects
     sdf_gen = AllChem.SDMolSupplier(target)
@@ -456,14 +452,14 @@ def import_sdf(mine_db: MINE, target: str) -> None:
 
 
 def import_smiles(mine_db: MINE, target: str) -> None:
-    """Imports a smiles file as a MINE database
+    """Imports a smiles file as a MINE database.
 
     Parameters
     ----------
     mine_db : MINE
-        The database to export
+        The database to export.
     target : str
-        Directory in which to place the files
+        Directory in which to place the files.
     """
     # SmilesMolSupplier (rdkit) generates Mol objects from smiles file (.smi)
     mols = AllChem.SmilesMolSupplier(target, delimiter="\t", nameColumn=0)
@@ -492,18 +488,18 @@ def import_smiles(mine_db: MINE, target: str) -> None:
 def import_mol_dir(
     mine_db: MINE, target: str, name_field: str = "Name", overwrite: bool = False
 ) -> None:
-    """Imports a directory of molfiles as a MINE database
+    """Imports a directory of molfiles as a MINE database.
 
     Parameters
     ----------
     mine_db : MINE
-        The database to export
+        The database to export.
     target : str
-        Directory in which to place the files
+        Directory in which to place the files.
     name_field : str, optional
-        Field for the compound name, by default "Name"
+        Field for the compound name, by default "Name".
     overwrite : bool, optional
-        Replace old compounds with new ones if a collision happens, by default False
+        Replace old compounds with new ones if a collision happens, by default False.
     """
     # For each .mol file in the directory of the target folder (path):
     for file in os.listdir(target):
