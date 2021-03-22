@@ -1,7 +1,5 @@
 # MINE Databases
-<!-- [![Build Status](https://travis-ci.org/JamesJeffryes/MINE-Database.svg?branch=master)](https://travis-ci.org/JamesJeffryes/MINE-Database)
-[![Codacy Badge](https://api.codacy.com/project/badge/Grade/a8d348757fd9495686cd54b08456f6a2)](https://www.codacy.com/app/JamesJeffryes/MINE-Database?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=JamesJeffryes/MINE-Database&amp;utm_campaign=Badge_Grade)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) -->
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 The MINE Database contains code for generating (through Pickaxe) and storing and retrieving compounds from a database.
 Pickaxe applies reaction operators, representing reaction transformation patterns, to a list of user-specified compounds
