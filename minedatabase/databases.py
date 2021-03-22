@@ -256,48 +256,6 @@ class MINE:
             {"Timestamp": datetime.datetime.now(), "Action": "Database indexes built"}
         )
 
-    # def link_to_external_database(self, external_database, compound=None,
-    #                               match_field='Inchikey', fields_to_copy=None):
-    #     """This function looks for matching compounds in other databases (i.e.
-    #     PubChem) and adds links where found.
-
-    #     :param external_database: The name of the database to search for
-    #         matching compounds
-    #     :type external_database: str
-    #     :param compound: The compound to search for external links. If none,
-    #         link all compounds in the database.
-    #     :type compound: dict
-    #     :param match_field: The field to search on for matching compounds
-    #     :type match_field: str
-    #     :param fields_to_copy: Data to copy into the mine database. The first
-    #         field is the field name in the external database. The second field
-    #         is the field name in the MINE database where the data will be
-    #         copied.
-    #     :type fields_to_copy: list(tuple)
-    #     """
-    #     if compound:
-    #         ext = MINE(external_database)
-    #         projection = dict([('_id', 0,)] + [(x[0], 1,) for x
-    #                                            in fields_to_copy])
-    #         # Find compounds that have same name in another database
-    #         for ext_comp in ext.compounds.find(
-    #                 {match_field: compound[match_field]}, projection):
-    #             for field in fields_to_copy:
-    #                 if field[0] in ext_comp:
-    #                     # dict_merge merges two dictionaries using sets to
-    #                     # avoid duplicate values
-    #                     utils.dict_merge(compound, utils.save_dotted_field(
-    #                         field[1], utils.get_dotted_field(ext_comp,
-    #                                                          field[0])))
-    #         return utils.convert_sets_to_lists(compound)
-
-    #     # If compound is None, link all compounds in database
-    #     else:
-    #         for comp in self.compounds.find():
-    #             self.compounds.save(self.link_to_external_database(
-    #                 external_database, compound=comp, match_field=match_field,
-    #                 fields_to_copy=fields_to_copy))
-
 
 # Functions to write data to MINE
 # Reactions

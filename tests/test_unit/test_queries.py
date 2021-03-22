@@ -19,6 +19,7 @@ except ServerSelectionTimeoutError as err:
 valid_db = pytest.mark.skipif(not is_mongo, reason="No MongoDB Connection")
 
 
+@valid_db
 def test_quick_search(test_db, glucose, glucose_id):
     """
     GIVEN a quick search query (e.g. glucose identifiers)
@@ -41,6 +42,7 @@ def test_quick_search(test_db, glucose, glucose_id):
     )
 
 
+@valid_db
 def test_database_query(test_db, glucose, glucose_id):
     """
     GIVEN an andvanced search query (e.g. a MINE id)
@@ -58,6 +60,7 @@ def test_database_query(test_db, glucose, glucose_id):
     ]
 
 
+@valid_db
 def test_similarity_search(test_db, test_molfile, glucose):
     """
     GIVEN a similary search query
@@ -81,6 +84,7 @@ def test_similarity_search(test_db, test_molfile, glucose):
     assert len(result) == 3
 
 
+@valid_db
 def test_structure_search(test_db, test_molfile, glucose):
     """
     GIVEN a structure search query
@@ -93,6 +97,7 @@ def test_structure_search(test_db, test_molfile, glucose):
     assert glucose in queries.structure_search(test_db, test_molfile, False)
 
 
+@valid_db
 def test_substructure_search(test_db, glucose):
     """
     GIVEN a substructure search query
@@ -107,6 +112,7 @@ def test_substructure_search(test_db, glucose):
     assert isinstance(result[0], dict)
 
 
+@valid_db
 def test_get_comps(test_db):
     """
     GIVEN a list of compound IDs
@@ -121,6 +127,7 @@ def test_get_comps(test_db):
     assert comps[2] == None
 
 
+@valid_db
 def test_get_rxns(test_db):
     """
     GIVEN a list of reaction IDs
@@ -145,6 +152,7 @@ def test_get_rxns(test_db):
     assert rxns[2] == None
 
 
+@valid_db
 def test_get_ops(test_db):
     """
     GIVEN a list of operator IDs

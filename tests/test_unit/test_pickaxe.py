@@ -290,6 +290,7 @@ def test_save_target_mine(default_rule, smiles_dict, coreactant_dict):
         delete_database("MINE_test")
 
 
+@valid_db
 def test_database_already_exists(default_rule, smiles_dict, coreactant_dict):
     """Test database collision.
 
@@ -313,27 +314,6 @@ def test_database_already_exists(default_rule, smiles_dict, coreactant_dict):
         assert pytest_wrapped_e.value.code == (
             "Exiting due to database name collision."
         )
-    finally:
-        delete_database("MINE_test")
-
-
-# TODO When is  this necessary?
-@valid_db
-def test_save_no_rxn_mine():
-    """Test saving no reactions.
-
-    GIVEN a Pickaxe object with no expansion
-    WHEN that Pickaxe object is saved into a MINE DB in the MongoDB
-    THEN check that starting compounds are present and that no reactions exist
-    """
-    delete_database("MINE_test")
-    pk = pickaxe.Pickaxe(database="MINE_test")
-    pk.load_compound_set(compound_file=file_dir / "../data/test_compounds.tsv")
-    pk.save_to_mine(processes=1)
-    mine_db = MINE("MINE_test")
-    try:
-        assert mine_db.compounds.estimated_document_count() == 14
-        assert mine_db.reactions.estimated_document_count() == 0
     finally:
         delete_database("MINE_test")
 
