@@ -118,7 +118,7 @@ def export_mol(mine_db: MINE, target: str, name_field: str = "_id") -> None:
         MINE object that contains the database.
     target : str
         Directory in which to place the files.
-    name_field : str
+    name_field : str, optional
         FIeld to provide names for the mol files. Must be unique and universal.
         By default, "_id".
     """

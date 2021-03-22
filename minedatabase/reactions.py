@@ -79,7 +79,7 @@ def _run_reaction(
     Returns
     -------
     Tuple[dict, dict]
-        A tuple of local compounds local reactions.
+        A tuple of local compounds, local reactions.
     """
 
     def _make_half_rxn(mol_list, rules):
@@ -227,7 +227,7 @@ def _transform_ind_compound_with_full(
     Returns
     -------
     Tuple[dict, dict]
-        [description]
+        Tuple of local compounds, local reactions.
     """
     local_cpds = dict()
     local_rxns = dict()

@@ -42,29 +42,29 @@ class MetabolomicsDataset:
         Parameters
         ----------
         name : str
-            Name of metabolomics dataset
-        adducts : [str], optional
+            Name of metabolomics dataset.
+        adducts : List[str], optional
             List of adduct names, e.g. ["[M-H]-", "[M+H]+"] (defaults to all)
             See minedatabase/data/adducts/{Negative/Positive} Adducts full.txt
-            for a full list of possible adducts
-        known_peaks : [Peak], optional
+            for a full list of possible adducts.
+        known_peaks : List[Peak], optional
             List of Peak objects annotated with ID and associated data, by
-            default None
-        unknown_peaks : [Peak], optional
+            default None.
+        unknown_peaks : List[Peak], optional
             List of Peak objects annotated with associated data, by default
-            None
-        native_set : set(str), optional
+            None.
+        native_set : Set[str], optional
             Set of compound IDs native to the organism that generated the
-            dataset (e.g. IDs from model), by default set()
+            dataset (e.g. IDs from model), by default set().
         ppm : bool, optional
             If True, tolerance is set in parts per million, and if false
-            (default), tolerance is set in Daltons
+            (default), tolerance is set in Daltons.
         tolerance : float, optional
-            Mass tolerance for hits, by default 0.001
+            Mass tolerance for hits, by default 0.001.
         halogens : bool, optional
-            Filters out compounds containing halogens if True, by default False
+            Filters out compounds containing halogens if True, by default False.
         verbose : bool, optional
-            Prints more info to stdout if True, by default False
+            Prints more info to stdout if True, by default False.
         """
         # Load adducts
         pos_fp = os.path.join(MINEDB_DIR, "data/adducts/Positive Adducts full.txt")
@@ -115,23 +115,23 @@ class MetabolomicsDataset:
         Returns
         -------
         self.name : str
-            Name of the metabolomics dataset
+            Name of the metabolomics dataset.
         """
         return self.name
 
-    def _read_adduct_file(self, filepath) -> List[Tuple]:
+    def _read_adduct_file(self, filepath: str) -> List[Tuple]:
         """Read specified adduct file.
 
         Parameters
         ----------
         filepath : str
-            Path to adduct file
+            Path to adduct file.
 
         Returns
         -------
         adducts : List[Tuple]
             A list of (str, float, float) tuples of form
-            ('adduct name', m/z multiplier, adduct mass change)
+            ('adduct name', m/z multiplier, adduct mass change).
         """
         adducts = []
         with open(filepath, "r") as infile:
@@ -152,7 +152,7 @@ class MetabolomicsDataset:
         Parameters
         ----------
         tolerance : float
-            Mass tolerance in Daltons
+            Mass tolerance in Daltons.
         """
         possible_masses = []
         possible_ranges = []
@@ -179,12 +179,12 @@ class MetabolomicsDataset:
         Parameters
         ----------
         peak_id : str
-            ID of peak as listed in dataset
+            ID of peak as listed in dataset.
 
         Returns
         -------
         rt : float, optional
-            Retention time of peak with given ID, None if not found
+            Retention time of peak with given ID, None if not found.
         """
         rt = None
         for peak in self.unknown_peaks + self.known_peaks:
@@ -202,12 +202,12 @@ class MetabolomicsDataset:
         Parameters
         ----------
         peak : Peak
-            Peak object to query against MINE compound database
+            Peak object to query against MINE compound database.
         db : MINE
-            MINE database to query
+            MINE database to query.
         adducts : List[Tuple[str, float, float]]
             List of adducts. Each adduct contains three values in a tuple:
-            (adduct name, mass multiplier, ion mass)
+            (adduct name, mass multiplier, ion mass).
         """
         # find nominal mass for a given m/z for each adduct and the max and
         # min values for db
@@ -264,7 +264,7 @@ class MetabolomicsDataset:
         Parameters
         ----------
         db : MINE
-            MINE database
+            MINE database.
         """
         for i, peak in enumerate(self.unknown_peaks):
 
@@ -311,16 +311,16 @@ def dot_product(x: List[tuple], y: List[tuple], epsilon: float = 0.01) -> float:
     Parameters
     ----------
     x : List[tuple]
-        First spectra m/z values
+        First spectra m/z values.
     y : List[tuple]
-        Second spectra m/z values
+        Second spectra m/z values.
     epsilon : float, optional
-        Mass tolerance in Daltons, by default 0.01
+        Mass tolerance in Daltons, by default 0.01.
 
     Returns
     -------
     dot_prod : float
-        Dot product of x and y
+        Dot product of x and y.
     """
     z = 0
     n_v1 = 0
@@ -342,16 +342,16 @@ def jaccard(x: List[tuple], y: List[tuple], epsilon: float = 0.01) -> float:
     Parameters
     ----------
     x : List[tuple]
-        First spectra m/z values
+        First spectra m/z values.
     y : List[tuple]
-        Second spectra m/z values
+        Second spectra m/z values.
     epsilon : float, optional
-        Mass tolerance in Daltons, by default 0.01
+        Mass tolerance in Daltons, by default 0.01.
 
     Returns
     -------
     jaccard_index : float
-        Jaccard Index of x and y
+        Jaccard Index of x and y.
     """
     intersect = 0
 
@@ -374,16 +374,16 @@ def _approximate_matches(
     Parameters
     ----------
     list1 : list
-        First list of tuples
+        First list of tuples.
     list2 : list
-        Second list of tuples
+        Second list of tuples.
     epsilon : float, optional
-        Maximum difference, by default 0.01
+        Maximum difference, by default 0.01.
 
     Yields
     -------
     Generator
-        Generator that yields found matches
+        Generator that yields found matches.
     """
     list1.sort()
     list2.sort()
@@ -418,7 +418,38 @@ def _approximate_matches(
 
 
 class Peak:
-    """A class holding information about an metabolomics peak"""
+    """Peak object which contains peak metadata as well as mass, retention
+    time, spectra, and any MINE database hits.
+
+    Parameters
+    ----------
+    name : str
+        Name or ID of the peak.
+    r_time : float
+        Retention time of the peak.
+    mz : float
+        Mass-to-charge ratio (m/z) of the peak.
+    charge : str
+        Charge of the peak, "+" or "-".
+    inchi_key : str, optional
+        InChI key of the peak, if already identified, by default None.
+    ms2 : List[float], optional
+        MS2 spectra m/z values for this peak, by default None.
+
+    Attributes
+    ----------
+    isomers : List[Dict]
+        List of compound documents in JSON (dict) format.
+    formulas : Set[str]
+        All the unique compound formulas from compounds found for this peak.
+    total_hits : int
+        Number of compound hits for this peak.
+    native_hit : bool
+        Whether this peak matches a compound provided in the native set.
+    min_steps : int
+        Compound from generations greater than this value will not be matchted
+        against.
+    """
 
     def __init__(
         self,
@@ -428,25 +459,7 @@ class Peak:
         charge: str,
         inchi_key: str = None,
         ms2: List[(float, float)] = None,
-    ):
-        """Peak object which contains peak metadata as well as mass, retention
-        time, spectra, and any MINE database hits.
-
-        Parameters
-        ----------
-        name : str
-            Name or ID of the peak
-        r_time : float
-            Retention time of the peak
-        mz : float
-            Mass-to-charge ratio (m/z) of the peak
-        charge : str
-            Charge of the peak, "+" or "-"
-        inchi_key : str, optional
-            InChI key of the peak, if already identified, by default None
-        ms2 : List[float], optional
-            MS2 spectra m/z values for this peak, by default None
-        """
+    ) -> None:
         self.name = name
         self.r_time = float(r_time)
         self.mz = float(mz)
@@ -466,7 +479,7 @@ class Peak:
         Returns
         -------
         str
-            Name of the peak
+            Name of the peak.
         """
         return self.name
 
@@ -486,17 +499,17 @@ class Peak:
         ----------
         metric : function, optional
             The scoring metric to use for the spectra. Function must accept 2
-            lists of (mz, intensity) tuples and return a score, by default dot_product
+            lists of (mz, intensity) tuples and return a score, by default dot_product.
         energy_level : int, optional
             The Fragmentation energy level to use. May be 10,
-            20 or 40., by default 20
+            20 or 40., by default 20.
         tolerance : float, optional
-            The precision to use for matching m/z in mDa, by default 0.005
+            The precision to use for matching m/z in mDa, by default 0.005.
 
         Raises
         ------
         ValueError
-            Empty ms2 peak
+            Empty ms2 peak.
         """
         if not self.ms2peaks:
             raise ValueError("The ms2 peak list is empty")
@@ -525,17 +538,17 @@ def get_KEGG_comps(
     Parameters
     ----------
     db : MINE
-        MINE Mongo database
+        MINE Mongo database.
     kegg_db : pymongo.database.Database
-        Mongo database with annotated organism metabolomes from KEGG
+        Mongo database with annotated organism metabolomes from KEGG.
     model_ids : List[str]
-        List of organism identifiers from KEGG
+        List of organism identifiers from KEGG.
 
     Returns
     -------
     set
         MINE IDs of compounds that are linked to a KEGG ID in at least one of
-        the organisms in model_ids
+        the organisms in model_ids.
     """
     kegg_ids, _ids = set(), set()
     for model_id in model_ids:
@@ -580,14 +593,14 @@ def read_mgf(input_string: str, charge: bool) -> List[Peak]:
     Parameters
     ----------
     input_string : str
-        Metabolomics input data file
+        Metabolomics input data file.
     charge : bool
-        True if positive, False if negative
+        True if positive, False if negative.
 
     Returns
     -------
     peaks : List[Peak]
-        A list of Peak objects
+        A list of Peak objects.
     """
     peaks = []
     ms2 = []
@@ -617,14 +630,14 @@ def read_msp(input_string: str, charge: bool) -> List[Peak]:
     Parameters
     ----------
     input_string : str
-        Metabolomics input data file
+        Metabolomics input data file.
     charge : bool
-        True if positive, False if negative
+        True if positive, False if negative.
 
     Returns
     -------
     peaks : List[Peak]
-        A list of Peak objects
+        A list of Peak objects.
     """
     peaks = []
     for spec in input_string.strip().split("\n\n"):
@@ -659,14 +672,14 @@ def read_mzxml(input_string: str, charge: bool) -> List[Peak]:
     Parameters
     ----------
     input_string : str
-        Metabolomics input data file
+        Metabolomics input data file.
     charge : bool
-        True if positive, False if negative
+        True if positive, False if negative.
 
     Returns
     -------
     List[Peak]
-        A list of Peak objects
+        A list of Peak objects.
     """
     peaks = []
     root = ET.fromstring(input_string)
@@ -752,13 +765,15 @@ def ms_adduct_search(
 
     if text_type == "form":
         for mz in text.split("\n"):
-            dataset.unk_peaks.append(Peak(mz, 0, float(mz), ms_params.charge, "False"))
+            dataset.unknown_peaks.append(
+                Peak(mz, 0, float(mz), ms_params.charge, "False")
+            )
     elif text_type == "mgf":
-        dataset.unk_peaks = read_mgf(text, ms_params.charge)
+        dataset.unknown_peaks = read_mgf(text, ms_params.charge)
     elif text_type == "mzXML" or text_type == "mzxml":
-        dataset.unk_peaks = read_mzxml(text, ms_params.charge)
+        dataset.unknown_peaks = read_mzxml(text, ms_params.charge)
     elif text_type == "msp":
-        dataset.unk_peaks = read_msp(text, ms_params.charge)
+        dataset.unknown_peaks = read_msp(text, ms_params.charge)
     else:
         raise IOError(f"{text_type} files not supported")
 
@@ -768,7 +783,7 @@ def ms_adduct_search(
     dataset.native_set = get_KEGG_comps(db, keggdb, ms_params.models)
     dataset.annotate_peaks(db)
 
-    for peak in dataset.unk_peaks:
+    for peak in dataset.unknown_peaks:
         for hit in peak.isomers:
             if "CFM_spectra" in hit:
                 del hit["CFM_spectra"]
@@ -830,7 +845,7 @@ def ms2_search(
     ms_adduct_output : list
         Compound JSON documents matching ms2 search query.
     """
-    print(f"<MS Adduct Sea" "rch: TextType={text_type}, Parameters={ms_params}>")
+    print(f"<MS Adduct Sea" f"rch: TextType={text_type}, Parameters={ms_params}>")
     name = text_type + time.strftime("_%d-%m-%Y_%H:%M:%S", time.localtime())
 
     if isinstance(ms_params, dict):
@@ -850,13 +865,13 @@ def ms2_search(
             "False",
             ms2=ms2_data,
         )
-        dataset.unk_peaks.append(peak)
+        dataset.unknown_peaks.append(peak)
     elif text_type == "mgf":
-        dataset.unk_peaks = read_mgf(text, ms_params.charge)
+        dataset.unknown_peaks = read_mgf(text, ms_params.charge)
     elif text_type == "mzXML":
-        dataset.unk_peaks = read_mzxml(text, ms_params.charge)
+        dataset.unknown_peaks = read_mzxml(text, ms_params.charge)
     elif text_type == "msp":
-        dataset.unk_peaks = read_msp(text, ms_params.charge)
+        dataset.unknown_peaks = read_msp(text, ms_params.charge)
     else:
         raise IOError(f"{text_type} files not supported")
 
@@ -866,7 +881,7 @@ def ms2_search(
     dataset.native_set = get_KEGG_comps(db, keggdb, ms_params.models)
     dataset.annotate_peaks(db)
 
-    for peak in dataset.unk_peaks:
+    for peak in dataset.unknown_peaks:
 
         if ms_params.scoring_function == "jaccard":
             if not ms_params.ppm:

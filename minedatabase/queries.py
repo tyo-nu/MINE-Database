@@ -100,7 +100,9 @@ def quick_search(
 
 
 def advanced_search(
-    db: MINE, mongo_query: str, search_projection: str = DEFAULT_PROJECTION.copy()
+    db: MINE,
+    mongo_query: str,
+    search_projection: Dict[str, int] = DEFAULT_PROJECTION.copy(),
 ) -> List:
     """Returns compounds in the indicated database which match the provided
     mongo query

@@ -96,7 +96,7 @@ class MINE:
         MongoDB connection string.
     """
 
-    def __init__(self, name: str, uri: str = "mongodb://localhost:27017/"):
+    def __init__(self, name: str, uri: str = "mongodb://localhost:27017/") -> None:
         self.client = establish_db_client(uri)
         self.uri = uri
         self._db = self.client[name]
@@ -127,8 +127,7 @@ class MINE:
         Returns
         -------
         float, optional
-            Mass change of specified reaction.
-
+            Mass change of specified reaction. None if masses not all found.
         """
 
         def _get_mass(_id):
@@ -380,7 +379,7 @@ def _get_core_cpd_update(cpd_dict: dict, mine: str) -> pymongo.UpdateOne:
     return pymongo.UpdateOne({"_id": cpd_dict["_id"]}, {"$addToSet": {"MINES": mine}})
 
 
-def _get_core_cpd_insert(cpd_dict: dict) -> pymongo.InsertOne:
+def _get_core_cpd_insert(cpd_dict: dict) -> pymongo.UpdateOne:
     """Generate core compound to be inserted"""
     core_keys = ["_id", "SMILES", "Inchi", "InchiKey", "Mass", "Formula"]
     core_dict = {
@@ -424,7 +423,7 @@ def write_targets_to_mine(
     db : MINE
         MINE object to write targets with.
     chunk_size : int, optional
-        [description], by default 10000.
+        Size of chunks to break compounds into when writing, by default 10000.
     """
 
     def _get_cpd_insert(cpd_dict: dict):
