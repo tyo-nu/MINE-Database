@@ -24,6 +24,7 @@ jobs:
         pip install flake8 tox black flake8-bugbear flake8-docstrings isort tox
         conda env update --file environment.yml --name base
         conda install pytest pytest-cov
+        conda develop ../MINE-Database
     - name: Run tox to determine formatting and safety
       if: always()
       run: |
