@@ -8,7 +8,7 @@ import re
 from collections.abc import Iterable, Iterator
 from itertools import chain, islice
 from os import path
-from typing import Callable, Generator, List, Tuple, Union
+from typing import Generator, List, Tuple, Union
 
 import pymongo
 import rdkit
@@ -21,7 +21,9 @@ StoichTuple = collections.namedtuple("StoichTuple", "stoich,c_id")
 class Chunks(Iterator):
     """A class to chunk an iterator up into defined sizes."""
 
-    def __init__(self, it: Iterable, chunk_size: int = 1, return_list: bool = False):
+    def __init__(
+        self, it: Iterable, chunk_size: int = 1, return_list: bool = False
+    ) -> None:
         self._it = iter(it)
         self._chunk_size = chunk_size
         self._return_list = return_list
@@ -32,12 +34,17 @@ class Chunks(Iterator):
     def __next__(self):
         return self.next()
 
-    def next(self):
+    def next(self) -> Union[List[chain], chain]:
         """Returns the next chunk from the iterable.
         This method is not thread-safe.
+
+        Returns
+        -------
+        next_slice : Union[List[chain], chain]
+            Next chunk.
         """
 
-        def peek(iterable):
+        def peek(iterable: Iterable) -> chain:
             """peek at first element of iterable to determine if it is empty."""
             try:
                 first = next(iterable)
@@ -247,62 +254,6 @@ def prevent_overwrite(write_path: str) -> str:
     return write_path
 
 
-def approximate_matches(list1: list, list2: list, epsilon: float = 0.01) -> Generator:
-    """Searches for matches between two lists.
-
-    Takes two list of tuples and searches for matches of tuples first value
-    within the supplied epsilon. Emits tuples with the tuples second values
-    where found. if a value in one dist does not match the other list, it is
-    emitted alone.
-
-    Parameters
-    ----------
-    list1 : list
-        First list of tuples.
-    list2 : list
-        Second list of tuples.
-    epsilon : float, optional
-        Maximum difference in, by default 0.01.
-
-    Yields
-    -------
-    Generator
-        Generator that yields matches.
-    """
-    list1.sort()
-    list2.sort()
-    list1_index = 0
-    list2_index = 0
-
-    while list1_index < len(list1) or list2_index < len(list2):
-        if list1_index == len(list1):
-            yield (0, list2[list2_index][1])
-            list2_index += 1
-            continue
-        if list2_index == len(list2):
-            yield (list1[list1_index][1], 0)
-            list1_index += 1
-            continue
-
-        list1_element = list1[list1_index][0]
-        list2_element = list2[list2_index][0]
-
-        difference = abs(list1_element - list2_element)
-
-        if difference < epsilon:
-            yield (list1[list1_index][1], list2[list2_index][1])
-            list1_index += 1
-            list2_index += 1
-        elif list1_element < list2_element:
-            yield (list1[list1_index][1], 0)
-            list1_index += 1
-        elif list2_element < list1_element:
-            yield (0, list2[list2_index][1])
-            list2_index += 1
-        else:
-            raise AssertionError("Unexpected else taken")
-
-
 def dict_merge(finaldict: dict, sourcedict: dict) -> None:
     """Merges two dictionaries using sets to avoid duplication of values.
 
@@ -336,7 +287,9 @@ def dict_merge(finaldict: dict, sourcedict: dict) -> None:
             dict_merge(finaldict[key], val)
 
 
-def rxn2hash(reactants: List[StoichTuple], products: List[StoichTuple]) -> str:
+def rxn2hash(
+    reactants: List[StoichTuple], products: List[StoichTuple]
+) -> Tuple[str, str]:
     """Hashes reactant and product lists.
 
     Generates a unique ID for a given reaction for use in MongoDB.
@@ -350,8 +303,8 @@ def rxn2hash(reactants: List[StoichTuple], products: List[StoichTuple]) -> str:
 
     Returns
     -------
-    str
-        Reaction hash.
+    Tuple[str, str]
+        Reaction hash and SMILES.
     """
     # Get text reaction to be hashed
     # this is a combination of two functions
@@ -409,7 +362,7 @@ def neutralise_charges(
 
     Returns
     -------
-    rdkit.Chem.rdchem.Mol
+    mol : rdkit.Chem.rdchem.Mol
         Neutralized molecule.
     """
 
@@ -471,14 +424,16 @@ def score_compounds(
         field.
     model_id : str
         KEGG organism code (e.g. 'hsa').
-    parent_frac : float, optional (default: 0.75)
+    parent_frac : float, optional
         Weighting for compounds derived from compounds in the provided model.
-    reaction_frac : float, optional (default: 0.25)
+        0.75 by default.
+    reaction_frac : float, optional
         Weighting for compounds derived from known compounds not in the model.
+        0.25 by default.
 
     Returns
     -------
-    compounds : list
+    compounds : List[dict]
         Modified version of input compounds list, where each compound now has
         a 'Likelihood_score' key and value between 0 and 1.
     """
@@ -522,9 +477,23 @@ def score_compounds(
     return compounds
 
 
-def getatom_count(mol, radical_check=False):
-    """Takes a set of mol objects and returns a counter with each element
-    type in the set"""
+def getatom_count(
+    mol: rdkit.Chem.rdchem.Mol, radical_check: bool = False
+) -> collections.Counter:
+    """Takes a mol object and returns a counter with each element type in the set.
+
+    Parameters
+    ----------
+    mol : rdkit.Chem.rdchem.Mol
+        Mol object to count atoms for.
+    radical_check : bool, optional
+        Check for radical electrons and count if present.
+
+    Returns
+    -------
+    atoms : collections.Counter
+        Count of each atom type in input molecule.
+    """
     atoms = collections.Counter()
     # Find all strings of the form A# in the molecular formula where A
     # is the element (e.g. C) and # is the number of atoms of that

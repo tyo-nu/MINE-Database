@@ -12,7 +12,7 @@ pwd = Path(__file__).parent
 def metacyc_generalized(
     n_rules: int = None, fraction_coverage: float = None
 ) -> Tuple[StringIO, StringIO, str]:
-    """Generate generalize metacyc rule subsets
+    """Generate generalize metacyc rule subsets.
 
     Generate subsets of the metacyc generalized reaction opreators by specifying the
     number of rules of the fraction coverage of metacyc desired. Rules are chosen
