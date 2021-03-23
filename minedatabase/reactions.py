@@ -121,7 +121,7 @@ def _run_reaction(
         if "." in mol_smiles:
             return None
 
-        cpd_id, inchi_key = utils.compound_hash(mol_smiles, "Predicted")
+        cpd_id, inchi_key = utils.get_compound_hash(mol_smiles, "Predicted")
         if cpd_id:
             if cpd_id not in local_cpds:
                 cpd_dict = {
@@ -131,7 +131,7 @@ def _run_reaction(
                     "InChI_key": inchi_key,
                     "Type": "Predicted",
                     "Generation": generation,
-                    "atom_count": utils.getatom_count(mol),
+                    "atom_count": utils.get_atom_count(mol),
                     "Reactant_in": [],
                     "Product_of": [],
                     "Expand": True,
@@ -177,7 +177,7 @@ def _run_reaction(
                     if cpd_dict["_id"].startswith("C"):
                         local_cpds.update({cpd_dict["_id"]: cpd_dict})
 
-                rhash, rxn_text = utils.rxn2hash(reactants, products)
+                rhash, rxn_text = utils.get_reaction_hash(reactants, products)
                 if rhash not in local_rxns:
                     local_rxns[rhash] = {
                         "_id": rhash,
@@ -401,7 +401,10 @@ def transform_all_compounds_with_full(
 #                 reactant_mols.append(gen_mol(compound_smiles))
 #             else:
 #                 # These reactions already happen with any;any
-#                 if utils.compound_hash(smi) != utils.compound_hash(compound_smiles):
+# if (
+#     utils.get_compound_hash(smi)
+#     != utils.get_compound_hash(compound_smiles)
+# ):
 #                     reactant_mols.append(gen_mol(smi))
 #                 else:
 #                     return None

@@ -41,7 +41,7 @@ def add_metacyc_rxns(mine_db, csv_path, metacyc2hash):
                 if comp not in inserted:
                     mine_db.insert_compound(mol, {'Generation': 0})
                     inserted.add(comp)
-                half_rxn.append(utils.stoich_tuple(stoich, utils.compound_hash(mol)))
+                half_rxn.append(utils.stoich_tuple(stoich, utils.get_compound_hash(mol)))
             else:
                 raise ValueError('Undefined Compound: %s' % comp)
         return half_rxn, atoms

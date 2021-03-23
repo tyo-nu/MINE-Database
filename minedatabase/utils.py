@@ -108,7 +108,7 @@ def get_fp(smi: str) -> AllChem.RDKFingerprint:
     return fp
 
 
-def compound_hash(
+def get_compound_hash(
     smi: str, cpd_type: str = "Predicted", inchi_blocks: int = 1
 ) -> Tuple[str, Union[str, None]]:
     """Create a hash string for a given compound.
@@ -254,40 +254,41 @@ def prevent_overwrite(write_path: str) -> str:
     return write_path
 
 
-def dict_merge(finaldict: dict, sourcedict: dict) -> None:
-    """Merges two dictionaries using sets to avoid duplication of values.
+# TODO: Marked for deletion
+# def dict_merge(finaldict: dict, sourcedict: dict) -> None:
+#     """Merges two dictionaries using sets to avoid duplication of values.
 
-    Parameters
-    ----------
-    finaldict : dict
-        Dict to merge into.
-    sourcedict : dict
-        Dict to merge from.
-    """
-    for key, val in sourcedict.items():
-        if (key in finaldict) and isinstance(finaldict[key], list):
-            finaldict[key] = set(finaldict[key])
-        if isinstance(val, list):
-            if key in finaldict:
-                finaldict[key].update(val)
-            else:
-                finaldict[key] = set(val)
-        elif isinstance(val, str):
-            if key in finaldict:
-                finaldict[key].update(val)
-            else:
-                finaldict[key] = set(val)
-                finaldict[key].update(val)
-        elif isinstance(val, float):
-            if key not in finaldict:
-                finaldict[key] = val
-        elif isinstance(val, dict):
-            if key not in finaldict:
-                finaldict[key] = {}
-            dict_merge(finaldict[key], val)
+#     Parameters
+#     ----------
+#     finaldict : dict
+#         Dict to merge into.
+#     sourcedict : dict
+#         Dict to merge from.
+#     """
+#     for key, val in sourcedict.items():
+#         if (key in finaldict) and isinstance(finaldict[key], list):
+#             finaldict[key] = set(finaldict[key])
+#         if isinstance(val, list):
+#             if key in finaldict:
+#                 finaldict[key].update(val)
+#             else:
+#                 finaldict[key] = set(val)
+#         elif isinstance(val, str):
+#             if key in finaldict:
+#                 finaldict[key].update(val)
+#             else:
+#                 finaldict[key] = set(val)
+#                 finaldict[key].update(val)
+#         elif isinstance(val, float):
+#             if key not in finaldict:
+#                 finaldict[key] = val
+#         elif isinstance(val, dict):
+#             if key not in finaldict:
+#                 finaldict[key] = {}
+#             dict_merge(finaldict[key], val)
 
 
-def rxn2hash(
+def get_reaction_hash(
     reactants: List[StoichTuple], products: List[StoichTuple]
 ) -> Tuple[str, str]:
     """Hashes reactant and product lists.
@@ -477,7 +478,7 @@ def score_compounds(
     return compounds
 
 
-def getatom_count(
+def get_atom_count(
     mol: rdkit.Chem.rdchem.Mol, radical_check: bool = False
 ) -> collections.Counter:
     """Takes a mol object and returns a counter with each element type in the set.
@@ -513,6 +514,7 @@ def getatom_count(
     return atoms
 
 
+# TODO: Mark for deletion.
 # def _racemization(compound, max_centers=3, carbon_only=True):
 #     """Enumerates all possible stereoisomers for unassigned chiral centers.
 

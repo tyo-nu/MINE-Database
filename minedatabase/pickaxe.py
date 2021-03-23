@@ -503,7 +503,7 @@ class Pickaxe:
             Compound id and compound dict.
         """
         cpd_dict = {}
-        cpd_id, inchi_key = utils.compound_hash(
+        cpd_id, inchi_key = utils.get_compound_hash(
             smi, cpd_type, self.cid_num_inchi_blocks
         )
         if cpd_id:
@@ -521,7 +521,7 @@ class Pickaxe:
                     "InChI_key": inchi_key,
                     "Type": cpd_type,
                     "Generation": self.generation,
-                    "atom_count": utils.getatom_count(mol, self.radical_check),
+                    "atom_count": utils.get_atom_count(mol, self.radical_check),
                     "Reactant_in": [],
                     "Product_of": [],
                     "Expand": expand,
@@ -733,7 +733,7 @@ class Pickaxe:
     #                 elif smi == 'SMARTS_match':
     #                     continue
     #                 else:
-    #                     reactant_ids.append(utils.compound_hash(smi))
+    #                     reactant_ids.append(utils.get_compound_hash(smi))
 
     #             reactants_exist = [r in self.compounds for r in reactant_ids]
     #             if all(reactants_exist):
@@ -795,7 +795,7 @@ class Pickaxe:
                     else:
                         products.append((s, self.compounds[product]))
 
-                cofactor_rxn_id, rxn_text = utils.rxn2hash(reactants, products)
+                cofactor_rxn_id, rxn_text = utils.get_reaction_hash(reactants, products)
 
                 # Check to see if reaction makes changes
                 # Reactions such as
@@ -1448,7 +1448,7 @@ if __name__ == "__main__":
             pk._mol_from_dict(line)
             for line in utils.file_to_dict_list(OPTIONS.pruning_whitelist)
         ]
-        pk.prune_network([utils.compound_hash(x) for x in mols if x])
+        pk.prune_network([utils.get_compound_hash(x) for x in mols if x])
 
     if OPTIONS.output_dir:
         pk.assign_ids()

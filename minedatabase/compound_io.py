@@ -511,7 +511,7 @@ def import_mol_dir(
             # Check that Mol object is successfully generated
             if mol:
                 # Create hashkey for the compound
-                cpdhash = utils.compound_hash(mol)
+                cpdhash = utils.get_compound_hash(mol)
                 # If we don't want to overwrite, and the compound (cpdhash)
                 # already exists, then add an extra cpdhash for that molecule
                 if not overwrite and mine_db.compounds.count({"_id": cpdhash}):
