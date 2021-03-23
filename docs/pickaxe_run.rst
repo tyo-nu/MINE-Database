@@ -17,7 +17,9 @@ and explain the components of running pickaxe. Generally, pickaxe_run.py operate
 
 This document gives the relevant code snippets from a template and expands on existing comments. Additionally, brief 
 examples of relevant inputs will be created. For more detailed descriptions please see :doc:`inputs` and :doc:`api_ref/filters`.
-To create custom filters, see :doc:`custom_filters`.
+
+.. tip::
+    To create custom filters, see :doc:`custom_filters`.
 
 Example Template
 ----------------
