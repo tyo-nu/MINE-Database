@@ -1,0 +1,16 @@
+<mzXML xmlns = "http://sashimi.sourceforge.net/schema_revision/mzXML_2.0" xmlns:xsi = "http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://sashimi.sourceforge.net/schema_revision/mzXML_2.0 http://sashimi.sourceforge.net/schema_revision/mzXML_2.0/mzXML_idx_2.0.xsd">
+    <msRun scanCount="2" startTime="PT0S" endTime="PT3000S">
+        <scan num="1" msLevel="2" peaksCount="3" polarity="+" scanType="CID" filterLine="FTMS - p ESI Full ms [50.00-1000.00]" retentionTime="PT420.0S" lowMz="50" highMz="999" basePeakMz="100.5" basePeakIntensity="1000" totIonCurrent="1000">
+            <precursorMz precursorScanNum="1" precursorIntensity="1000" activationMethod="CID" precursorCharge="1">100.5</precursorMz>
+            <peaks precision="32" byteOrder="network" pairOrder="m/z-int">ABCAD</peaks>
+        </scan>
+        <scan num="1" msLevel="2" peaksCount="2" polarity="+" scanType="CID" filterLine="FTMS - p ESI Full ms [50.00-1000.00]" retentionTime="PT305.0S" lowMz="50" highMz="999" basePeakMz="131.0" basePeakIntensity="1000" totIonCurrent="1000">
+            <precursorMz precursorScanNum="2" precursorIntensity="1000" activationMethod="CID" precursorCharge="1">131.0</precursorMz>
+            <peaks precision="32" byteOrder="network" pairOrder="m/z-int">ADABD</peaks>
+        </scan>
+    </msRun>
+    <index name="scan">
+        <offset id="1">1124</offset>
+        <offset id="2">8720</offset>
+    </index>
+</mzXML>

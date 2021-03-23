@@ -1,0 +1,35 @@
+name: MINE-Database
+
+on: [push, pull_request]
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.9]
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Add conda to system path
+      run: |
+        echo $CONDA/bin >> $GITHUB_PATH
+    - name: Install dependencies and create base conda environment
+      run: |
+        python -m pip install --upgrade pip
+        pip install flake8 tox black flake8-bugbear flake8-docstrings isort tox
+        conda env update --file environment.yml --name base
+        conda install pytest pytest-cov
+        conda develop ../MINE-Database
+    - name: Run tox to determine formatting and safety
+      if: always()
+      run: |
+        tox
+    - name: Test with pytest
+      if: always()
+      run: |
+        pytest

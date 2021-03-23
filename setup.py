@@ -1,3 +1,11 @@
+
+from setuptools import setup
+
+
+# Most arguments are set in the `setup.cfg`.
+# TODO fix this
+setup(version=0.1)
+
 from setuptools import setup
 import setuptools
 

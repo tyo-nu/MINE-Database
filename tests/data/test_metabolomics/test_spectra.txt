@@ -1,0 +1,35 @@
+Name: MINE Compound ms2_test
+_id: ms2_test
+Mass: 260
+Formula: C12H12O2N
+Generation: 1
+Instrument: CFM-ID
+Ionization: Positive
+Energy: 10V
+Num Peaks: 3
+1 2
+3 4
+5 6
+
+Name: MINE Compound ms2_test
+_id: ms2_test
+Mass: 260
+Formula: C12H12O2N
+Generation: 1
+Instrument: CFM-ID
+Ionization: Positive
+Energy: 20V
+Num Peaks: 1
+6 7
+
+Name: MINE Compound ms2_test
+_id: ms2_test
+Mass: 260
+Formula: C12H12O2N
+Generation: 1
+Instrument: CFM-ID
+Ionization: Positive
+Energy: 40V
+Num Peaks: 2
+100 1000
+250 200
