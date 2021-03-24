@@ -16,7 +16,10 @@ and explain the components of running pickaxe. Generally, pickaxe_run.py operate
 4. Specification of Filters
 
 This document gives the relevant code snippets from a template and expands on existing comments. Additionally, brief 
-examples of relevant inputs will be created. For more detailed descriptions please see :doc:`inputs` and :doc:`filters`.
+examples of relevant inputs will be created. For more detailed descriptions please see :doc:`inputs` and :doc:`api_ref/filters`.
+
+.. tip::
+    To create custom filters, see :doc:`custom_filters`.
 
 Example Template
 ----------------
@@ -171,8 +174,8 @@ However, the remaining can be changed if needed:
     quiet = True
     indexing = False
 
-Filters
--------
+Built-In Filters
+----------------
 Three general filters are supplied with Pickaxe:
 
 1. A tanimoto threshold filters
@@ -270,3 +273,82 @@ The filter is specified as follows:
 
     # How to represent the function in text
     weight_representation = "T^4"
+
+Metabolomics Filter
+^^^^^^^^^^^^^^^^^^^
+If you have a metabolomics dataset you would like to filter compounds against, you can use this filter.
+It will force pickaxe to only keep compounds with masses (and, optionally, retention time (RT)) within a set
+tolerance of a list of peaks. For example, if you had a dataset containing 3 peaks at 100, 200, and 300 m/z,
+you could do an expansion and only keep compounds with masses within 0.001 Da of those 3 values.
+
+This is useful for trying to annotate unknown peaks starting from a set of known compounds in a specific organism
+from which metabolomics data was collected.
+
+The filter is specified as follows. The following arguments are required:
+
+1. **metabolomics_filter** specifies whether to use this filter
+
+2. **met_data_path** specifies where to find your list of peaks in CSV format.
+
+Format of CSV:
+
+    Peak ID, Retention Time, Aggregate M/Z, Polarity, Compound Name, Predicted Structure (smile), ID
+    
+    Peak1, 6.33, 74.0373, negative, propionic acid, CCC(=O)O, yes
+    
+    Peak2, 26.31, 84.06869909, positive, , , no
+    
+    ...
+
+Note that only unidentified peaks will be used by the filter.
+
+3. **possible_adducts** specifies the possible adducts to consider when matching peaks, as different adducts cause different mass changes. For a list of options, see the first columns of  "Negative Adducts full.txt" and "Positive Adducts full.txt" in minedatabase/data/adducts.
+
+4. **mass_tolerance** specifies (in Da) the mass tolerance to use for matching peaks. For example, if 0.001, only compounds with masses between 99.999 and 100.001 would match a peak at 100 m/z.
+
+The following optional arguments allow you to add retention time as an extra constraint in the filter.
+Note that this requires that you have built a RandomForestRegressor machine learning model to predict
+retention time for arbitrary compounds, using mordred fingerprints as input.
+
+5. **rt_predictor_pickle_path** specifies the path to the built model (pickled). Make sure this is None, if you don't want to match based on retention time.
+
+6. **rt_threshold** specifies the retention time tolerance (in whatever units RT is in the file at met_data_path)
+
+7. **rt_important_features** specifies which mordred descriptors to use as input into the model (must be in same order as model expects them to be). If None, will use all (including 3D) mordred descriptors.
+
+.. code-block:: python
+
+    # Apply this filter?
+    metabolomics_filter = False
+
+    # Path to csv with list of detected masses (and optionally, retention times).
+    # For example: Peak ID, Retention Time, Aggregate M/Z, Polarity, Compound Name,
+    # Predicted Structure (smile), ID
+    #
+    # Peak1, 6.33, 74.0373, negative, propionic acid, CCC(=O)O, yes
+    # Peak2, 26.31, 84.06869909, positive, , , no
+    # ...
+    met_data_path = "./local_data/ADP1_Metabolomics_PeakList_final.csv"
+
+    # Name of dataset
+    met_data_name = "ADP1_metabolomics"
+
+    # Adducts to add to each mass in mass list to create final list of possible
+    # masses.
+    # See "./minedatabase/data/adducts/All adducts.txt" for options.
+    possible_adducts = ["[M+H]+", "[M-H]-"]
+
+    # Tolerance in Da
+    mass_tolerance = 0.001
+
+    # Retention Time Filter Options (optional but included in metabolomics filter)
+
+    # Path to pickled machine learning predictor (SMILES => RT)
+    rt_predictor_pickle_path = "../RT_Prediction/final_RT_model.pickle"
+
+    # Allowable deviation in predicted RT (units just have to be consistent with dataset)
+    rt_threshold = 4.5
+
+    # Mordred descriptors to use as input to model (must be in same order as in trained model)
+    # If None, will try to use all (including 3D) mordred descriptors
+    rt_important_features = ["nAcid", "ETA_dEpsilon_D", "NsNH2", "MDEO-11"]

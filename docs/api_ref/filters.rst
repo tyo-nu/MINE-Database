@@ -2,4 +2,5 @@ Filters
 =======
 
 .. automodule:: minedatabase.filters
-    :members:
+   :members:
+   :private-members:

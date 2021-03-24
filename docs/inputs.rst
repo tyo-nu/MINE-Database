@@ -15,7 +15,7 @@ Required:
 Optional:
 
 #. Targets to filter for.
-#. Metabolomic data to filter with.
+#. Metabolomic data to filter with (see **met_data_path** parameter in :ref:`Built-In Filters`).
 
 Compound Input
 ~~~~~~~~~~~~~~
