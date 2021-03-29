@@ -74,6 +74,21 @@ def test_tani_cutoff_multi_short_list(pk_target):
     )
 
 
+def test_tani_no_targets(pk_target):
+    pk_target.target_fps = []
+    tani_threshold = 0.5
+    _filter = TanimotoFilter(crit_tani=tani_threshold, increasing_tani=False)
+
+    pk_target.filters.append(_filter)
+    pk_target.transform_all(generations=2)
+    
+    assert len(pk_target.compounds) == 1432
+    assert (
+        pk_target.compounds["C779bfa0d747509f0499664b390657a336edec104"]["Expand"]
+        == True
+    )
+
+
 def test_tani_sample_default_weight(pk_target):
     """Test tanimoto cutoff filter"""
     _filter = TanimotoSamplingFilter(sample_size=10, weight=None)

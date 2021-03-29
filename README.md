@@ -1,29 +1,32 @@
 # MINE Databases
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+![Documentation](https://readthedocs.org/projects/mine-database/badge)
 
 The MINE Database contains code for generating (through Pickaxe) and storing and retrieving compounds from a database.
 Pickaxe applies reaction operators, representing reaction transformation patterns, to a list of user-specified compounds
 in order to predict reactions.  
 
-For general information on MINE Databases, please consult [JJeffryes et al. 2015](http://jcheminf.springeropen.com/articles/10.1186/s13321-015-0087-1)
-Documentation can also be found at https://mine-database.readthedocs.io/en/develop/ [Documentation](https://mine-database.readthedocs.io/en/develop/)
-gives examples for how to run run Pickaxe using premade rules as well as generating custom rules. 
+## Documentation
+For general information on MINE Databases, please consult [JJeffryes et al. 2015.](http://jcheminf.springeropen.com/articles/10.1186/s13321-015-0087-1)
+Documentation, hosted on read the docs at https://mine-database.readthedocs.io/en/develop/,
+gives more detailed descriptions and examples uses of the software.
 
 ## Installation
-MINE Database requires the use of rdkit, which currently is unavailable to install on pip. It is recommended to use the
+MINE-Database requires the use of [rdkit](https://rdkit.org/), which currently is unavailable to install on pip. It is recommended to use the
 conda environment installation.
 
 ## Conda Installation
-Ensure that [Anaconda is installed](https://www.anaconda.com/products/individual) and run the following in a terminal:
+MINE-Database can be installed via conda:
+```
+conda install -c condaforge mine-database
+```
+
+Alternatively MINE-Database can be installed from source:
 ```
 conda env create --name minedatabase --file requirements.yml
 ```
-To activate the conda environment for usage use:
-```
-conda activate minedatabase
-```
 
-## Pip and Conda Installation
+## Pip and Conda Installation from Source
 The majority of requirements can be installed through pip:
 ```
 pip install -r requirements.txt
