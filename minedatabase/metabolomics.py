@@ -760,7 +760,12 @@ def ms_adduct_search(
     if isinstance(ms_params, dict):
         ms_params = Struct(**ms_params)
 
-    dataset = MetabolomicsDataset(name, ms_params)
+    dataset = MetabolomicsDataset(name,
+                                  adducts=ms_params.adducts,
+                                  ppm=ms_params.ppm,
+                                  tolerance=ms_params.tolerance,
+                                  halogens=ms_params.halogens,
+                                  verbose=ms_params.verbose)
     ms_adduct_output = []
 
     if text_type == "form":
@@ -851,7 +856,12 @@ def ms2_search(
     if isinstance(ms_params, dict):
         ms_params = Struct(**ms_params)
 
-    dataset = MetabolomicsDataset(name, ms_params)
+    dataset = MetabolomicsDataset(name,
+                                  adducts=ms_params.adducts,
+                                  ppm=ms_params.ppm,
+                                  tolerance=ms_params.tolerance,
+                                  halogens=ms_params.halogens,
+                                  verbose=ms_params.verbose)
     ms_adduct_output = []
 
     if text_type == "form":
