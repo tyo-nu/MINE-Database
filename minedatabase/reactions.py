@@ -152,10 +152,11 @@ def _run_reaction(
     except BaseException:
         reactants = None, None
 
-    if not reactants:
+    if not all(reactants):
         return local_cpds, local_rxns
 
     reactant_set = set([r[1]["_id"] for r in reactants])
+
     for product_mols in product_sets:
         try:
             products, product_atoms = _make_half_rxn(product_mols, rule[1]["Products"])
