@@ -9,9 +9,9 @@ from copy import deepcopy
 from shutil import move
 from subprocess import call
 from typing import List, Union
+from math import ceil
 
 import pymongo
-from pymongo.database import Collection
 from pymongo.errors import ServerSelectionTimeoutError
 from rdkit.Chem import AllChem
 from rdkit.RDLogger import logger
@@ -109,6 +109,8 @@ class MINE:
         self.reactions = self._db.reactions
         self.operators = self._db.operators
         self.models = self._db.models
+        self.reactant_in = self._db.reactant_in
+        self.product_of = self._db.product_of
         # self.nps_model = nps.readNPModel()
         self._mass_cache = {}  # for rapid calculation of reaction mass change
 
@@ -300,7 +302,7 @@ def write_compounds_to_mine(
         Size of chunks to break compounds into when writing, by default 10000.
     """
 
-    def _get_cpd_insert(cpd_dict: dict):
+    def _get_cpd_insert(cpd_dict: dict, db: MINE):
         output_keys = [
             "_id",
             "ID",
@@ -308,23 +310,120 @@ def write_compounds_to_mine(
             "InChI_key",
             "Type",
             "Generation",
+            "Expand",
             "Reactant_in",
             "Product_of",
-            "Expand",
             "Matched_Peak_IDs",
             "Matched_Adducts",
             "Predicted_RT",
         ]
-        return pymongo.InsertOne(
-            {key: cpd_dict.get(key) for key in output_keys if cpd_dict.get(key) != None}
-        )
+
+        # create Reactant_in
+        insert_dict = {
+            key: cpd_dict.get(key) for key in output_keys if cpd_dict.get(key) != None
+        }
+        if "Reactant_in" in insert_dict:
+            chunked_reactant_in = _get_reactant_in_insert(cpd_dict)
+            if chunked_reactant_in:
+                results = db.reactant_in.insert_many(chunked_reactant_in)
+                insert_dict["Reactant_in"] = results.inserted_ids
+
+        # create Product_of
+        if "Product_of" in insert_dict:
+            chunked_product_of = _get_product_of_insert(cpd_dict)
+            if chunked_product_of:
+                results = db.product_of.insert_many(chunked_product_of)
+                insert_dict["Product_of"] = results.inserted_ids
+            else:
+                print("break here")
+
+        return pymongo.InsertOne(insert_dict)
 
     n_cpds = len(compounds)
     for i, cpd_chunk in enumerate(utils.Chunks(compounds, chunk_size)):
         if i % 20 == 0:
             print(f"Writing Compounds: Chunk {i} of {int(n_cpds/chunk_size) + 1}")
-        cpd_requests = [_get_cpd_insert(cpd_dict) for cpd_dict in cpd_chunk]
+        cpd_requests = [_get_cpd_insert(cpd_dict, db) for cpd_dict in cpd_chunk]
         db.compounds.bulk_write(cpd_requests, ordered=False)
+
+
+def _get_reactant_in_insert(compound: dict) -> List[dict]:
+    """Write reactants_in, ensuring memory size isn't too big.
+
+    MongoDB only allows < 16 MB entries. This function breaks large reactants_in
+    up to ensure this doesn't happen.
+
+    Parameters
+    ----------
+    compounds : List[dict]
+        Dictionary of compounds to write.
+    db : MINE
+        MINE object to write compounds with.
+
+    Returns
+    -------
+    List[dict]
+        dicts of reactant_in to insert
+    """
+
+    # Get number of chunks reactant_in must be broken up into
+    # 16 MB is the max for BSON, cut to 5 MB max just to be safe
+
+    max_size = 5 * 10 ** 6
+    compound["Reactant_in"] = compound["Reactant_in"] * 1000
+    r_in_size = sys.getsizeof(compound["Reactant_in"])
+    chunks, rem = divmod(r_in_size, max_size)
+
+    if rem:
+        chunks += 1
+    chunk_size = ceil(len(compound["Reactant_in"]) / chunks)
+
+    # Generate the InsertOne requests
+    r_in_chunks = utils.Chunks(compound["Reactant_in"], chunk_size, return_list=True)
+
+    requests = []
+    for r_in_chunk in r_in_chunks:
+        requests.append({"c_id": compound["_id"], "Reactant_in": r_in_chunk})
+
+    return requests
+
+
+def _get_product_of_insert(compound: dict) -> List[dict]:
+    """Write reactants_in, ensuring memory size isn't too big.
+
+    MongoDB only allows < 16 MB entries. This function breaks large reactants_in
+    up to ensure this doesn't happen.
+
+    Parameters
+    ----------
+    compounds : List[dict]
+        Dictionary of compounds to write.
+    db : MINE
+        MINE object to write compounds with.
+
+    Returns
+    -------
+    List[dict]
+        dicts of product_of to insert
+    """
+
+    # Get number of chunks product_of must be broken up into
+    # 16 MB is the max for BSON, cut to 13 MB max just to be safe
+    max_size = 1.3 * 10 ** 7
+    p_of_size = sys.getsizeof(compound["Product_of"])
+    chunks, rem = divmod(p_of_size, max_size)
+    if rem:
+        chunks += 1
+    chunk_size = ceil(len(compound["Product_of"]) / chunks)
+
+    # Generate the InsertOne requests
+    p_of_chunks = utils.Chunks(compound["Product_of"], chunk_size, return_list=True)
+
+    requests = []
+    for p_of_chunk in p_of_chunks:
+        requests.append({"c_id": compound["_id"], "Reactant_of": p_of_chunk})
+
+    return requests
 
 
 # Core Compounds
