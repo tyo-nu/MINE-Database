@@ -366,7 +366,6 @@ def _get_reactant_in_insert(compound: dict) -> List[dict]:
 
     # Get number of chunks reactant_in must be broken up into
     # 16 MB is the max for BSON, cut to 5 MB max just to be safe
-
     max_size = 5 * 10 ** 6
     compound["Reactant_in"] = compound["Reactant_in"] * 1000
     r_in_size = sys.getsizeof(compound["Reactant_in"])
@@ -406,8 +405,8 @@ def _get_product_of_insert(compound: dict) -> List[dict]:
     """
 
     # Get number of chunks product_of must be broken up into
-    # 16 MB is the max for BSON, cut to 13 MB max just to be safe
-    max_size = 1.3 * 10 ** 7
+    # 16 MB is the max for BSON, cut to 5 MB max just to be safe
+    max_size = 5 * 10 ** 6
     p_of_size = sys.getsizeof(compound["Product_of"])
     chunks, rem = divmod(p_of_size, max_size)
     if rem:
