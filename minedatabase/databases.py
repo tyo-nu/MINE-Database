@@ -334,8 +334,6 @@ def write_compounds_to_mine(
             if chunked_product_of:
                 results = db.product_of.insert_many(chunked_product_of)
                 insert_dict["Product_of"] = results.inserted_ids
-            else:
-                print("break here")
 
         return pymongo.InsertOne(insert_dict)
 
