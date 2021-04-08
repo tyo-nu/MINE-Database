@@ -6,10 +6,10 @@ import os
 import platform
 import sys
 from copy import deepcopy
+from math import ceil
 from shutil import move
 from subprocess import call
 from typing import List, Union
-from math import ceil
 
 import pymongo
 from pymongo.errors import ServerSelectionTimeoutError
@@ -302,7 +302,7 @@ def write_compounds_to_mine(
         Size of chunks to break compounds into when writing, by default 10000.
     """
 
-    def _get_cpd_insert(cpd_dict: dict, db: MINE):
+    def _get_cpd_insert(cpd_dict: dict):
         output_keys = [
             "_id",
             "ID",
@@ -319,30 +319,51 @@ def write_compounds_to_mine(
         ]
 
         # create Reactant_in
+        reactant_in_requests = []
+        product_of_requests = []
         insert_dict = {
             key: cpd_dict.get(key) for key in output_keys if cpd_dict.get(key) != None
         }
         if "Reactant_in" in insert_dict:
             chunked_reactant_in = _get_reactant_in_insert(cpd_dict)
-            if chunked_reactant_in:
-                results = db.reactant_in.insert_many(chunked_reactant_in)
-                insert_dict["Reactant_in"] = results.inserted_ids
+            insert_dict["Reactant_in"] = []
+            for r_in_dict in chunked_reactant_in:
+                reactant_in_requests.append(pymongo.InsertOne(r_in_dict))
+                insert_dict["Reactant_in"].append(r_in_dict["_id"])
 
         # create Product_of
         if "Product_of" in insert_dict:
             chunked_product_of = _get_product_of_insert(cpd_dict)
-            if chunked_product_of:
-                results = db.product_of.insert_many(chunked_product_of)
-                insert_dict["Product_of"] = results.inserted_ids
+            insert_dict["Product_of"] = []
+            for p_of_dict in chunked_product_of:
+                product_of_requests.append(pymongo.InsertOne(p_of_dict))
+                insert_dict["Product_of"].append(p_of_dict["_id"])
 
-        return pymongo.InsertOne(insert_dict)
+        cpd_request = pymongo.InsertOne(insert_dict)
+        return cpd_request, reactant_in_requests, product_of_requests
 
     n_cpds = len(compounds)
     for i, cpd_chunk in enumerate(utils.Chunks(compounds, chunk_size)):
         if i % 20 == 0:
             print(f"Writing Compounds: Chunk {i} of {int(n_cpds/chunk_size) + 1}")
-        cpd_requests = [_get_cpd_insert(cpd_dict, db) for cpd_dict in cpd_chunk]
+
+        cpd_requests = []
+        reactant_in_requests = []
+        product_of_requests = []
+
+        for cpd_dict in cpd_chunk:
+            cpd_request, reactant_in_request, product_of_request = _get_cpd_insert(
+                cpd_dict
+            )
+            cpd_requests.append(cpd_request)
+            reactant_in_requests.extend(reactant_in_request)
+            product_of_requests.extend(product_of_request)
+
         db.compounds.bulk_write(cpd_requests, ordered=False)
+        if reactant_in_requests:
+            db.reactant_in.bulk_write(reactant_in_requests, ordered=False)
+        if product_of_requests:
+            db.product_of.bulk_write(product_of_request, ordered=False)
 
 
 def _get_reactant_in_insert(compound: dict) -> List[dict]:
@@ -379,8 +400,14 @@ def _get_reactant_in_insert(compound: dict) -> List[dict]:
     r_in_chunks = utils.Chunks(compound["Reactant_in"], chunk_size, return_list=True)
 
     requests = []
-    for r_in_chunk in r_in_chunks:
-        requests.append({"c_id": compound["_id"], "Reactant_in": r_in_chunk})
+    for i, r_in_chunk in enumerate(r_in_chunks):
+        requests.append(
+            {
+                "_id": f"{compound['_id']}_{i}",
+                "c_id": compound["_id"],
+                "Reactant_in": r_in_chunk,
+            }
+        )
 
     return requests
 
@@ -418,8 +445,14 @@ def _get_product_of_insert(compound: dict) -> List[dict]:
     p_of_chunks = utils.Chunks(compound["Product_of"], chunk_size, return_list=True)
 
     requests = []
-    for p_of_chunk in p_of_chunks:
-        requests.append({"c_id": compound["_id"], "Reactant_of": p_of_chunk})
+    for i, p_of_chunk in enumerate(p_of_chunks):
+        requests.append(
+            {
+                "_id": f"{compound['_id']}_{i}",
+                "c_id": compound["_id"],
+                "Reactant_of": p_of_chunk,
+            }
+        )
 
     return requests
 
