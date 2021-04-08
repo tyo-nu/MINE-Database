@@ -288,7 +288,7 @@ def write_reactions_to_mine(
 
 # Compounds
 def write_compounds_to_mine(
-    compounds: List[dict], db: MINE, chunk_size: int = 10000
+    compounds: List[dict], db: MINE, chunk_size: int = 10000, processes: int = 1
 ) -> None:
     """Write compounds to reaction collection of MINE.
 
@@ -300,49 +300,11 @@ def write_compounds_to_mine(
         MINE object to write compounds with.
     chunk_size : int, optional
         Size of chunks to break compounds into when writing, by default 10000.
+    processes : int, optional
+        Number of processors to use, by default 1.
     """
-
-    def _get_cpd_insert(cpd_dict: dict):
-        output_keys = [
-            "_id",
-            "ID",
-            "SMILES",
-            "InChI_key",
-            "Type",
-            "Generation",
-            "Expand",
-            "Reactant_in",
-            "Product_of",
-            "Matched_Peak_IDs",
-            "Matched_Adducts",
-            "Predicted_RT",
-        ]
-
-        # create Reactant_in
-        reactant_in_requests = []
-        product_of_requests = []
-        insert_dict = {
-            key: cpd_dict.get(key) for key in output_keys if cpd_dict.get(key) != None
-        }
-        if "Reactant_in" in insert_dict:
-            chunked_reactant_in = _get_reactant_in_insert(cpd_dict)
-            insert_dict["Reactant_in"] = []
-            for r_in_dict in chunked_reactant_in:
-                reactant_in_requests.append(pymongo.InsertOne(r_in_dict))
-                insert_dict["Reactant_in"].append(r_in_dict["_id"])
-
-        # create Product_of
-        if "Product_of" in insert_dict:
-            chunked_product_of = _get_product_of_insert(cpd_dict)
-            insert_dict["Product_of"] = []
-            for p_of_dict in chunked_product_of:
-                product_of_requests.append(pymongo.InsertOne(p_of_dict))
-                insert_dict["Product_of"].append(p_of_dict["_id"])
-
-        cpd_request = pymongo.InsertOne(insert_dict)
-        return cpd_request, reactant_in_requests, product_of_requests
-
     n_cpds = len(compounds)
+    pool = multiprocessing.Pool(processes)
     for i, cpd_chunk in enumerate(utils.Chunks(compounds, chunk_size)):
         if i % 20 == 0:
             print(f"Writing Compounds: Chunk {i} of {int(n_cpds/chunk_size) + 1}")
@@ -351,10 +313,8 @@ def write_compounds_to_mine(
         reactant_in_requests = []
         product_of_requests = []
 
-        for cpd_dict in cpd_chunk:
-            cpd_request, reactant_in_request, product_of_request = _get_cpd_insert(
-                cpd_dict
-            )
+        for res in pool.imap_unordered(_get_cpd_insert, cpd_chunk):
+            cpd_request, reactant_in_request, product_of_request = res
             cpd_requests.append(cpd_request)
             reactant_in_requests.extend(reactant_in_request)
             product_of_requests.extend(product_of_request)
@@ -363,7 +323,48 @@ def write_compounds_to_mine(
         if reactant_in_requests:
             db.reactant_in.bulk_write(reactant_in_requests, ordered=False)
         if product_of_requests:
-            db.product_of.bulk_write(product_of_request, ordered=False)
+            db.product_of.bulk_write(product_of_requests, ordered=False)
+
+
+def _get_cpd_insert(cpd_dict: dict):
+    output_keys = [
+        "_id",
+        "ID",
+        "SMILES",
+        "InChI_key",
+        "Type",
+        "Generation",
+        "Expand",
+        "Reactant_in",
+        "Product_of",
+        "Matched_Peak_IDs",
+        "Matched_Adducts",
+        "Predicted_RT",
+    ]
+
+    # create Reactant_in
+    reactant_in_requests = []
+    product_of_requests = []
+    insert_dict = {
+        key: cpd_dict.get(key) for key in output_keys if cpd_dict.get(key) != None
+    }
+    if "Reactant_in" in insert_dict:
+        chunked_reactant_in = _get_reactant_in_insert(cpd_dict)
+        insert_dict["Reactant_in"] = []
+        for r_in_dict in chunked_reactant_in:
+            reactant_in_requests.append(pymongo.InsertOne(r_in_dict))
+            insert_dict["Reactant_in"].append(r_in_dict["_id"])
+
+    # create Product_of
+    if "Product_of" in insert_dict:
+        chunked_product_of = _get_product_of_insert(cpd_dict)
+        insert_dict["Product_of"] = []
+        for p_of_dict in chunked_product_of:
+            product_of_requests.append(pymongo.InsertOne(p_of_dict))
+            insert_dict["Product_of"].append(p_of_dict["_id"])
+
+    cpd_request = pymongo.InsertOne(insert_dict)
+    return cpd_request, reactant_in_requests, product_of_requests
 
 
 def _get_reactant_in_insert(compound: dict) -> List[dict]:

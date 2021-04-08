@@ -1114,7 +1114,7 @@ class Pickaxe:
         # Insert Reactions
         print("--------------- Compounds --------------")
         cpd_start = time.time()
-        write_compounds_to_mine(self.compounds.values(), db)
+        write_compounds_to_mine(self.compounds.values(), db, processes=processes)
         print(f"Wrote Compounds in {time.time() - cpd_start} seconds.")
         if write_core:
             cpd_start = time.time()
