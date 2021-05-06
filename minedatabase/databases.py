@@ -305,6 +305,7 @@ def write_compounds_to_mine(
     """
     n_cpds = len(compounds)
     pool = multiprocessing.Pool(processes)
+
     for i, cpd_chunk in enumerate(utils.Chunks(compounds, chunk_size)):
         if i % 20 == 0:
             print(f"Writing Compounds: Chunk {i} of {int(n_cpds/chunk_size) + 1}")
@@ -324,6 +325,9 @@ def write_compounds_to_mine(
             db.reactant_in.bulk_write(reactant_in_requests, ordered=False)
         if product_of_requests:
             db.product_of.bulk_write(product_of_requests, ordered=False)
+
+    pool.close()
+    pool.join()
 
 
 def _get_cpd_insert(cpd_dict: dict):
@@ -451,7 +455,7 @@ def _get_product_of_insert(compound: dict) -> List[dict]:
             {
                 "_id": f"{compound['_id']}_{i}",
                 "c_id": compound["_id"],
-                "Reactant_of": p_of_chunk,
+                "Product_of": p_of_chunk,
             }
         )
 
@@ -504,6 +508,7 @@ def write_core_compounds(
         db.core_compounds.bulk_write(core_update_requests)
 
     pool.close()
+    pool.join()
 
 
 def _get_core_cpd_update(cpd_dict: dict, mine: str) -> pymongo.UpdateOne:
