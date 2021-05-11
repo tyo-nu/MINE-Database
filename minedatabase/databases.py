@@ -304,7 +304,10 @@ def write_compounds_to_mine(
         Number of processors to use, by default 1.
     """
     n_cpds = len(compounds)
-    pool = multiprocessing.Pool(processes)
+    if processes == 1:
+        pool = None
+    else:
+        pool = multiprocessing.Pool(processes)
 
     for i, cpd_chunk in enumerate(utils.Chunks(compounds, chunk_size)):
         if i % 20 == 0:
@@ -314,11 +317,18 @@ def write_compounds_to_mine(
         reactant_in_requests = []
         product_of_requests = []
 
-        for res in pool.imap_unordered(_get_cpd_insert, cpd_chunk):
-            cpd_request, reactant_in_request, product_of_request = res
-            cpd_requests.append(cpd_request)
-            reactant_in_requests.extend(reactant_in_request)
-            product_of_requests.extend(product_of_request)
+        if pool:
+            for res in pool.imap_unordered(_get_cpd_insert, cpd_chunk):
+                cpd_request, reactant_in_request, product_of_request = res
+                cpd_requests.append(cpd_request)
+                reactant_in_requests.extend(reactant_in_request)
+                product_of_requests.extend(product_of_request)
+        else:
+            for res in map(_get_cpd_insert, cpd_chunk):
+                cpd_request, reactant_in_request, product_of_request = res
+                cpd_requests.append(cpd_request)
+                reactant_in_requests.extend(reactant_in_request)
+                product_of_requests.extend(product_of_request)
 
         db.compounds.bulk_write(cpd_requests, ordered=False)
         if reactant_in_requests:
@@ -326,8 +336,9 @@ def write_compounds_to_mine(
         if product_of_requests:
             db.product_of.bulk_write(product_of_requests, ordered=False)
 
-    pool.close()
-    pool.join()
+    if pool:
+        pool.close()
+        pool.join()
 
 
 def _get_cpd_insert(cpd_dict: dict):
@@ -487,7 +498,10 @@ def write_core_compounds(
         The number of processors to use, by default 1.
     """
     n_cpds = len(compounds)
-    pool = multiprocessing.Pool(processes)
+    if processes == 1:
+        pool = None
+    else:
+        pool = multiprocessing.Pool(processes)
 
     for i, cpd_chunk in enumerate(utils.Chunks(compounds, chunk_size)):
         if i % 20 == 0:
@@ -496,7 +510,11 @@ def write_core_compounds(
         # Capture annoying RDKit output
 
         cpd_chunk = [deepcopy(cpd) for cpd in cpd_chunk if cpd["_id"].startswith("C")]
-        core_requests = [req for req in pool.map(_get_core_cpd_insert, cpd_chunk)]
+        if pool:
+            core_requests = [req for req in pool.map(_get_core_cpd_insert, cpd_chunk)]
+        else:
+            core_requests = [req for req in map(_get_core_cpd_insert, cpd_chunk)]
+
         core_update_requests = [
             _get_core_cpd_update(cpd_dict, mine) for cpd_dict in cpd_chunk
         ]
@@ -506,9 +524,9 @@ def write_core_compounds(
         # first to ensure cpd exists
         db.core_compounds.bulk_write(core_requests)
         db.core_compounds.bulk_write(core_update_requests)
-
-    pool.close()
-    pool.join()
+    if pool:
+        pool.close()
+        pool.join()
 
 
 def _get_core_cpd_update(cpd_dict: dict, mine: str) -> pymongo.UpdateOne:

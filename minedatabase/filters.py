@@ -12,10 +12,11 @@ import copy
 import multiprocessing
 import time
 from functools import partial
-from typing import Callable, Dict, List, Optional, Set, Tuple
+from typing import Callable, Dict, List, Optional, Set, Tuple, Union
 
 import numpy as np
 import pandas as pd
+import periodictable
 import rdkit.rdBase as rkrb
 import rdkit.RDLogger as rkl
 from mordred import Calculator, descriptors
@@ -29,10 +30,9 @@ from rdkit.DataStructs import FingerprintSimilarity
 from scipy.stats import rv_discrete
 from sklearn.ensemble import RandomForestRegressor
 
-from minedatabase import utils
 from minedatabase.metabolomics import MetabolomicsDataset, Peak
 from minedatabase.pickaxe import Pickaxe
-from minedatabase.utils import Chunks, get_fp
+from minedatabase.utils import Chunks, get_fp, neutralise_charges
 
 
 logger = rkl.logger()
@@ -772,7 +772,7 @@ class MetabolomicsFilter(Filter):
                 smiles = CanonSmiles(smiles)
 
                 mol = MolFromSmiles(smiles)
-                mol = utils.neutralise_charges(mol)
+                mol = neutralise_charges(mol)
                 inchi_key = MolToInchiKey(mol)
             else:
                 mol = None
@@ -1029,7 +1029,7 @@ class MetabolomicsFilter(Filter):
 ###############################################################################
 
 ###############################################################################
-# Hard cutoff filters -- e.g. Tanimoto and MCS metric
+# Cutoff filters -- e.g. Tanimoto, MCS metric, and molecular weight
 
 
 class TanimotoFilter(Filter):
@@ -1129,11 +1129,14 @@ class TanimotoFilter(Filter):
         cpds_remove_set = set()
         for c_id, current_tani in cpd_filters:
             # Check if tani is increasing
-            if (
-                self.increasing_tani
-                and current_tani >= pickaxe.compounds[c_id]["last_tani"]
-            ):
-                pickaxe.compounds[c_id]["last_tani"] = current_tani
+            if self.increasing_tani:
+                if current_tani >= pickaxe.compounds[c_id]["last_tani"]:
+                    pickaxe.compounds[c_id]["last_tani"] = current_tani
+                else:
+                    pickaxe.compounds[c_id]["Expand"] = False
+                    cpds_remove_set.add(c_id)
+                    continue
+
             if current_tani < this_gen_crit_tani:
                 pickaxe.compounds[c_id]["Expand"] = False
                 cpds_remove_set.add(c_id)
@@ -1191,8 +1194,8 @@ class TanimotoFilter(Filter):
         self,
         target_fps: List[RDKFingerprint],
         this_crit_tani: float,
-        compound_info: (str, str),
-    ) -> (str, float):
+        compound_info: Tuple[str, str],
+    ) -> Tuple[str, float]:
         # do finger print loop here
         """
         Helper function to allow parallel computation of Tanimoto filtering.
@@ -1390,13 +1393,13 @@ class MCSFilter(Filter):
         self,
         target_smiles: List[str],
         retro: bool,
-        compound_info: (str, str),
+        compound_info: Tuple[str, str],
         this_crit_mcs: float,
-    ) -> (str, float):
+    ) -> Tuple[str, float]:
         """Compare target MCS.
 
         Helper function to allow parallel computation of MCS filtering.
-        Works with _filter_by_tani_helper.
+        Works with _filter_by_mcs_helper.
 
         Returns cpd_id if a the compound is similar enough to a target.
 
@@ -1466,6 +1469,180 @@ class MCSFilter(Filter):
                 f"--took {round(time.time() - time_sample, 2)}s.\n"
             )
         )
+
+
+class MWFilter(Filter):
+    """A filter that removes compounds not within a MW range.
+
+    This filter specifies a minimum and maximum molecular weight to create a range.
+    Specifying None for either value will yield an unbounded MW range on that end.
+
+    For example, specifying min_MW = None and max_MW = 1000 will give compounds less
+    than or equal to 1000 g/mol.
+
+    Parameters
+    ----------
+    min_MW : Union[float, None]
+        Minimum MW in g/mol, by default None.
+    max_MW : Union[float, None]
+        Maximum MW in g/mol, by default None.
+
+    Attributes
+    ----------
+    min_MW : Union[float, None]
+        Minimum MW in g/mol.
+    max_MW : Union[float, None]
+        Maximum MW in g/mol.
+    """
+
+    def __init__(
+        self,
+        min_MW: Union[float, None] = None,
+        max_MW: Union[float, None] = None,
+    ) -> None:
+        self._filter_name = "Molecular Weight"
+
+        self.min_MW = min_MW or -1
+        self.max_MW = max_MW
+
+    @property
+    def filter_name(self) -> str:
+        return self._filter_name
+
+    def _choose_cpds_to_filter(self, pickaxe: Pickaxe, processes: int = 1) -> Set[str]:
+        """
+        Check the compounds against the MW constraints and return
+        compounds to filter.
+        """
+
+        def MW_is_good(cpd):
+            cpd_MW = periodictable.formula(cpd["Formula"]).mass
+            return self.min_MW < cpd_MW and cpd_MW < self.max_MW
+
+        def is_target(cpd, pickaxe):
+            for t_id in pickaxe.targets:
+                if "C" + t_id[1:] == cpd["_id"]:
+                    return True
+            return False
+
+        cpds_remove_set = set()
+
+        print(
+            f"Filtering Generation {pickaxe.generation} "
+            f"with {self.min_MW} < MW < {self.max_MW}."
+        )
+
+        for cpd in pickaxe.compounds.values():
+            # Compounds are in generation and correct type
+            if cpd["Generation"] == pickaxe.generation and cpd["Type"] not in [
+                "Coreactant",
+                "Target Compound",
+            ]:
+                # Check for targets and only react if terminal
+                if pickaxe.react_targets:
+                    if not MW_is_good(cpd):
+                        cpds_remove_set.add(cpd["_id"])
+                else:
+                    if is_target(cpd, pickaxe):
+                        pickaxe.compounds[cpd["_id"]]["Expand"] = False
+                    else:
+                        if not MW_is_good(cpd):
+                            cpds_remove_set.add(cpd["_id"])
+
+        for c_id in cpds_remove_set:
+            pickaxe.compounds[c_id]["Expand"] = False
+
+        return cpds_remove_set
+
+
+class AtomicCompositionFilter(Filter):
+    """Filter that removes compounds not within specific atomic composition ranges.
+
+    This filter checks to see if the atomic composition of a compound is
+    within a specified range. As an example, to only keep compounds with carbon between 4-7 and
+    oxygen between 0-4 the following input would be used:
+
+    atomic_composition = {"C": [4, 7], "O": [0, 4]}
+
+    Parameters
+    ----------
+    atomic_composition : Dict
+        A dictionary containing ranges for elemental composition. Of form
+        {"Atom Symbol": [min, max]}, by default None.
+
+    Attributes
+    ----------
+    atomic_composition : Dict
+        A dictionary containing ranges for elemental composition.
+    """
+
+    def __init__(
+        self,
+        atomic_composition_constraints: Dict = None,
+    ) -> None:
+        self._filter_name = "Atomic Composition"
+
+        self.atomic_composition_constraints = atomic_composition_constraints
+
+    @property
+    def filter_name(self) -> str:
+        return self._filter_name
+
+    def _choose_cpds_to_filter(self, pickaxe: Pickaxe, processes: int = 1) -> Set[str]:
+        """
+        Check the compounds against the atomic composition constraints and return
+        compounds to filter.
+        """
+
+        def composition_is_good(cpd):
+            atom_count = cpd["atom_count"]
+            for atom in atom_count:
+                atom_range = self.atomic_composition_constraints.get(atom)
+                if atom_range:
+                    atom_min = atom_range[0] or 0
+                    atom_max = atom_range[1] or 10 ** 5
+
+                    if not (
+                        atom_min <= atom_count[atom] and atom_count[atom] <= atom_max
+                    ):
+                        return False
+
+            return True
+
+        def is_target(cpd, pickaxe):
+            for t_id in pickaxe.targets:
+                if "C" + t_id[1:] == cpd["_id"]:
+                    return True
+            return False
+
+        cpds_remove_set = set()
+
+        print(
+            f"Filtering Generation {pickaxe.generation} "
+            f"with atomic composition {self.atomic_composition_constraints}."
+        )
+
+        for cpd in pickaxe.compounds.values():
+            # Compounds are in generation and correct type
+            if cpd["Generation"] == pickaxe.generation and cpd["Type"] not in [
+                "Coreactant",
+                "Target Compound",
+            ]:
+                # Check for targets and only react if terminal
+                if pickaxe.react_targets:
+                    if not composition_is_good(cpd):
+                        cpds_remove_set.add(cpd["_id"])
+                else:
+                    if is_target(cpd, pickaxe):
+                        pickaxe.compounds[cpd["_id"]]["Expand"] = False
+                    else:
+                        if not composition_is_good(cpd):
+                            cpds_remove_set.add(cpd["_id"])
+
+        for c_id in cpds_remove_set:
+            pickaxe.compounds[c_id]["Expand"] = False
+
+        return cpds_remove_set
 
 
 #

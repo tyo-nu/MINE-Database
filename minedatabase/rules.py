@@ -10,11 +10,11 @@ import pandas as pd
 
 pwd = Path(__file__).parent
 
-pattern_ignore_dictionary = {  
+pattern_ignore_dictionary = {
     "aromatic": r":\[|\]:",
     "aromatic_oxygen": r"^\[#6:\d+\]:|\[#6:\d+\]:|\[#6:\d+\]\d:|\[#6:\d+\]:\d",
     "carbonyl": r"=\[#8:\d\]|\[#8:\d\]=",
-    "nitrogen": r"\[#7:\d+\]",    
+    "nitrogen": r"\[#7:\d+\]",
     "oxygen": r"\[#8:\d+\]",
     "fluorine": r"\[#9:\d+\]",
     "phosphorus": r"\[#15:\d+\]",
@@ -22,15 +22,16 @@ pattern_ignore_dictionary = {
     "chlorine": r"\[#17:\d+\]",
     "bromine": r"\[#35:\d+\]",
     "iodine": r"\[#53:\d+\]",
-    "halogen": r"\[#(9|17|35|53):\d+\]"
+    "halogen": r"\[#(9|17|35|53):\d+\]",
 }
+
 
 def metacyc_generalized(
     n_rules: int = None,
     fraction_coverage: float = None,
     anaerobic: float = False,
-    ignore_features: List[str] = None,
-    **kwargs
+    ignore_containing: List[str] = None,
+    **kwargs,
 ) -> Tuple[StringIO, StringIO, str]:
     """Generate generalize metacyc rule subsets.
 
@@ -38,7 +39,7 @@ def metacyc_generalized(
     number of rules of the fraction coverage of metacyc desired. Rules are chosen
     in the order of rules that map the most reactions to least. For fractional coverage
     the lowest number of rules that give a coverage less than or equal to the specified
-    coverage is given. 
+    coverage is given.
 
     Specific rules can be ignored as well to prune the reaction list to specific
     reactions.
@@ -53,7 +54,7 @@ def metacyc_generalized(
         on which rules are excluded, by default None.
     anaerobic: float, optional
         Whether to remove oxygen requiring reactions.
-    ignore_features: List[str], optional
+    ignore_containing: List[str], optional
         A list containing features to ignore. Valid features are:
             - aromatic
             - aromatic_oxygen
@@ -82,9 +83,9 @@ def metacyc_generalized(
     coreactants = pwd / Path("data/metacyc_rules/metacyc_coreactants.tsv")
 
     # Get dataframe to help select rules
-    rule_df = pd.read_csv(
-        reaction_mapping, delimiter="\t", usecols=["rule"]
-    ).rename(columns={"rule": "Name"})
+    rule_df = pd.read_csv(reaction_mapping, delimiter="\t", usecols=["rule"]).rename(
+        columns={"rule": "Name"}
+    )
 
     # Generate CDF for determining fraction coverage
     rule_df.Name = rule_df.Name.map(lambda s: s.split("_")[0])
@@ -95,7 +96,7 @@ def metacyc_generalized(
         rules,
         delimiter="\t"
         # usecols=["Name", "Reactants", "SMARTS", "Prod"]
-        )
+    )
     rule_df = pd.merge(rule_counts, rule_df, on="Name")
 
     # Filter out any reactions based on filtering
@@ -103,15 +104,17 @@ def metacyc_generalized(
     if anaerobic:
         rule_df = rule_df[~rule_df["Reactants"].str.contains("^O2|;O2|O2;")]
         name_append += "_anaerobic"
-    
-    if ignore_features:
-        patterns_to_ignore = r"|".join(pattern_ignore_dictionary[feature] for feature in ignore_features)
+
+    if ignore_containing:
+        patterns_to_ignore = r"|".join(
+            pattern_ignore_dictionary[feature] for feature in ignore_containing
+        )
         rule_df = rule_df[~rule_df["SMARTS"].str.contains(patterns_to_ignore)]
-        name_append += "_ignore_features"
+        name_append += "_ignore_containing"
 
     # Reindex DF
     rule_df = rule_df.reset_index(drop=True)
-    
+
     # Get regex pattern to search for rules to filter dataframe
     if n_rules:
         # Default to n_rules if all are specified
@@ -138,9 +141,12 @@ def metacyc_generalized(
     # get stream to new rules
     new_rules = rule_df.iloc[0:n_rules]
     if not return_counts:
-        new_rules = new_rules.drop(columns=["counts", "cdf"])
+        new_rules = new_rules.drop(columns=["counts"])
+        if "cdf" in new_rules.columns:
+            new_rules = new_rules.drop(columns=["cdf"])
+
     stream = StringIO()
-    new_rules.to_csv(stream, sep="\t")
+    new_rules.to_csv(stream, sep="\t", index=False)
     stream = StringIO(stream.getvalue())
 
     return stream, coreactants, rule_name
@@ -150,7 +156,7 @@ def metacyc_intermediate(
     n_rules: int = None,
     fraction_coverage: float = None,
     anaerobic: float = False,
-    ignore_features: List[str] = None
+    ignore_containing: List[str] = None,
 ) -> Tuple[StringIO, StringIO, str]:
     """Generate intermediate metacyc rule subsets.
 
@@ -167,7 +173,7 @@ def metacyc_intermediate(
         The fraction of coverage desired, by default None.
     anaerobic: float, optional
         Whether to remove oxygen requiring reactions.
-    ignore_features: List[str], optional
+    ignore_containing: List[str], optional
         A list containing features to ignore. Valid features are:
             - aromatic
             - aromatic_oxygen
@@ -191,15 +197,13 @@ def metacyc_intermediate(
     """
     # Metacyc Rules
     rules = pwd / Path("data/metacyc_rules/metacyc_intermediate_rules.tsv")
-    uniprot_rules = (
-        pwd / Path("data/metacyc_rules/metacyc_intermediate_rules_uniprot.tsv")
+    uniprot_rules = pwd / Path(
+        "data/metacyc_rules/metacyc_intermediate_rules_uniprot.tsv"
     )
     coreactants = pwd / Path("data/metacyc_rules/metacyc_coreactants.tsv")
 
     # Get intermediate dataframe and sort by reactions mapped
-    rule_df = pd.read_csv(
-        rules, delimiter="\t"
-    )
+    rule_df = pd.read_csv(rules, delimiter="\t")
     rule_df["counts"] = rule_df.Comments.map(lambda s: len(s.split(";")))
     total_rxns = rule_df.counts.sum()
 
@@ -208,34 +212,34 @@ def metacyc_intermediate(
         n_rules=None,
         fraction_coverage=1,
         anaerobic=anaerobic,
-        ignore_features=ignore_features,
-        return_counts=True
+        ignore_containing=ignore_containing,
+        return_counts=True,
     )
     general_rule_df = pd.read_csv(
         general_rule_stream,
         delimiter="\t",
-        usecols=["Name", "Reactants", "SMARTS", "Products", "counts", "Comments"]
+        usecols=["Name", "Reactants", "SMARTS", "Products", "counts", "Comments"],
     )
     valid_rules_pattern = "|".join(rule for rule in general_rule_df["Name"].values)
     rule_df = rule_df[rule_df["Name"].str.contains(valid_rules_pattern)]
-    
+
     # Some generalized have no intermediate, bring those in
-    missing_rules = set(
-        general_rule_df["Name"].values).difference(
-            set(v.split("_")[0] for v in rule_df["Name"].values)
-        )
+    missing_rules = set(general_rule_df["Name"].values).difference(
+        set(v.split("_")[0] for v in rule_df["Name"].values)
+    )
     missing_df = general_rule_df[
-            general_rule_df["Name"].str.contains("|".join(missing_rules))
-        ]
+        general_rule_df["Name"].str.contains("|".join(missing_rules))
+    ]
     rule_df = rule_df.append(missing_df)
-    
-    # Generate 
+
+    # Generate
     # CDF for determining fraction coverage
     rule_df = rule_df.sort_values(by="counts", ascending=False)
-    
-    
+
     # Change Comments to be uniprot
-    uniprot_df = pd.read_csv(uniprot_rules, delimiter="\t", usecols=["Name", "Comments"])
+    uniprot_df = pd.read_csv(
+        uniprot_rules, delimiter="\t", usecols=["Name", "Comments"]
+    )
     uniprot_df = uniprot_df.rename(columns={"Comments": "Uniprot"})
     # rule_df = rule_df.drop(columns=["Comments"])
     rule_df = pd.merge(rule_df, uniprot_df, on="Name", how="left")
@@ -244,9 +248,9 @@ def metacyc_intermediate(
     name_append = ""
     if anaerobic:
         name_append += "_anaerobic"
-    
-    if ignore_features:
-        name_append += "_ignore_features"
+
+    if ignore_containing:
+        name_append += "_ignore_containing"
 
     # Get regex pattern to search for rules to filter dataframe
     if n_rules:
@@ -273,7 +277,7 @@ def metacyc_intermediate(
     new_rules = rule_df.iloc[0:n_rules]
     new_rules = new_rules.drop(columns=["counts", "cdf"])
     stream = StringIO()
-    new_rules.to_csv(stream, sep="\t")
+    new_rules.to_csv(stream, sep="\t", index=False)
     stream = StringIO(stream.getvalue())
 
     return stream, coreactants, rule_name
