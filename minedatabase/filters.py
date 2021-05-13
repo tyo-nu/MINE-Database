@@ -370,7 +370,7 @@ class TanimotoSamplingFilter(Filter):
 
         # Get compounds eligible for expansion in the current generation
         compounds_to_check = []
-        set_unreactive = True
+        set_unreactive = False
 
         for cpd in pickaxe.compounds.values():
             # Compounds are in generation and correct type
@@ -384,16 +384,16 @@ class TanimotoSamplingFilter(Filter):
                     compounds_to_check.append(cpd)
                 else:
                     for t_id in pickaxe.targets:
-                        if "C" + t_id[1:] != cpd["_id"]:
-                            compounds_to_check.append(cpd)
-                            set_unreactive = False
+                        if "C" + t_id[1:] == cpd["_id"]:
+                            set_unreactive = True
                             break
 
                     if set_unreactive:
                         pickaxe.compounds[cpd["_id"]]["Expand"] = False
+                        set_unreactive = False
                     else:
-                        set_unreactive = True
-
+                        compounds_to_check.append(cpd)
+                        
         # Get compounds to keep
         cpd_info = [(cpd["_id"], cpd["SMILES"]) for cpd in compounds_to_check]
 
@@ -407,6 +407,8 @@ class TanimotoSamplingFilter(Filter):
             processes=processes,
         )
 
+        # TODO remove me
+        print("num sampled = ", len(sampled_ids))
         # Get compounds to remove
         ids = set(i[0] for i in cpd_info)
         cpds_remove_set = ids - sampled_ids

@@ -895,10 +895,17 @@ class Pickaxe:
         self.reactions = dict(
             [(k, v) for k, v in self.reactions.items() if k in rxn_set]
         )
+
+        n_targets = 0
+        for cpd_id in self.compounds:
+            if f"T{cpd_id[1:]}" in self.targets:
+                n_targets += 1
+
         print(
             f"Pruned network to {len(cpd_set)} compounds and "
             f"{len(rxn_set)} reactions based on "
-            f"{n_white} whitelisted compounds."
+            f"{n_white} whitelisted compounds.\n"
+            f"Found {n_targets} targets."
         )
 
     def prune_network_to_targets(self) -> None:
