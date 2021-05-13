@@ -9,7 +9,6 @@ from minedatabase.rules import (
     BNICE,
     metacyc_generalized,
     metacyc_intermediate,
-    metacyc_intermediate_uniprot,
 )
 
 
@@ -101,50 +100,6 @@ def test_metacyc_intermediate_specify_fraction():
     assert (
         pk.operators["rule0006_0028"][1]["SMARTS"]
         == rule_assert_dict["Metacyc_intermediate_rule0006_0028"]
-    )
-
-
-def test_metacyc_intermediate_uniprot():
-    rule_list, correactant_list, rule_name = metacyc_intermediate_uniprot()
-    pk = pickaxe.Pickaxe(rule_list=rule_list, coreactant_list=correactant_list)
-
-    assert rule_name == "Metacyc_intermediate_uniprot"
-    assert len(pk.operators) == 3370
-    assert len(pk.coreactants) == 45
-
-    assert (
-        pk.operators["rule0001_0177"][1]["SMARTS"]
-        == rule_assert_dict["Metacyc_intermediate_uniprot_rule0001_0177"]
-    )
-
-
-def test_metacyc_intermediate_uniprot_specify_number():
-    rule_list, correactant_list, rule_name = metacyc_intermediate_uniprot(n_rules=20)
-    pk = pickaxe.Pickaxe(rule_list=rule_list, coreactant_list=correactant_list)
-
-    assert rule_name == "Metacyc_intermediate_uniprot_20_rules"
-    assert len(pk.operators) == 878
-    assert len(pk.coreactants) == 45
-
-    assert (
-        pk.operators["rule0001_0177"][1]["SMARTS"]
-        == rule_assert_dict["Metacyc_intermediate_uniprot_rule0001_0177"]
-    )
-
-
-def test_metacyc_intermediate_uniprot_specify_fraction():
-    rule_list, correactant_list, rule_name = metacyc_intermediate_uniprot(
-        fraction_coverage=0.2
-    )
-    pk = pickaxe.Pickaxe(rule_list=rule_list, coreactant_list=correactant_list)
-
-    assert rule_name == "Metacyc_intermediate_uniprot_0,2_fraction_coverage"
-    assert len(pk.operators) == 280
-    assert len(pk.coreactants) == 45
-
-    assert (
-        pk.operators["rule0006_005"][1]["SMARTS"]
-        == rule_assert_dict["Metacyc_intermediate_uniprot_rule0006_005"]
     )
 
 

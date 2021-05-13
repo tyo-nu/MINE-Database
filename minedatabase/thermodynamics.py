@@ -42,7 +42,7 @@ class Thermodynamics:
         else:
             self.mongo_uri = "localhost:27017"
             self.client = MongoClient()
-        
+
         self.core = self.client["core"]
 
     def _all_dbs_loaded(self):
@@ -59,7 +59,9 @@ class Thermodynamics:
             print("Load eQulibrator local cache.")
             return False
 
-    def load_thermo_from_postgres(self, postgres_uri: str = "postgresql:///eq_compounds") -> None:
+    def load_thermo_from_postgres(
+        self, postgres_uri: str = "postgresql:///eq_compounds"
+    ) -> None:
         """Load a LocalCompoundCache from a postgres uri for equilibrator.
 
         Parameters
@@ -72,7 +74,9 @@ class Thermodynamics:
 
         self.water = self.pc.get_compounds("O")
 
-    def load_thermo_from_sqlite(self, sqlite_filename: str = "compounds.sqlite") -> None:
+    def load_thermo_from_sqlite(
+        self, sqlite_filename: str = "compounds.sqlite"
+    ) -> None:
         """Load a LocalCompoundCache from a sqlite file for equilibrator.
 
         compounds.sqlite can be generated through LocalCompoundCache's method
@@ -88,7 +92,9 @@ class Thermodynamics:
 
         self.water = self.pc.get_compounds("O")
 
-    def get_eQ_compound_from_cid(self, c_id: str, pickaxe: Pickaxe = None, db_name: str = None) -> Union[Compound, None]:
+    def get_eQ_compound_from_cid(
+        self, c_id: str, pickaxe: Pickaxe = None, db_name: str = None
+    ) -> Union[Compound, None]:
         """Get an equilibrator compound for a given c_id from the core.
 
         Attempts to retrieve a compound from the core or a specified db_name.
@@ -118,16 +124,18 @@ class Thermodynamics:
         # Find in mongo db
         elif self._all_dbs_loaded():
             if db_name:
-                compound = self.client[db_name].compounds.find_one({"_id": c_id}, {"SMILES": 1})
+                compound = self.client[db_name].compounds.find_one(
+                    {"_id": c_id}, {"SMILES": 1}
+                )
                 if not compound:
                     compound_smiles = compound["SMILES"]
-            
+
             # No cpd smiles from database name
             if not compound_smiles:
                 compound = self.core.compounds.find_one({"_id": c_id}, {"SMILES": 1})
                 if not compound:
                     compound_smiles = compound["SMILES"]
-            
+
         # No compound_smiles at all
         if not compound_smiles:
             return None
@@ -137,7 +145,9 @@ class Thermodynamics:
             )
             return eQ_compound
 
-    def standard_dg_formation_from_core_cid(self, c_id: str, pickaxe: Pickaxe = None, db_name: str = None) -> Union[pint.Measurement, None]:
+    def standard_dg_formation_from_cid(
+        self, c_id: str, pickaxe: Pickaxe = None, db_name: str = None
+    ) -> Union[pint.Measurement, None]:
         """Get standard ∆Gfo for a compound.
 
         Parameters
@@ -161,7 +171,9 @@ class Thermodynamics:
 
         return dgf
 
-    def get_eQ_reaction_from_rid(self, r_id: str, pickaxe: Pickaxe = None, db_name: str = None) -> Union[PhasedReaction, None]:
+    def get_eQ_reaction_from_rid(
+        self, r_id: str, pickaxe: Pickaxe = None, db_name: str = None
+    ) -> Union[PhasedReaction, None]:
         """Get an eQuilibrator reaction object from an r_id.
 
         Parameters
@@ -203,7 +215,8 @@ class Thermodynamics:
         compounds.update(tuple(p[1] for p in products))
 
         eQ_compound_dict = {
-            c_id: self.get_eQ_compound_from_cid(c_id, pickaxe, db_name) for c_id in compounds
+            c_id: self.get_eQ_compound_from_cid(c_id, pickaxe, db_name)
+            for c_id in compounds
         }
 
         if not all(eQ_compound_dict.values()):
@@ -216,7 +229,9 @@ class Thermodynamics:
 
         return eq_reaction
 
-    def physiological_dg_prime_from_rid(self, r_id: str, pickaxe: str = None, db_name: str = None):
+    def physiological_dg_prime_from_rid(
+        self, r_id: str, pickaxe: str = None, db_name: str = None
+    ) -> Union[pint.Measurement, None]:
         """Calculate the ∆G'physiological of a reaction.
 
         Parameters
@@ -240,7 +255,9 @@ class Thermodynamics:
 
         return dgrp
 
-    def standard_dg_from_rid(self, r_id: str, db_name: str):
+    def standard_dg_from_rid(
+        self, r_id: str, db_name: str
+    ) -> Union[pint.Measurement, None]:
         """Calculate the ∆Go of a reaction.
 
         Parameters

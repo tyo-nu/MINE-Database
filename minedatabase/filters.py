@@ -393,7 +393,7 @@ class TanimotoSamplingFilter(Filter):
                         set_unreactive = False
                     else:
                         compounds_to_check.append(cpd)
-                        
+
         # Get compounds to keep
         cpd_info = [(cpd["_id"], cpd["SMILES"]) for cpd in compounds_to_check]
 

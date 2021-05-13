@@ -1,9 +1,8 @@
 """Generate rules to use in pickaxe runs."""
+from bisect import bisect_right
 from io import StringIO
 from pathlib import Path
-from typing import Tuple, List
-
-from bisect import bisect_right
+from typing import List, Tuple
 
 import pandas as pd
 
