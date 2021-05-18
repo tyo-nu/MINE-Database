@@ -10,6 +10,7 @@ to the .filters property of your pickaxe object.
 import abc
 import copy
 import multiprocessing
+from pickaxe_run import similarity
 import time
 from functools import partial
 from typing import Callable, Dict, List, Optional, Set, Tuple, Union
@@ -310,6 +311,12 @@ class TanimotoSamplingFilter(Filter):
         Number of compounds to sample.
     weight : Callable
         Function to weight the Tanimoto similarity score with.
+    fingerprint_function : Callable
+        Function to calculate fingerprint with. Accepts a SMILES, by default uses
+        RDKFingerprints
+    similarity_function : Callable
+        Function to calculate similarity with. Accepts two fingerprints
+        and returns a similarity score.
 
     Attributes
     ----------
@@ -319,10 +326,18 @@ class TanimotoSamplingFilter(Filter):
         Function to weight the Tanimoto similarity score with.
     """
 
-    def __init__(self, sample_size: int, weight: Callable = None) -> None:
+    def __init__(
+        self,
+        sample_size: int,
+        weight: Callable = None,
+        fingerprint_function: Callable = get_fp,
+        similarity_function: Callable = FingerprintSimilarity,
+    ) -> None:
         self._filter_name = "Tanimoto Sampling Filter"
         self.sample_size = sample_size
         self.sample_weight = weight
+        self.fingerprint_function = fingerprint_function
+        self.similarity_function = similarity_function
 
     @property
     def filter_name(self) -> str:
@@ -393,11 +408,11 @@ class TanimotoSamplingFilter(Filter):
                         set_unreactive = False
                     else:
                         compounds_to_check.append(cpd)
-                        
+
         # Get compounds to keep
         cpd_info = [(cpd["_id"], cpd["SMILES"]) for cpd in compounds_to_check]
 
-        sampled_ids = self._sample_by_tanimoto(
+        sampled_ids = self._sample_by_similarity(
             cpd_info,
             pickaxe.target_fps,
             self.sample_size,
@@ -418,7 +433,7 @@ class TanimotoSamplingFilter(Filter):
 
         return cpds_remove_set
 
-    def _sample_by_tanimoto(
+    def _sample_by_similarity(
         self,
         mol_info: List[Tuple[str, str]],
         t_fp: RDKFingerprint,
@@ -469,7 +484,10 @@ class TanimotoSamplingFilter(Filter):
 
         # Get pandas df and ids
         df = self._gen_df_from_tanimoto(
-            mol_info, t_fp, min_T=min_T, processes=processes
+            mol_info,
+            t_fp,
+            min_T=min_T,
+            processes=processes
         )
         if len(df) <= n_cpds:
             ids = set(df["_id"])
@@ -584,7 +602,9 @@ class TanimotoSamplingFilter(Filter):
         t_df = pd.DataFrame(t_fp, columns=["fp"])
 
         # Calculate Tanimoto for each compound and drop T < min_T
-        partial_T_calc = partial(_calc_max_T, t_df, min_T)
+        partial_T_calc = partial(
+            _calc_max_T, t_df, min_T, self.fingerprint_function, self.similarity_function
+        )
 
         df = pd.DataFrame()
         for mol_chunk in Chunks(mol_info, 10000):
@@ -635,7 +655,13 @@ def _parallelize_dataframe(
     return df
 
 
-def _calc_max_T(t_df: pd.DataFrame, min_T: float, df: pd.DataFrame) -> pd.DataFrame:
+def _calc_max_T(
+    t_df: pd.DataFrame,
+    min_T: float,
+    df: pd.DataFrame,
+    fingerprint_function: Callable,
+    similarity_function: Callable,
+) -> pd.DataFrame:
     """Calculate maximum Tanimoto.
 
     Generate the Tanimoto to use to generate the PMF to sample from.
@@ -650,19 +676,23 @@ def _calc_max_T(t_df: pd.DataFrame, min_T: float, df: pd.DataFrame) -> pd.DataFr
         The minimum Tanimoto similarity score needed to consider a compound.
     df : pd.DataFrame
         Dataframe to calculate the max Tanimoto for.
+    fingerprint_function: Callable
+            Function that generates fingerprints.
+    similarity_function: Callable
+        Function that generates similarity coefficient.
 
     Returns
     -------
     df : pd.Dataframe
         New dataframe with max Tanimoto values calculated.
     """
-    df["fp"] = df["SMILES"].map(get_fp)
+    df["fp"] = df["SMILES"].map(fingerprint_function)
 
     df["T"] = None
     fp = None
     for i in range(len(df)):
         fp = df["fp"].iloc[i]
-        df["T"].iloc[i] = max(t_df["fp"].map(lambda x: FingerprintSimilarity(x, fp)))
+        df["T"].iloc[i] = max(t_df["fp"].map(lambda x: similarity_function(x, fp)))
     # Filter out low Tanimoto
     df = df[df["T"] > min_T]
 
@@ -1047,6 +1077,12 @@ class TanimotoFilter(Filter):
     increasing_tani : bool
         Whether or not to only keep compounds whos Tanimoto score is higher than its
         parent.
+    fingerprint_function : Callable
+        Function to calculate fingerprint with. Accepts a SMILES, by default uses
+        RDKFingerprints
+    similarity_function : Callable
+        Function to calculate similarity with. Accepts two fingerprints
+        and returns a similarity score.
 
     Attributes
     ----------
@@ -1057,10 +1093,12 @@ class TanimotoFilter(Filter):
         parent.
     """
 
-    def __init__(self, crit_tani: float, increasing_tani: bool) -> None:
+    def __init__(self, crit_tani: float, increasing_tani: bool, fingerprint_function: Callable = RDKFingerprint, similarity_function: Callable = FingerprintSimilarity) -> None:
         self._filter_name = "Tanimoto Cutoff"
         self.crit_tani = crit_tani
         self.increasing_tani = increasing_tani
+        self.fingerprint_function = fingerprint_function
+        self.similarity_function = similarity_function
 
     @property
     def filter_name(self) -> str:
@@ -1208,10 +1246,10 @@ class TanimotoFilter(Filter):
         # Generate the fingerprint of a compound and compare to the fingerprints
         # of the targets
         try:
-            fp1 = get_fp(compound_info[1])
+            fp1 = self.fingerprint_function(compound_info[1])
             max_tani = 0
             for fp2 in target_fps:
-                tani = AllChem.DataStructs.FingerprintSimilarity(fp1, fp2)
+                tani = self.similarity_function(fp1, fp2)
                 if tani >= this_crit_tani:
                     return (compound_info[0], tani)
                 elif tani >= max_tani:

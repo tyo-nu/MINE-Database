@@ -22,9 +22,14 @@ from minedatabase.filters import (
     MetabolomicsFilter,
     TanimotoFilter,
     TanimotoSamplingFilter,
+    MWFilter,
+    AtomicCompositionFilter
 )
 from minedatabase.pickaxe import Pickaxe
-from minedatabase.rules import metacyc_generalized, metacyc_intermediate_uniprot
+from minedatabase.rules import metacyc_generalized, metacyc_intermediate
+
+from rdkit.Chem import AllChem
+from rdkit import DataStructs
 
 
 start = time.time()
@@ -40,7 +45,7 @@ start = time.time()
 # Whether or not to write to a mongodb
 write_db = False
 database_overwrite = False
-database = "example_pathway"
+database = "rules_test2"
 # Message to insert into metadata
 message = ("Example run to show how pickaxe is run.")
 
@@ -54,7 +59,7 @@ else:
     mongo_uri = open("mongo_uri.csv").readline().strip("\n")
 
 # Write output .csv files locally
-write_to_csv = True
+write_to_csv = False
 output_dir = "."
 ###############################################################################
 
@@ -65,9 +70,11 @@ input_cpds = "./example_data/starting_cpds_single.csv"
 
 # Generate rules automatically from metacyc generalized. n_rules takes precedence over
 # fraction_coverage if both specified. Passing nothing returns all rules.
-rule_list, coreactant_list, rule_name = metacyc_generalized(
-    n_rules=20,
-    fraction_coverage=None
+rule_list, coreactant_list, rule_name = metacyc_intermediate(
+    n_rules=None,
+    fraction_coverage=0.5,
+    anaerobic=True,
+    ignore_containing = ["aromatic", "halogen"]
 )
 
 ###############################################################################
@@ -108,6 +115,33 @@ prune_to_targets = False
 filter_after_final_gen = True
 
 ##############################################################################
+# Molecular Weight Filter options.
+# Filters by MW range.
+
+# Apply this filter?
+MW_filter = False
+
+# Minimum MW in g/mol. None gives no lower bound.
+min_MW = 100
+
+# Maximum MW in g/mol. None gives no upper bound.
+max_MW = 150
+
+##############################################################################
+# Atomic Composition Filter options.
+# Filters atomic composition ranges.
+
+# Apply this filter?
+atomic_composition_filter = True
+
+# Atomic composition constraint specification
+atomic_composition_constraints = {
+    "C": [4, 7],
+    "O": [5, 5]
+}
+
+
+##############################################################################
 # Tanimoto Filtering options.
 # Filters by tanimoto similarity score, using default RDKit fingerprints
 
@@ -126,27 +160,34 @@ increasing_tani = False
 # Samples by tanimoto similarity score, using default RDKit fingerprints
 
 # Apply this sampler?
-tani_sample = False
-
+tani_sample = True
 # Number of compounds per generation to sample
 sample_size = 100
 
+def fingerprint(smiles):
+    """ fingerprint is a function that accepts a smiles string and
+    generates and rdkit fingerprint object.
+
+    Passing none will use default RDKitFingerprint.
+    """
+    mol = AllChem.MolFromSmiles(smiles)
+    fp = AllChem.GetMorganFingerprint(mol, 2)
+    
+    return fp
+
+def similarity(fp1, fp2):
+    """ similarity is a function that accepts two fingerprints and returns
+    a similarity score between them with range [0, 1]. 
+
+    Passing None will use tanimoto similarity.
+    """
+    return DataStructs.FingerprintSimilarity(fp1, fp2)
 
 def weight(T):
-    """Specify the weight for tanimoto sampling.
-
-    Parameters
-    ----------
-    T : float
-        Tanimoto similarity score between 0 and 1
-
-    Returns
-    -------
-    Foat
-        New value for sampling
+    """weight is a function that accepts a tanimoto similarity score and returns
+    a scaled value by some weighting function.
     """
     return T**4
-
 
 # How to represent the function in text
 weight_representation = "T^4"
@@ -246,6 +287,14 @@ def print_run_parameters():
         print_parameter_list(["met_data_path", "met_data_name",
                               "possible_adducts", "mass_tolerance"])
 
+    if MW_filter:
+        print("\nMolecular Weight Filter Options")
+        print_parameter_list(["min_MW", "max_MW"])
+
+    if atomic_composition_filter:
+        print("\nAtomic Composition Filter")
+        print_parameter_list(["atomic_composition_constraints"])
+
     print("\nPickaxe Options")
     print_parameter_list(
         [
@@ -299,7 +348,7 @@ if __name__ == "__main__":  # required for parallelization on Windows
     #     pk.load_partial_operators(mapped_rxns)
 
     # Load target compounds for filters
-    if (tani_filter or mcs_filter or tani_sample or load_targets_without_filter):
+    if (tani_filter or mcs_filter or tani_sample or load_targets_without_filter or MW_filter or atomic_composition_filter):
         pk.load_targets(target_cpds)
 
     # Apply filters
@@ -311,7 +360,7 @@ if __name__ == "__main__":  # required for parallelization on Windows
         pk.filters.append(taniFilter)
 
     if tani_sample:
-        taniSampleFilter = TanimotoSamplingFilter(sample_size=sample_size, weight=weight)
+        taniSampleFilter = TanimotoSamplingFilter(sample_size=sample_size, weight=weight, fingerprint_function=fingerprint, similarity_function=similarity)
         pk.filters.append(taniSampleFilter)
 
     if mcs_filter:
@@ -335,6 +384,12 @@ if __name__ == "__main__":  # required for parallelization on Windows
                                        rt_important_features=rt_important_features)
         pk.filters.append(metFilter)
 
+    if MW_filter:
+        pk.filters.append(MWFilter(min_MW, max_MW))
+
+    if atomic_composition_filter:
+        pk.filters.append(AtomicCompositionFilter(atomic_composition_constraints))
+        
     # Transform compounds (the main step)
     pk.transform_all(processes, generations)
 
