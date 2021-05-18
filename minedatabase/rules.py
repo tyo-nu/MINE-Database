@@ -9,7 +9,7 @@ import pandas as pd
 
 pwd = Path(__file__).parent
 
-pattern_ignore_dictionary = {
+pattern_dictionary = {
     "aromatic": r":\[|\]:",
     "aromatic_oxygen": r"^\[#6:\d+\]:|\[#6:\d+\]:|\[#6:\d+\]\d:|\[#6:\d+\]:\d",
     "carbonyl": r"=\[#8:\d\]|\[#8:\d\]=",
@@ -29,7 +29,8 @@ def metacyc_generalized(
     n_rules: int = None,
     fraction_coverage: float = None,
     anaerobic: float = False,
-    ignore_containing: List[str] = None,
+    include_containing: List[str] = None,
+    exclude_containing: List[str] = None,
     **kwargs,
 ) -> Tuple[StringIO, StringIO, str]:
     """Generate generalize metacyc rule subsets.
@@ -40,8 +41,10 @@ def metacyc_generalized(
     the lowest number of rules that give a coverage less than or equal to the specified
     coverage is given.
 
-    Specific rules can be ignored as well to prune the reaction list to specific
-    reactions.
+    Specific groups can be specified to be excluded or used as well to prune to specific
+    rules. This is a two step process:
+        1) Select rules by include_containing. If none specified, use all rules.
+        2) Remove rules by excluded_containing.
 
     Parameters
     ----------
@@ -53,8 +56,8 @@ def metacyc_generalized(
         on which rules are excluded, by default None.
     anaerobic: float, optional
         Whether to remove oxygen requiring reactions.
-    ignore_containing: List[str], optional
-        A list containing features to ignore. Valid features are:
+    include_containing: List[str], optional
+        A list containing features to include. Valid features are:
             - aromatic
             - aromatic_oxygen
             - carbonyl
@@ -67,6 +70,22 @@ def metacyc_generalized(
             - chlorine
             - bromine
             - iodine
+        sending None gives all groups, by default None.
+    exclude_containing: List[str], optional
+        A list containing features to exclude. 
+            - aromatic
+            - aromatic_oxygen
+            - carbonyl
+            - halogen
+            - nitrogen
+            - oxygen
+            - phosphorus
+            - sulfur
+            - fluorine
+            - chlorine
+            - bromine
+            - iodine
+        By default None.
 
     Returns
     -------
@@ -97,6 +116,7 @@ def metacyc_generalized(
         # usecols=["Name", "Reactants", "SMARTS", "Prod"]
     )
     rule_df = pd.merge(rule_counts, rule_df, on="Name")
+    rule_df["cdf"] = rule_df["counts"].cumsum() / rule_counts.counts.sum()
 
     # Filter out any reactions based on filtering
     name_append = ""
@@ -104,12 +124,19 @@ def metacyc_generalized(
         rule_df = rule_df[~rule_df["Reactants"].str.contains("^O2|;O2|O2;")]
         name_append += "_anaerobic"
 
-    if ignore_containing:
-        patterns_to_ignore = r"|".join(
-            pattern_ignore_dictionary[feature] for feature in ignore_containing
+    if include_containing:
+        patterns_to_include = r"|".join(
+            pattern_dictionary[feature] for feature in include_containing
         )
-        rule_df = rule_df[~rule_df["SMARTS"].str.contains(patterns_to_ignore)]
-        name_append += "_ignore_containing"
+        rule_df = rule_df[rule_df["SMARTS"].str.contains(patterns_to_include)]
+        name_append += "_with_inclusion"
+
+    if exclude_containing:
+        patterns_to_exclude = r"|".join(
+            pattern_dictionary[feature] for feature in exclude_containing
+        )
+        rule_df = rule_df[~rule_df["SMARTS"].str.contains(patterns_to_exclude)]
+        name_append += "_with_exclusion"
 
     # Reindex DF
     rule_df = rule_df.reset_index(drop=True)
@@ -121,7 +148,6 @@ def metacyc_generalized(
         rule_name = f"Metacyc_generalized_{n_rules}_rules"
     elif fraction_coverage:
         # Calculate CDF
-        rule_df["cdf"] = rule_df["counts"].cumsum() / sum(rule_counts["counts"])
         n_rules = bisect_right(rule_df["cdf"].values, fraction_coverage) + 1
         # n_rules = rule_df["cdf"].sub(fraction_coverage).abs().idxmin() + 1
         # pat = "|".join(list(rule_df.iloc[0:n_rules]["rule"]))
@@ -155,7 +181,8 @@ def metacyc_intermediate(
     n_rules: int = None,
     fraction_coverage: float = None,
     anaerobic: float = False,
-    ignore_containing: List[str] = None,
+    include_containing: List[str] = None,
+    exclude_containing: List[str] = None,
 ) -> Tuple[StringIO, StringIO, str]:
     """Generate intermediate metacyc rule subsets.
 
@@ -172,8 +199,23 @@ def metacyc_intermediate(
         The fraction of coverage desired, by default None.
     anaerobic: float, optional
         Whether to remove oxygen requiring reactions.
-    ignore_containing: List[str], optional
-        A list containing features to ignore. Valid features are:
+    include_containing: List[str], optional
+        A list containing features to include. Valid features are:
+            - aromatic
+            - aromatic_oxygen
+            - carbonyl
+            - halogen
+            - nitrogen
+            - oxygen
+            - phosphorus
+            - sulfur
+            - fluorine
+            - chlorine
+            - bromine
+            - iodine
+        sending None gives all groups, by default None.
+    exclude_containing: List[str], optional
+        A list containing features to exclude. Valid features are:
             - aromatic
             - aromatic_oxygen
             - carbonyl
@@ -211,7 +253,8 @@ def metacyc_intermediate(
         n_rules=None,
         fraction_coverage=1,
         anaerobic=anaerobic,
-        ignore_containing=ignore_containing,
+        include_containing=include_containing,
+        exclude_containing=exclude_containing,
         return_counts=True,
     )
     general_rule_df = pd.read_csv(
@@ -223,17 +266,19 @@ def metacyc_intermediate(
     rule_df = rule_df[rule_df["Name"].str.contains(valid_rules_pattern)]
 
     # Some generalized have no intermediate, bring those in
-    missing_rules = set(general_rule_df["Name"].values).difference(
-        set(v.split("_")[0] for v in rule_df["Name"].values)
+    missing_rules = (
+        set(general_rule_df.Name) - set(v.split("_")[0] for v in rule_df["Name"].values)
     )
-    missing_df = general_rule_df[
-        general_rule_df["Name"].str.contains("|".join(missing_rules))
-    ]
-    rule_df = rule_df.append(missing_df)
+    if missing_rules:
+        missing_df = general_rule_df[
+            general_rule_df["Name"].str.contains("|".join(missing_rules))
+        ]
+        rule_df = rule_df.append(missing_df)
 
     # Generate
     # CDF for determining fraction coverage
     rule_df = rule_df.sort_values(by="counts", ascending=False)
+    rule_df["cdf"] = rule_df["counts"].cumsum() / total_rxns
 
     # Change Comments to be uniprot
     uniprot_df = pd.read_csv(
@@ -248,8 +293,11 @@ def metacyc_intermediate(
     if anaerobic:
         name_append += "_anaerobic"
 
-    if ignore_containing:
-        name_append += "_ignore_containing"
+    if include_containing:
+        name_append += "_with_inclusion"
+
+    if exclude_containing:
+        name_append += "_with_exclusion"
 
     # Get regex pattern to search for rules to filter dataframe
     if n_rules:
@@ -257,7 +305,6 @@ def metacyc_intermediate(
         rule_name = f"Metacyc_intermediate_{n_rules}_rules"
     elif fraction_coverage:
         # Calculate CDF
-        rule_df["cdf"] = rule_df["counts"].cumsum() / total_rxns
         n_rules = bisect_right(rule_df["cdf"].values, fraction_coverage) + 1
         rule_name = (
             f"Metacyc_intermediate_{fraction_coverage}_fraction_coverage".replace(
@@ -267,14 +314,17 @@ def metacyc_intermediate(
     else:
         # pat = "|".join(list(rule_counts["rule"]))
         n_rules = len(rule_df)
-        rule_name = "Metacyc_generalized"
+        rule_name = "Metacyc_intermediate"
 
     # get stream to new rules
     rule_name += name_append
 
     # get stream to new rules
     new_rules = rule_df.iloc[0:n_rules]
-    new_rules = new_rules.drop(columns=["counts", "cdf"])
+    if "cdf" in new_rules.columns:
+            new_rules = new_rules.drop(columns=["cdf"])
+    if "counts" in new_rules.columns:
+            new_rules = new_rules.drop(columns=["counts"])
     stream = StringIO()
     new_rules.to_csv(stream, sep="\t", index=False)
     stream = StringIO(stream.getvalue())

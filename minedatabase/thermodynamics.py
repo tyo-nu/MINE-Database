@@ -11,6 +11,7 @@ from equilibrator_api import (
     default_physiological_p_mg,
     default_physiological_temperature,
 )
+from equilibrator_api import Q_
 from equilibrator_api.phased_reaction import PhasedReaction
 from equilibrator_assets.compounds import Compound
 from equilibrator_assets.local_compound_cache import LocalCompoundCache
@@ -22,18 +23,39 @@ from minedatabase.pickaxe import Pickaxe
 
 
 class Thermodynamics:
+    """Class to calculate thermodynamics of Pickaxe runs.
+
+    Thermodynamics allows for the calculation of:
+        1) Standard ∆G' of formation
+        2) Standard ∆G'o of reaction
+        3) Physiological ∆G'm of reaction
+        4) Adjusted ∆G' of reaction
+
+    eQuilibrator objects can also be obtained from r_ids and c_ids. 
+
+    Parameters
+    ----------
+    mongo_uri: str
+        URI of the mongo database.
+    client: MongoClient
+        Connection to Mongo.
+    CC: ComponentContribution
+        eQuilibrator Component Contribution object to calculate ∆G with.
+    lc: LocalCompoundCache
+        The local compound cache to generate eQuilibrator compounds from.
+    """
     def __init__(
         self,
     ):
         # Mongo params
         self.mongo_uri = None
         self.client = None
-        self.core = None
+        self._core = None
 
         # eQ params
         self.CC = ComponentContribution()
-        self.pc = None
-        self.water = None
+        self.lc = None
+        self._water = None
 
     def load_mongo(self, mongo_uri: Union[str, None] = None):
         if mongo_uri:
@@ -43,21 +65,28 @@ class Thermodynamics:
             self.mongo_uri = "localhost:27017"
             self.client = MongoClient()
 
-        self.core = self.client["core"]
+        self._core = self.client["core"]
 
     def _all_dbs_loaded(self):
-        if self.client and self.core and self.pc:
+        if self.client and self._core and self.lc:
             return True
         else:
             print("Load connection to Mongo and eQuilibrator local cache.")
             return False
 
     def _eq_loaded(self):
-        if self.pc:
+        if self.lc:
             return True
         else:
             print("Load eQulibrator local cache.")
             return False
+
+    def _reset_CC(self):
+        """ reset CC back to defaults """
+        self.CC.p_h = default_physiological_p_h
+        self.CC.p_mg = default_physiological_p_mg
+        self.CC.temperature = default_physiological_temperature
+        self.CC.ionic_strength = default_physiological_ionic_strength
 
     def load_thermo_from_postgres(
         self, postgres_uri: str = "postgresql:///eq_compounds"
@@ -69,10 +98,10 @@ class Thermodynamics:
         postgres_uri : str, optional
             uri of the postgres DB to use, by default "postgresql:///eq_compounds"
         """
-        self.pc = LocalCompoundCache()
-        self.pc.ccache = CompoundCache(create_engine(postgres_uri))
+        self.lc = LocalCompoundCache()
+        self.lc.ccache = CompoundCache(create_engine(postgres_uri))
 
-        self.water = self.pc.get_compounds("O")
+        self._water = self.lc.get_compounds("O")
 
     def load_thermo_from_sqlite(
         self, sqlite_filename: str = "compounds.sqlite"
@@ -84,13 +113,13 @@ class Thermodynamics:
 
         Parameters
         ----------
-        postgres_uri : str, optional
-            uri of the postgres DB to use, by default "postgresql:///eq_compounds"
+        sqlite_filename: str
+            filename of the sqlite file to load. 
         """
-        self.pc = LocalCompoundCache()
-        self.pc.load_cache(sqlite_filename)
+        self.lc = LocalCompoundCache()
+        self.lc.load_cache(sqlite_filename)
 
-        self.water = self.pc.get_compounds("O")
+        self._water = self.lc.get_compounds("O")
 
     def get_eQ_compound_from_cid(
         self, c_id: str, pickaxe: Pickaxe = None, db_name: str = None
@@ -132,7 +161,7 @@ class Thermodynamics:
 
             # No cpd smiles from database name
             if not compound_smiles:
-                compound = self.core.compounds.find_one({"_id": c_id}, {"SMILES": 1})
+                compound = self._core.compounds.find_one({"_id": c_id}, {"SMILES": 1})
                 if not compound:
                     compound_smiles = compound["SMILES"]
 
@@ -140,7 +169,7 @@ class Thermodynamics:
         if not compound_smiles:
             return None
         else:
-            eQ_compound = self.pc.get_compounds(
+            eQ_compound = self.lc.get_compounds(
                 compound_smiles, bypass_chemaxon=True, save_empty_compounds=True
             )
             return eQ_compound
@@ -162,7 +191,7 @@ class Thermodynamics:
         Returns
         -------
         Union[pint.Measurement, None]
-            ∆Gf for a compound, or None if unavailable.
+            ∆Gf'o for a compound, or None if unavailable.
         """
         eQ_cpd = self.get_eQ_compound_from_cid(c_id, pickaxe, db_name)
         if not eQ_cpd:
@@ -223,16 +252,16 @@ class Thermodynamics:
             return None
 
         if "X73bc8ef21db580aefe4dbc0af17d4013961d9d17" not in compounds:
-            eQ_compound_dict["water"] = self.water
+            eQ_compound_dict["water"] = self._water
 
         eq_reaction = Reaction.parse_formula(eQ_compound_dict.get, reaction_string)
 
         return eq_reaction
 
     def physiological_dg_prime_from_rid(
-        self, r_id: str, pickaxe: str = None, db_name: str = None
+        self, r_id: str, pickaxe: Pickaxe = None, db_name: str = None
     ) -> Union[pint.Measurement, None]:
-        """Calculate the ∆G'physiological of a reaction.
+        """Calculate the ∆Gm' of a reaction.
 
         Parameters
         ----------
@@ -246,35 +275,82 @@ class Thermodynamics:
         Returns
         -------
         pint.Measurement
-            The calculated ∆G'physiological.
+            The calculated ∆G'm.
         """
-        eQ_reactiton = self.get_eQ_reaction_from_rid(r_id, pickaxe, db_name)
-        if not eQ_reactiton:
+        eQ_reaction = self.get_eQ_reaction_from_rid(r_id, pickaxe, db_name)
+        if not eQ_reaction:
             return None
-        dgrp = self.CC.physiological_dg_prime(eQ_reactiton)
+        dGm_prime = self.CC.physiological_dg_prime(eQ_reaction)
 
-        return dgrp
+        return dGm_prime
 
-    def standard_dg_from_rid(
-        self, r_id: str, db_name: str
+    def standard_dg_prime_from_rid(
+        self, r_id: str, pickaxe: Pickaxe = None, db_name: str = None
     ) -> Union[pint.Measurement, None]:
-        """Calculate the ∆Go of a reaction.
+        """Calculate the ∆G'o of a reaction.
 
         Parameters
         ----------
         r_id : str
             ID of the reaction to calculate.
+        pickaxe : Pickaxe
+            pickaxe object to look for the compound in, by default None.
         db_name : str
             MINE the reaction is found in.
 
         Returns
         -------
         pint.Measurement
-            The calculated ∆Go.
+            The calculated ∆G'o.
         """
-        eQ_reactiton = self.get_eQ_reaction_from_rid(r_id, db_name)
-        if not eQ_reactiton:
+        eQ_reaction = self.get_eQ_reaction_from_rid(r_id, pickaxe, db_name)
+        if not eQ_reaction:
             return None
-        dgrp = self.CC.standard_dg_prime(eQ_reactiton)
+        dG0_prime = self.CC.standard_dg_prime(eQ_reaction)
 
-        return dgrp
+        return dG0_prime
+
+    def dg_prime_from_rid(
+        self,
+        r_id: str,
+        pickaxe: Pickaxe = None,
+        db_name: str = None,
+        p_h: Q_ = default_physiological_p_h,
+        p_mg: Q_ = default_physiological_p_mg,
+        ionic_strength: Q_ = default_physiological_ionic_strength,
+    ) -> Union[pint.Measurement, None]:
+        """Calculate the ∆G' of a reaction.
+
+        Parameters
+        ----------
+        r_id : str
+            ID of the reaction to calculate.
+        pickaxe : Pickaxe
+            pickaxe object to look for the compound in, by default None.
+        db_name : str
+            MINE the reaction is found in.
+        p_h : Q_
+            pH of system.
+        p_mg: Q_
+            pMg of the system.
+        ionic_strength: Q_
+            ionic strength of the system.
+
+        Returns
+        -------
+        pint.Measurement
+            The calculated ∆G'.
+        """
+        eQ_reaction = self.get_eQ_reaction_from_rid(r_id, pickaxe, db_name)
+        if not eQ_reaction:
+            return None
+
+        self.CC.p_h = p_h
+        self.CC.p_mg = p_mg
+        self.CC.ionic_strength = ionic_strength
+
+        dG_prime = self.CC.dg_prime(eQ_reaction)
+
+        self._reset_CC()
+
+        return dG_prime
