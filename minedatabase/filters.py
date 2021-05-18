@@ -10,7 +10,6 @@ to the .filters property of your pickaxe object.
 import abc
 import copy
 import multiprocessing
-from pickaxe_run import similarity
 import time
 from functools import partial
 from typing import Callable, Dict, List, Optional, Set, Tuple, Union
@@ -23,7 +22,6 @@ import rdkit.RDLogger as rkl
 from mordred import Calculator, descriptors
 from rdkit.Chem import AddHs, AllChem, CanonSmiles
 from rdkit.Chem import rdFMCS as mcs
-from rdkit.Chem.AllChem import RDKFingerprint
 from rdkit.Chem.Descriptors import ExactMolWt
 from rdkit.Chem.inchi import MolToInchiKey
 from rdkit.Chem.rdmolfiles import MolFromSmiles
@@ -39,6 +37,17 @@ from minedatabase.utils import Chunks, get_fp, neutralise_charges
 logger = rkl.logger()
 logger.setLevel(rkl.ERROR)
 rkrb.DisableLog("rdApp.error")
+
+
+def _default_fingerprint(smiles):
+    mol = AllChem.MolFromSmiles(smiles)
+    fp = AllChem.RDKFingerprint(mol)
+    return fp
+
+
+def _default_similarity(fp1, fp2):
+    return FingerprintSimilarity(fp1, fp2)
+
 
 ###############################################################################
 # ABC for all Filter Subclasses
@@ -313,7 +322,7 @@ class TanimotoSamplingFilter(Filter):
         Function to weight the Tanimoto similarity score with.
     fingerprint_function : Callable
         Function to calculate fingerprint with. Accepts a SMILES, by default uses
-        RDKFingerprints
+        RDKFingerprints.
     similarity_function : Callable
         Function to calculate similarity with. Accepts two fingerprints
         and returns a similarity score.
@@ -330,14 +339,15 @@ class TanimotoSamplingFilter(Filter):
         self,
         sample_size: int,
         weight: Callable = None,
-        fingerprint_function: Callable = get_fp,
-        similarity_function: Callable = FingerprintSimilarity,
+        fingerprint_function: Callable = None,
+        similarity_function: Callable = None,
     ) -> None:
         self._filter_name = "Tanimoto Sampling Filter"
         self.sample_size = sample_size
         self.sample_weight = weight
-        self.fingerprint_function = fingerprint_function
-        self.similarity_function = similarity_function
+
+        self.fingerprint_function = fingerprint_function or _default_fingerprint
+        self.similarity_function = similarity_function or _default_similarity
 
     @property
     def filter_name(self) -> str:
@@ -436,14 +446,14 @@ class TanimotoSamplingFilter(Filter):
     def _sample_by_similarity(
         self,
         mol_info: List[Tuple[str, str]],
-        t_fp: RDKFingerprint,
+        t_fp: List[AllChem.RDKFingerprint],
         n_cpds: int = None,
         min_T: float = 0.05,
         weighting: Callable = None,
         max_iter: int = None,
         processes: int = 1,
     ) -> List[str]:
-        """Smple compounds by weighted Tanimoto coefficient.
+        """Sample compounds by weighted Tanimoto coefficient.
 
         Use inverse cumulative distrbution function (CDF) sampling to select
         compounds based on a weighted Tanimoto coefficient distribution.
@@ -484,10 +494,7 @@ class TanimotoSamplingFilter(Filter):
 
         # Get pandas df and ids
         df = self._gen_df_from_tanimoto(
-            mol_info,
-            t_fp,
-            min_T=min_T,
-            processes=processes
+            mol_info, t_fp, min_T=min_T, processes=processes
         )
         if len(df) <= n_cpds:
             ids = set(df["_id"])
@@ -578,7 +585,7 @@ class TanimotoSamplingFilter(Filter):
     def _gen_df_from_tanimoto(
         self,
         mol_info: List[Tuple[str, str]],
-        t_fp: List[RDKFingerprint],
+        t_fp: List[AllChem.RDKFingerprint],
         min_T: float = 0.05,
         processes: int = 1,
     ) -> pd.DataFrame:
@@ -603,7 +610,11 @@ class TanimotoSamplingFilter(Filter):
 
         # Calculate Tanimoto for each compound and drop T < min_T
         partial_T_calc = partial(
-            _calc_max_T, t_df, min_T, self.fingerprint_function, self.similarity_function
+            _calc_max_T,
+            t_df,
+            min_T,
+            self.fingerprint_function,
+            self.similarity_function,
         )
 
         df = pd.DataFrame()
@@ -658,9 +669,9 @@ def _parallelize_dataframe(
 def _calc_max_T(
     t_df: pd.DataFrame,
     min_T: float,
-    df: pd.DataFrame,
     fingerprint_function: Callable,
     similarity_function: Callable,
+    df: pd.DataFrame,
 ) -> pd.DataFrame:
     """Calculate maximum Tanimoto.
 
@@ -674,12 +685,12 @@ def _calc_max_T(
         Dataframe containing the target fingerprints.
     min_T : float
         The minimum Tanimoto similarity score needed to consider a compound.
-    df : pd.DataFrame
-        Dataframe to calculate the max Tanimoto for.
     fingerprint_function: Callable
             Function that generates fingerprints.
     similarity_function: Callable
         Function that generates similarity coefficient.
+    df : pd.DataFrame
+        Dataframe to calculate the max Tanimoto for.
 
     Returns
     -------
@@ -1093,12 +1104,19 @@ class TanimotoFilter(Filter):
         parent.
     """
 
-    def __init__(self, crit_tani: float, increasing_tani: bool, fingerprint_function: Callable = RDKFingerprint, similarity_function: Callable = FingerprintSimilarity) -> None:
+    def __init__(
+        self,
+        crit_tani: float,
+        increasing_tani: bool,
+        fingerprint_function: Callable = None,
+        similarity_function: Callable = None,
+    ) -> None:
         self._filter_name = "Tanimoto Cutoff"
         self.crit_tani = crit_tani
         self.increasing_tani = increasing_tani
-        self.fingerprint_function = fingerprint_function
-        self.similarity_function = similarity_function
+
+        self.fingerprint_function = fingerprint_function or _default_fingerprint
+        self.similarity_function = similarity_function or _default_similarity
 
     @property
     def filter_name(self) -> str:
@@ -1186,7 +1204,7 @@ class TanimotoFilter(Filter):
     def _filter_by_tani_helper(
         self,
         compounds_info: List[Tuple[str, str]],
-        target_fps: List[RDKFingerprint],
+        target_fps: List[AllChem.RDKFingerprint],
         processes: int,
         this_crit_tani: float,
     ) -> List[Tuple[str, float]]:
@@ -1232,7 +1250,7 @@ class TanimotoFilter(Filter):
 
     def _compare_target_fps(
         self,
-        target_fps: List[RDKFingerprint],
+        target_fps: List[AllChem.RDKFingerprint],
         this_crit_tani: float,
         compound_info: Tuple[str, str],
     ) -> Tuple[str, float]:

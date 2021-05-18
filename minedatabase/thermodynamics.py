@@ -31,7 +31,7 @@ class Thermodynamics:
         3) Physiological ∆G'm of reaction
         4) Adjusted ∆G' of reaction
 
-    eQuilibrator objects can also be obtained from r_ids and c_ids. 
+    eQuilibrator objects can also be obtained from r_ids and c_ids.
 
     Parameters
     ----------
@@ -44,6 +44,7 @@ class Thermodynamics:
     lc: LocalCompoundCache
         The local compound cache to generate eQuilibrator compounds from.
     """
+
     def __init__(
         self,
     ):
@@ -114,7 +115,7 @@ class Thermodynamics:
         Parameters
         ----------
         sqlite_filename: str
-            filename of the sqlite file to load. 
+            filename of the sqlite file to load.
         """
         self.lc = LocalCompoundCache()
         self.lc.load_cache(sqlite_filename)

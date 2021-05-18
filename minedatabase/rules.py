@@ -72,7 +72,7 @@ def metacyc_generalized(
             - iodine
         sending None gives all groups, by default None.
     exclude_containing: List[str], optional
-        A list containing features to exclude. 
+        A list containing features to exclude.
             - aromatic
             - aromatic_oxygen
             - carbonyl
@@ -266,8 +266,8 @@ def metacyc_intermediate(
     rule_df = rule_df[rule_df["Name"].str.contains(valid_rules_pattern)]
 
     # Some generalized have no intermediate, bring those in
-    missing_rules = (
-        set(general_rule_df.Name) - set(v.split("_")[0] for v in rule_df["Name"].values)
+    missing_rules = set(general_rule_df.Name) - set(
+        v.split("_")[0] for v in rule_df["Name"].values
     )
     if missing_rules:
         missing_df = general_rule_df[
@@ -322,9 +322,9 @@ def metacyc_intermediate(
     # get stream to new rules
     new_rules = rule_df.iloc[0:n_rules]
     if "cdf" in new_rules.columns:
-            new_rules = new_rules.drop(columns=["cdf"])
+        new_rules = new_rules.drop(columns=["cdf"])
     if "counts" in new_rules.columns:
-            new_rules = new_rules.drop(columns=["counts"])
+        new_rules = new_rules.drop(columns=["counts"])
     stream = StringIO()
     new_rules.to_csv(stream, sep="\t", index=False)
     stream = StringIO(stream.getvalue())

@@ -2,6 +2,7 @@
 from pathlib import Path
 
 import pytest
+import rdkit
 
 from minedatabase.filters import (
     MCSFilter,
@@ -10,6 +11,8 @@ from minedatabase.filters import (
     TanimotoSamplingFilter,
 )
 
+from rdkit.Chem import AllChem
+from rdkit import DataStructs
 
 file_path = Path(__file__)
 file_dir = file_path.parent
@@ -107,6 +110,28 @@ def test_tani_sample_user_weight(pk_target):
         return T ** 4
 
     _filter = TanimotoSamplingFilter(sample_size=10, weight=weight)
+    pk_target.filters.append(_filter)
+    pk_target.transform_all(generations=2)
+
+    # Filter must return less compounds than non-filter
+    # Non-deterministic results, so no exact value can be used
+    assert len(pk_target.compounds) < 1452
+
+
+def test_tani_sample_user_fingerprint_similarity(pk_target):
+    """Test overwriting defaults"""
+
+    def fingerprint(smiles):
+        mol = AllChem.MolFromSmiles(smiles)
+        fp = AllChem.GetMorganFingerprintAsBitVect(mol, 2)
+        return fp
+
+    def similarity(fp1, fp2):
+        return DataStructs.DiceSimilarity(fp1, fp2)
+
+    _filter = TanimotoSamplingFilter(
+        sample_size=10, fingerprint_function=fingerprint, similarity_function=similarity
+    )
     pk_target.filters.append(_filter)
     pk_target.transform_all(generations=2)
 
