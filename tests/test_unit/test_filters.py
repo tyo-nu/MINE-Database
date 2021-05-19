@@ -2,27 +2,23 @@
 from pathlib import Path
 
 import pytest
-import rdkit
 
 from minedatabase.filters import (
     MCSFilter,
     MetabolomicsFilter,
-    TanimotoFilter,
-    TanimotoSamplingFilter,
+    SimilarityFilter,
+    SimilaritySamplingFilter,
 )
-
-from rdkit.Chem import AllChem
-from rdkit import DataStructs
 
 file_path = Path(__file__)
 file_dir = file_path.parent
 DATA_DIR = (file_dir / "../data/").resolve()
 
 
-def test_tani_cutoff_single(pk_target):
-    """Test tanimoto cutoff filter"""
+def test_similarity_cutoff_single(pk_target):
+    """Test similarity cutoff filter"""
     tani_threshold = 0.5
-    _filter = TanimotoFilter(crit_tani=tani_threshold, increasing_tani=False)
+    _filter = SimilarityFilter(crit_tani=tani_threshold, increasing_tani=False)
     pk_target.filters.append(_filter)
     pk_target.transform_all(generations=2)
 
@@ -35,9 +31,9 @@ def test_tani_cutoff_single(pk_target):
 
 @pytest.mark.skip("Heisenbug Test")
 def test_filter_after(pk_target):
-    """Test tanimoto cutoff filter"""
+    """Test similarity cutoff filter"""
     tani_threshold = 0.5
-    _filter = TanimotoFilter(crit_tani=tani_threshold, increasing_tani=False)
+    _filter = SimilarityFilter(crit_tani=tani_threshold, increasing_tani=False)
     pk_target.filter_after_final_gen = True
     pk_target.filters.append(_filter)
     pk_target.transform_all(generations=2)
@@ -49,10 +45,10 @@ def test_filter_after(pk_target):
     )
 
 
-def test_tani_cutoff_multi(pk_target):
-    """Test tanimoto cutoff filter"""
+def test_similarity_cutoff_multi(pk_target):
+    """Test similarity cutoff filter"""
     tani_threshold = [0, 0.3, 0.5]
-    _filter = TanimotoFilter(crit_tani=tani_threshold, increasing_tani=False)
+    _filter = SimilarityFilter(crit_tani=tani_threshold, increasing_tani=False)
     pk_target.filters.append(_filter)
     pk_target.transform_all(generations=2)
 
@@ -63,10 +59,10 @@ def test_tani_cutoff_multi(pk_target):
     )
 
 
-def test_tani_cutoff_multi_short_list(pk_target):
-    """Test tanimoto filter when the tani_threshold is shorter than generations."""
+def test_similarity_cutoff_multi_short_list(pk_target):
+    """Test similarity filter when the tani_threshold is shorter than generations."""
     tani_threshold = [0.5]
-    _filter = TanimotoFilter(crit_tani=tani_threshold, increasing_tani=False)
+    _filter = SimilarityFilter(crit_tani=tani_threshold, increasing_tani=False)
     pk_target.filters.append(_filter)
     pk_target.transform_all(generations=2)
 
@@ -77,10 +73,10 @@ def test_tani_cutoff_multi_short_list(pk_target):
     )
 
 
-def test_tani_no_targets(pk_target):
+def test_similarity_no_targets(pk_target):
     pk_target.target_fps = []
     tani_threshold = 0.5
-    _filter = TanimotoFilter(crit_tani=tani_threshold, increasing_tani=False)
+    _filter = SimilarityFilter(crit_tani=tani_threshold, increasing_tani=False)
 
     pk_target.filters.append(_filter)
     pk_target.transform_all(generations=2)
@@ -92,9 +88,9 @@ def test_tani_no_targets(pk_target):
     )
 
 
-def test_tani_sample_default_weight(pk_target):
-    """Test tanimoto cutoff filter"""
-    _filter = TanimotoSamplingFilter(sample_size=10, weight=None)
+def test_similarity_sample_default_weight(pk_target):
+    """Test similarity cutoff filter"""
+    _filter = SimilaritySamplingFilter(sample_size=10, weight=None)
     pk_target.filters.append(_filter)
     pk_target.transform_all(generations=2)
 
@@ -103,13 +99,13 @@ def test_tani_sample_default_weight(pk_target):
     assert len(pk_target.compounds) < 1452
 
 
-def test_tani_sample_user_weight(pk_target):
-    """Test tanimoto cutoff filter"""
+def test_similarity_sample_user_weight(pk_target):
+    """Test similarity cutoff filter"""
 
     def weight(T):
         return T ** 4
 
-    _filter = TanimotoSamplingFilter(sample_size=10, weight=weight)
+    _filter = SimilaritySamplingFilter(sample_size=10, weight=weight)
     pk_target.filters.append(_filter)
     pk_target.transform_all(generations=2)
 
@@ -118,19 +114,16 @@ def test_tani_sample_user_weight(pk_target):
     assert len(pk_target.compounds) < 1452
 
 
-def test_tani_sample_user_fingerprint_similarity(pk_target):
+def test_similarity_sample_morgan(pk_target):
     """Test overwriting defaults"""
 
-    def fingerprint(smiles):
-        mol = AllChem.MolFromSmiles(smiles)
-        fp = AllChem.GetMorganFingerprintAsBitVect(mol, 2)
-        return fp
+    fingerprint_method = "Morgan"
+    fingerprint_args = {"radius": 2}
 
-    def similarity(fp1, fp2):
-        return DataStructs.DiceSimilarity(fp1, fp2)
-
-    _filter = TanimotoSamplingFilter(
-        sample_size=10, fingerprint_function=fingerprint, similarity_function=similarity
+    _filter = SimilaritySamplingFilter(
+        sample_size=10,
+        fingerprint_method=fingerprint_method,
+        fingerprint_args=fingerprint_args,
     )
     pk_target.filters.append(_filter)
     pk_target.transform_all(generations=2)
@@ -140,17 +133,38 @@ def test_tani_sample_user_fingerprint_similarity(pk_target):
     assert len(pk_target.compounds) < 1452
 
 
-def test_tani_sample_multiprocess(pk_target):
-    """Test tanimoto cutoff filter"""
+def test_similarity_sample_dice(pk_target):
+    """Test overwriting defaults"""
+
+    fingerprint_method = "Morgan"
+    fingerprint_args = {"radius": 2}
+    similarity_method = "Dice"
+
+    _filter = SimilaritySamplingFilter(
+        sample_size=10,
+        fingerprint_method=fingerprint_method,
+        fingerprint_args=fingerprint_args,
+        similarity_method=similarity_method,
+    )
+
+    pk_target.filters.append(_filter)
+    pk_target.transform_all(processes=2, generations=2)
+
+    # Filter must return less compounds than non-filter
+    # Non-deterministic results, so no exact value can be used
+    assert len(pk_target.compounds) < 1452
+
+
+def test_similarity_sample_multiprocess(pk_target):
+    """Test similarity cutoff filter"""
 
     def weight(T):
         return T ** 4
 
-    _filter = TanimotoSamplingFilter(sample_size=10, weight=weight)
-    pk_target.processes = 2
+    _filter = SimilaritySamplingFilter(sample_size=10, weight=weight)
     pk_target.react_targets = True
     pk_target.filters.append(_filter)
-    pk_target.transform_all(generations=2)
+    pk_target.transform_all(processes=2, generations=2)
 
     # Filter must return less compounds than non-filter
     # Non-deterministic results, so no exact value can be used
@@ -158,7 +172,7 @@ def test_tani_sample_multiprocess(pk_target):
 
 
 def test_MCS_list(pk_target):
-    """Test tanimoto cutoff filter"""
+    """Test similarity cutoff filter"""
     MCS_threshold = [0.1, 0.5]
     _filter = MCSFilter(crit_mcs=MCS_threshold)
     pk_target.filters.append(_filter)

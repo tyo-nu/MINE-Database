@@ -17,10 +17,11 @@ from typing import Callable, Dict, List, Optional, Set, Tuple, Union
 import numpy as np
 import pandas as pd
 import periodictable
+from rdkit import DataStructs
 import rdkit.rdBase as rkrb
 import rdkit.RDLogger as rkl
 from mordred import Calculator, descriptors
-from rdkit.Chem import AddHs, AllChem, CanonSmiles
+from rdkit.Chem import AddHs, AllChem, CanonSmiles, RDKFingerprint
 from rdkit.Chem import rdFMCS as mcs
 from rdkit.Chem.Descriptors import ExactMolWt
 from rdkit.Chem.inchi import MolToInchiKey
@@ -37,16 +38,6 @@ from minedatabase.utils import Chunks, get_fp, neutralise_charges
 logger = rkl.logger()
 logger.setLevel(rkl.ERROR)
 rkrb.DisableLog("rdApp.error")
-
-
-def _default_fingerprint(smiles):
-    mol = AllChem.MolFromSmiles(smiles)
-    fp = AllChem.RDKFingerprint(mol)
-    return fp
-
-
-def _default_similarity(fp1, fp2):
-    return FingerprintSimilarity(fp1, fp2)
 
 
 ###############################################################################
@@ -304,15 +295,23 @@ class Filter(metaclass=abc.ABCMeta):
 # Tanimoto Sampling Filter
 
 
-class TanimotoSamplingFilter(Filter):
+class SimilaritySamplingFilter(Filter):
     """Filter that samples randomly from weighted Tanimoto.
 
-    TanimotoSamplingFilter takes a distribution of Tanimoto similarity scores and uses
+    TanimotoSamplingFilter takes a distribution of similarity scores and uses
     inverse CDF sampling to select N compounds for further expansion. Each compound
-    is assigned a Tanimoto similarity score that corresponds to the maximum Tanimoto
+    is assigned a similarity score that corresponds to the maximum Tanimoto
     score of the set of similarity scores obtained by comparing that compound to each
     target. These scores can also be weighted by a specified function to bias higher
-    or lower Tanimoto scores.
+    or lower similarity scores scores.
+
+    Types of fingerprints:
+        1) RDKit (default)
+        2) Morgan
+
+    Types of similarity score:
+        1) Tanimoto (default)
+        2) Dice
 
     Parameters
     ----------
@@ -320,34 +319,44 @@ class TanimotoSamplingFilter(Filter):
         Number of compounds to sample.
     weight : Callable
         Function to weight the Tanimoto similarity score with.
-    fingerprint_function : Callable
-        Function to calculate fingerprint with. Accepts a SMILES, by default uses
-        RDKFingerprints.
-    similarity_function : Callable
-        Function to calculate similarity with. Accepts two fingerprints
-        and returns a similarity score.
+    fingerprint_method : str
+        Method by which to calculate fingerprints. Options are RDKitFingerprint and
+        Morgan, by default RDKitFingerprint.
+    fingerprint_args : dict
+        A dictionary of keyword arguments for the fingerprint functiono, by default None.
+    similarity_method : str
+        Method by which to calculate the similarity score. Options are Tanimoto and Dice,
+        by default Tanimoto.
 
     Attributes
     ----------
     sample_size : int
         Number of compounds to sample.
-    weight : Callable
+    sample_weight : Callable
         Function to weight the Tanimoto similarity score with.
+    fingerprint_method : str
+        Fingerprint calculation method.
+    fingerprint_args : dict
+        Arguments for fingerprint method.
+    similairty_method : str
+        Simlarity calulation method.
     """
 
     def __init__(
         self,
         sample_size: int,
         weight: Callable = None,
-        fingerprint_function: Callable = None,
-        similarity_function: Callable = None,
+        fingerprint_method: str = None,
+        fingerprint_args: str = None,
+        similarity_method: str = None,
     ) -> None:
         self._filter_name = "Tanimoto Sampling Filter"
         self.sample_size = sample_size
         self.sample_weight = weight
 
-        self.fingerprint_function = fingerprint_function or _default_fingerprint
-        self.similarity_function = similarity_function or _default_similarity
+        self.fingerprint_method = fingerprint_method or "RDKit"
+        self.fingerprint_args = fingerprint_args or {}
+        self.similarity_method = similarity_method or "Tanimoto"
 
     @property
     def filter_name(self) -> str:
@@ -613,8 +622,9 @@ class TanimotoSamplingFilter(Filter):
             _calc_max_T,
             t_df,
             min_T,
-            self.fingerprint_function,
-            self.similarity_function,
+            self.fingerprint_method,
+            self.fingerprint_args,
+            self.similarity_method,
         )
 
         df = pd.DataFrame()
@@ -669,8 +679,9 @@ def _parallelize_dataframe(
 def _calc_max_T(
     t_df: pd.DataFrame,
     min_T: float,
-    fingerprint_function: Callable,
-    similarity_function: Callable,
+    fingerprint_method: str,
+    fingerprint_args: str,
+    similarity_method: str,
     df: pd.DataFrame,
 ) -> pd.DataFrame:
     """Calculate maximum Tanimoto.
@@ -685,10 +696,12 @@ def _calc_max_T(
         Dataframe containing the target fingerprints.
     min_T : float
         The minimum Tanimoto similarity score needed to consider a compound.
-    fingerprint_function: Callable
-            Function that generates fingerprints.
-    similarity_function: Callable
-        Function that generates similarity coefficient.
+    fingerprint_method: str
+        Which fingerprint method to use, suppoorts RDKit and Morgan, by default RDKit.
+    fingerprint_args: dict
+        Keyword arguments to pass to fingerprint function, by default empty dict.
+    similarity_method: str
+        Which similarity method to use. Supports Tanimotoo and Dice.
     df : pd.DataFrame
         Dataframe to calculate the max Tanimoto for.
 
@@ -697,13 +710,31 @@ def _calc_max_T(
     df : pd.Dataframe
         New dataframe with max Tanimoto values calculated.
     """
-    df["fp"] = df["SMILES"].map(fingerprint_function)
+
+    def fingerprint(fingerprint_method, keyword_dict, smi):
+        mol = AllChem.MolFromSmiles(smi)
+        if fingerprint_method == "Morgan":
+            return AllChem.GetMorganFingerprintAsBitVect(mol, **keyword_dict)
+        else:
+            return RDKFingerprint(mol, **keyword_dict)
+
+    def similarity(similarity_method, fp1, fp2):
+        if similarity_method == "dice":
+            return FingerprintSimilarity(fp1, fp2, metric=DataStructs.DiceSimilarity)
+        else:
+            return FingerprintSimilarity(fp1, fp2)
+
+    fingerprint_partial = partial(fingerprint, fingerprint_method, fingerprint_args)
+
+    df["fp"] = df["SMILES"].map(fingerprint_partial)
 
     df["T"] = None
     fp = None
     for i in range(len(df)):
         fp = df["fp"].iloc[i]
-        df["T"].iloc[i] = max(t_df["fp"].map(lambda x: similarity_function(x, fp)))
+        df["T"].iloc[i] = max(
+            t_df["fp"].map(lambda x: similarity(similarity_method, x, fp))
+        )
     # Filter out low Tanimoto
     df = df[df["T"] > min_T]
 
@@ -1075,11 +1106,19 @@ class MetabolomicsFilter(Filter):
 # Cutoff filters -- e.g. Tanimoto, MCS metric, and molecular weight
 
 
-class TanimotoFilter(Filter):
-    """A filter that uses Tanimoto similarity score to determine compounds to expand.
+class SimilarityFilter(Filter):
+    """A filter that uses a similarity score to determine compounds to expand.
 
-    TanimotoFilter applies a strict cutoff to to the Tanimoto similarity score of
+    SimilarityFilter applies a strict cutoff to to the similarity score of
     compounds to determine which compounds to expand.
+
+    Types of fingerprints:
+        1) RDKit (default)
+        2) Morgan
+
+    Types of similarity score:
+        1) Tanimoto (default)
+        2) Dice
 
     Parameters
     ----------
@@ -1088,10 +1127,12 @@ class TanimotoFilter(Filter):
     increasing_tani : bool
         Whether or not to only keep compounds whos Tanimoto score is higher than its
         parent.
-    fingerprint_function : Callable
+    fingerprint_method : str
         Function to calculate fingerprint with. Accepts a SMILES, by default uses
         RDKFingerprints
-    similarity_function : Callable
+    fingerprint_args : str
+        Arguments for the fingerprint_method, by default None.
+    similarity_method : str
         Function to calculate similarity with. Accepts two fingerprints
         and returns a similarity score.
 
@@ -1102,21 +1143,29 @@ class TanimotoFilter(Filter):
     increasing_tani : bool
         Whether or not to only keep compounds whos Tanimoto score is higher than its
         parent.
+    fingerprint_method : str
+        Fingerprint calculation method.
+    fingerprint_args : dict
+        Arguments for fingerprint method.
+    similairty_method : str
+        Simlarity calulation method.
     """
 
     def __init__(
         self,
         crit_tani: float,
         increasing_tani: bool,
-        fingerprint_function: Callable = None,
-        similarity_function: Callable = None,
+        fingerprint_method: str = "RDKit",
+        fingerprint_args: dict = None,
+        similarity_method: str = "Tanimoto",
     ) -> None:
         self._filter_name = "Tanimoto Cutoff"
         self.crit_tani = crit_tani
         self.increasing_tani = increasing_tani
 
-        self.fingerprint_function = fingerprint_function or _default_fingerprint
-        self.similarity_function = similarity_function or _default_similarity
+        self.fingerprint_method = fingerprint_method
+        self.fingerprint_args = fingerprint_args or dict()
+        self.similarity_method = similarity_method
 
     @property
     def filter_name(self) -> str:
@@ -1263,11 +1312,30 @@ class TanimotoFilter(Filter):
         """
         # Generate the fingerprint of a compound and compare to the fingerprints
         # of the targets
+        def fingerprint(fingerprint_method, keyword_dict, smi):
+            mol = AllChem.MolFromSmiles(smi)
+            if fingerprint_method == "Morgan":
+                return AllChem.GetMorganFingerprintAsBitVect(mol, **keyword_dict)
+            else:
+                return RDKFingerprint(mol, **keyword_dict)
+
+        def similarity(similarity_method, fp1, fp2):
+            if similarity_method == "dice":
+                return FingerprintSimilarity(
+                    fp1, fp2, metric=DataStructs.DiceSimilarity
+                )
+            else:
+                return FingerprintSimilarity(fp1, fp2)
+
+        fingerprint_partial = partial(
+            fingerprint, self.fingerprint_method, self.fingerprint_args
+        )
+
         try:
-            fp1 = self.fingerprint_function(compound_info[1])
+            fp1 = fingerprint_partial(compound_info[1])
             max_tani = 0
             for fp2 in target_fps:
-                tani = self.similarity_function(fp1, fp2)
+                tani = similarity(self.similarity_method, fp1, fp2)
                 if tani >= this_crit_tani:
                     return (compound_info[0], tani)
                 elif tani >= max_tani:
