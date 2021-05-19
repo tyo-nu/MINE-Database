@@ -29,6 +29,7 @@ from rdkit.Chem.rdmolfiles import MolFromSmiles
 from rdkit.DataStructs import FingerprintSimilarity
 from scipy.stats import rv_discrete
 from sklearn.ensemble import RandomForestRegressor
+from minedatabase import pickaxe
 
 from minedatabase.metabolomics import MetabolomicsDataset, Peak
 from minedatabase.pickaxe import Pickaxe
@@ -340,6 +341,8 @@ class SimilaritySamplingFilter(Filter):
         Arguments for fingerprint method.
     similairty_method : str
         Simlarity calulation method.
+    target_fps : List
+        List of fingerprints.
     """
 
     def __init__(
@@ -358,9 +361,22 @@ class SimilaritySamplingFilter(Filter):
         self.fingerprint_args = fingerprint_args or {}
         self.similarity_method = similarity_method or "Tanimoto"
 
+        self.target_fps = []
+
     @property
     def filter_name(self) -> str:
         return self._filter_name
+
+    def _set_target_fps(self, pickaxe: Pickaxe):
+        self.target_fps = []
+        for smiles in pickaxe.target_smiles:
+            mol = MolFromSmiles(smiles)
+            if self.fingerprint_method == "Morgan":
+                fp = AllChem.GetMorganFingerprintAsBitVect(mol, **self.fingerprint_args)
+            else:
+                fp = RDKFingerprint(mol, **self.fingerprint_args)
+
+            self.target_fps.append(fp)
 
     def _pre_print(self) -> None:
         """Print before filtering."""
@@ -398,7 +414,8 @@ class SimilaritySamplingFilter(Filter):
 
         print(f"Filtering Generation {pickaxe.generation}" " via Tanimoto Sampling.")
 
-        if not pickaxe.target_fps:
+        self._set_target_fps(pickaxe)
+        if not self.target_fps:
             print("No targets to filter for. Can't expand.")
             return None
 
@@ -433,7 +450,7 @@ class SimilaritySamplingFilter(Filter):
 
         sampled_ids = self._sample_by_similarity(
             cpd_info,
-            pickaxe.target_fps,
+            self.target_fps,
             self.sample_size,
             min_T=0.15,
             weighting=self.sample_weight,
@@ -1149,6 +1166,8 @@ class SimilarityFilter(Filter):
         Arguments for fingerprint method.
     similairty_method : str
         Simlarity calulation method.
+    target_fps : List
+        List of fingerprints.
     """
 
     def __init__(
@@ -1167,9 +1186,22 @@ class SimilarityFilter(Filter):
         self.fingerprint_args = fingerprint_args or dict()
         self.similarity_method = similarity_method
 
+        self.target_fps = []
+
     @property
     def filter_name(self) -> str:
         return self._filter_name
+
+    def _set_target_fps(self, pickaxe: Pickaxe):
+        self.target_fps = []
+        for smiles in pickaxe.target_smiles:
+            mol = MolFromSmiles(smiles)
+            if self.fingerprint_method == "Morgan":
+                fp = AllChem.GetMorganFingerprintAsBitVect(mol, **self.fingerprint_args)
+            else:
+                fp = RDKFingerprint(mol, **self.fingerprint_args)
+
+            self.target_fps.append(fp)
 
     def _choose_cpds_to_filter(self, pickaxe: Pickaxe, processes: int = 1) -> Set[str]:
         """
@@ -1177,8 +1209,8 @@ class SimilarityFilter(Filter):
         marking compounds, who have a Tanimoto similarity score to a target
         compound greater than or equal to the crit_tani, for expansion.
         """
-
-        if not pickaxe.target_fps:
+        self._set_target_fps(pickaxe)
+        if not self.target_fps:
             print("No targets to filter for. Can't expand.")
             return None
 
@@ -1229,7 +1261,7 @@ class SimilarityFilter(Filter):
         else:
             this_gen_crit_tani = self.crit_tani
         cpd_filters = self._filter_by_tani_helper(
-            cpd_info, pickaxe.target_fps, processes, this_gen_crit_tani
+            cpd_info, self.target_fps, processes, this_gen_crit_tani
         )
 
         # Process filtering results
@@ -1404,7 +1436,7 @@ class MCSFilter(Filter):
         compound greater than or equal to the crit_tani, for expansion.
         """
 
-        if not pickaxe.target_fps:
+        if not self.target_fps:
             print("No targets to filter for. Can't expand.")
             return None
 

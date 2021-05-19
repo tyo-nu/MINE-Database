@@ -130,7 +130,7 @@ def test_similarity_sample_morgan(pk_target):
 
     # Filter must return less compounds than non-filter
     # Non-deterministic results, so no exact value can be used
-    assert len(pk_target.compounds) < 1452
+    assert len(pk_target.compounds) < 1452 and len(pk_target.compounds) > 100
 
 
 def test_similarity_sample_dice(pk_target):
@@ -152,7 +152,7 @@ def test_similarity_sample_dice(pk_target):
 
     # Filter must return less compounds than non-filter
     # Non-deterministic results, so no exact value can be used
-    assert len(pk_target.compounds) < 1452
+    assert len(pk_target.compounds) < 1452 and len(pk_target.compounds) > 100
 
 
 def test_similarity_sample_multiprocess(pk_target):

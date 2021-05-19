@@ -124,8 +124,6 @@ class Pickaxe:
         Molecules to be targeted during expansions.
     target_smiles: List[str]
         The SMILES of all the targets.
-    target_fps : List[RDKFingerprint]
-        Fingerprints of the targets.
     react_targets : bool
         Whether or not to react targets when generated.
     filter_after_final_gen : bool
@@ -173,7 +171,6 @@ class Pickaxe:
         self.filters = []
         self.targets = dict()
         self.target_smiles = []
-        self.target_fps = []
         self.react_targets = react_targets
         self.filter_after_final_gen = filter_after_final_gen
         # database info
@@ -241,7 +238,6 @@ class Pickaxe:
         self,
         target_compound_file: str,
         id_field: str = "id",
-        calc_fp: bool = True,
     ) -> None:
         """Load targets into pickaxe.
 
@@ -251,9 +247,6 @@ class Pickaxe:
             Filepath of target compounds.
         id_field : str, optional
             Header value of compound id in input file, by default 'id'.
-        calc_fp : bool, optional.
-            Whether or not to calculate fingerprints of targets for use with
-            filters, by default True.
         """
         for target_dict in utils.file_to_dict_list(target_compound_file):
             mol = self._mol_from_dict(target_dict)
@@ -268,10 +261,6 @@ class Pickaxe:
                 SanitizeMol(mol)
                 self._add_compound(cpd_name, smi, "Target Compound", mol)
                 self.target_smiles.append(smi)
-                if calc_fp:
-                    # Generate fingerprints for tanimoto filtering
-                    fp = RDKFingerprint(mol)
-                    self.target_fps.append(fp)
 
         print(f"{len(self.target_smiles)} target compounds loaded\n")
 
