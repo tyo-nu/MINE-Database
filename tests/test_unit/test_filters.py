@@ -74,7 +74,7 @@ def test_similarity_cutoff_multi_short_list(pk_target):
 
 
 def test_similarity_no_targets(pk_target):
-    pk_target.target_fps = []
+    pk_target.target_smiles = []
     tani_threshold = 0.5
     _filter = SimilarityFilter(crit_tani=tani_threshold, increasing_tani=False)
 

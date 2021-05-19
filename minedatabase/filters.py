@@ -368,7 +368,6 @@ class SimilaritySamplingFilter(Filter):
         return self._filter_name
 
     def _set_target_fps(self, pickaxe: Pickaxe):
-        self.target_fps = []
         for smiles in pickaxe.target_smiles:
             mol = MolFromSmiles(smiles)
             if self.fingerprint_method == "Morgan":
@@ -414,7 +413,8 @@ class SimilaritySamplingFilter(Filter):
 
         print(f"Filtering Generation {pickaxe.generation}" " via Tanimoto Sampling.")
 
-        self._set_target_fps(pickaxe)
+        if not self.target_fps:
+            self._set_target_fps(pickaxe)
         if not self.target_fps:
             print("No targets to filter for. Can't expand.")
             return None
@@ -1209,7 +1209,8 @@ class SimilarityFilter(Filter):
         marking compounds, who have a Tanimoto similarity score to a target
         compound greater than or equal to the crit_tani, for expansion.
         """
-        self._set_target_fps(pickaxe)
+        if not self.target_fps:
+            self._set_target_fps(pickaxe)
         if not self.target_fps:
             print("No targets to filter for. Can't expand.")
             return None
@@ -1436,7 +1437,7 @@ class MCSFilter(Filter):
         compound greater than or equal to the crit_tani, for expansion.
         """
 
-        if not self.target_fps:
+        if not pickaxe.target_smiles:
             print("No targets to filter for. Can't expand.")
             return None
 
