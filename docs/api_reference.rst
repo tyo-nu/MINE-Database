@@ -9,4 +9,5 @@ API Reference
    api_ref/pickaxe.rst
    api_ref/reactions.rst
    api_ref/rules.rst
+   api_ref/thermodynamics.rst
    api_ref/utils.rst

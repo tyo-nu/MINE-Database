@@ -48,6 +48,7 @@ Contents
    pickaxe_run.rst
    inputs.rst
    custom_filters.rst
+   thermodynamic_calculations.rst
    
    api_reference.rst
 

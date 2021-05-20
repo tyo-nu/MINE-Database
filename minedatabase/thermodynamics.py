@@ -157,13 +157,13 @@ class Thermodynamics:
                 compound = self.client[db_name].compounds.find_one(
                     {"_id": c_id}, {"SMILES": 1}
                 )
-                if not compound:
+                if compound:
                     compound_smiles = compound["SMILES"]
 
             # No cpd smiles from database name
             if not compound_smiles:
                 compound = self._core.compounds.find_one({"_id": c_id}, {"SMILES": 1})
-                if not compound:
+                if compound:
                     compound_smiles = compound["SMILES"]
 
         # No compound_smiles at all
@@ -177,7 +177,7 @@ class Thermodynamics:
 
     def standard_dg_formation_from_cid(
         self, c_id: str, pickaxe: Pickaxe = None, db_name: str = None
-    ) -> Union[pint.Measurement, None]:
+    ) -> Union[float, None]:
         """Get standard ∆Gfo for a compound.
 
         Parameters
@@ -191,13 +191,14 @@ class Thermodynamics:
 
         Returns
         -------
-        Union[pint.Measurement, None]
+        Union[float, None]
             ∆Gf'o for a compound, or None if unavailable.
         """
         eQ_cpd = self.get_eQ_compound_from_cid(c_id, pickaxe, db_name)
         if not eQ_cpd:
             return None
         dgf = self.CC.standard_dg_formation(eQ_cpd)
+        dgf = dgf[0]
 
         return dgf
 
