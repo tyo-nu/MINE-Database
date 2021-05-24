@@ -16,110 +16,111 @@ import pickle
 import time
 
 import pymongo
+from rdkit import DataStructs
+from rdkit.Chem import AllChem
 
 from minedatabase.filters import (
+    AtomicCompositionFilter,
     MCSFilter,
     MetabolomicsFilter,
-    TanimotoFilter,
-    TanimotoSamplingFilter,
     MWFilter,
-    AtomicCompositionFilter
+    SimilarityFilter,
+    SimilaritySamplingFilter,
 )
 from minedatabase.pickaxe import Pickaxe
 from minedatabase.rules import metacyc_generalized, metacyc_intermediate
 
-from rdkit.Chem import AllChem
-from rdkit import DataStructs
-
-
 start = time.time()
 
 ###############################################################################
-#    Database and output information
+#### Database and output information
 # The default mongo is localhost:27017
 # Connecting remotely requires the location of the database
 # as well as username/password if security is being used.
-# Username/password are stored in credentials.csv
-# in the following format: username
+#
+# The mongo_uri is read from mongo_uri.csv
 
-# Whether or not to write to a mongodb
+
+# Database writing options
 write_db = False
+# Database name and message to print in metadata
+database = "example_db"
+message = "Example run to show how pickaxe is run."
+# Force overwrite existing database
 database_overwrite = False
-database = "rules_test2"
-# Message to insert into metadata
-message = ("Example run to show how pickaxe is run.")
-
-# mongo DB information
+# Use local DB, i.e. localhost:27017
 use_local = False
-if write_db == False:
-    mongo_uri = None
-elif use_local:
-    mongo_uri = "mongodb://localhost:27017"
-else:
-    mongo_uri = open("mongo_uri.csv").readline().strip("\n")
 
-# Write output .csv files locally
+# Writing compound and reaction csv files locally
 write_to_csv = False
 output_dir = "."
 ###############################################################################
 
 ###############################################################################
-#    Starting Compounds, Cofactors, and Rules
-# Input compounds
+#### Starting Compounds, Cofactors, and Rules
+# Input compounds in a csv folder with headings:
+# id,smiles
 input_cpds = "./example_data/starting_cpds_single.csv"
 
-# Generate rules automatically from metacyc generalized. n_rules takes precedence over
-# fraction_coverage if both specified. Passing nothing returns all rules.
+# Rule specification and generation. Rules can be manually created or
+# metacyc_intermediate or metacyc_generalized can provide correctly formatted
+# biological reactions derived from metacyc.
+#
+# See the documentation for description of options.
 rule_list, coreactant_list, rule_name = metacyc_intermediate(
     n_rules=None,
-    fraction_coverage=0.5,
+    fraction_coverage=0.2,
     anaerobic=True,
-    ignore_containing = ["aromatic", "halogen"]
+    exclude_containing = ["aromatic", "halogen"]
 )
 
 ###############################################################################
 
 ###############################################################################
 # Core Pickaxe Run Options
-generations = 1
+generations = 1              # Total rounds of rule applications
 processes = 1                # Number of processes for parallelization
-inchikey_blocks_for_cid = 1  # Number of inchi key blocks to gen cid
 verbose = False              # Display RDKit warnings and errors
-explicit_h = False
-kekulize = True
-neutralise = True
-image_dir = None
-quiet = True
-indexing = False
+
+# These are for MINE-Database generation and advanced options.
+# Be careful changing these.
+inchikey_blocks_for_cid = 1  # Number of inchi key blocks to gen cid
+explicit_h = False           # use explicit hydrogens in rules
+kekulize = True              # kekulize molecules
+neutralise = True            # Neutralise all molecules when loading
+quiet = True                 # Silence errors
+indexing = False             #
 ###############################################################################
 
 ###############################################################################
-#   All Filter and Sampler Options
-###############################################################################
+#### Filtering and Sampling Options
+
+#############################################
 # Global Filtering Options
 
 # Path to target cpds file (not required for metabolomics filter)
 target_cpds = "./example_data/target_list_many.csv"
 
-# Wheter or not to load targets even without filter
-# This allows for the pruning of a network without actually filternig
-load_targets_without_filter = False
+# Load compounds even without a filter
+# Can be paired with prune_to_targets to reduce end network
+load_targets_without_filter = True
 
 # Should targets be flagged for reaction
 react_targets = False
 
-# Prune results to remove compounds not required to produce targets
+# Prune generated network to contain only compounds
+# that are used to generate a target
 prune_to_targets = False
 
-# Filter final generation?
+# Apply filter after final generation, before pruning
 filter_after_final_gen = True
 
-##############################################################################
+##########################################
 # Molecular Weight Filter options.
-# Filters by MW range.
+# Removes compounds not in range of [min_MW, max_MW]
 
 # Apply this filter?
-MW_filter = False
+MW_filter = True
 
 # Minimum MW in g/mol. None gives no lower bound.
 min_MW = 100
@@ -127,12 +128,13 @@ min_MW = 100
 # Maximum MW in g/mol. None gives no upper bound.
 max_MW = 150
 
-##############################################################################
+##########################################
 # Atomic Composition Filter options.
-# Filters atomic composition ranges.
+# Filters compounds that do not fall within atomic composition range
+# Only elements specified will be filtered
 
 # Apply this filter?
-atomic_composition_filter = True
+atomic_composition_filter = False
 
 # Atomic composition constraint specification
 atomic_composition_constraints = {
@@ -141,58 +143,54 @@ atomic_composition_constraints = {
 }
 
 
-##############################################################################
-# Tanimoto Filtering options.
-# Filters by tanimoto similarity score, using default RDKit fingerprints
+##########################################
+# Similarity Filtering options.
+# Filters by similarity score, uses default RDKit fingerprints and tanimoto by default
 
 # Apply this filter?
-tani_filter = False
+similarity_filter = True
 
-# Tanimito filter threshold. Can be single number or a list with length at least
+# Methods to calculate similarity by, default is RDkit and Tanimoto
+# Supports Morgan Fingerprints and Dice similarity as well.
+cutoff_fingerprint_method = "Morgan"
+# arguments to pass to fingerprint_method
+cutoff_fingerprint_args = {"radius": 2}
+cutoff_similarity_method = "Tanimoto"
+
+# Similarity filter threshold. Can be single number or a list with length at least
 # equal to the number of generations (+1 if filtering after expansion)
-tani_threshold = [0, 0.2, 0.7]
+similarity_threshold = [0, 0.2, 0.7]
 
-# Make sure tani increases each generation?
-increasing_tani = False
+# Only accepts compounds whose similarity is increased in comparison to their parent
+increasing_similarity = False
 
-###############################################################################
-# Tanimoto-based Sampling Options
-# Samples by tanimoto similarity score, using default RDKit fingerprints
+##########################################
+# Similarity Sampling Options
+# Samples by similarity score
+# Uses default RDKit fingerprints and tanimoto by default, but supports
+# Morgan and dice
 
 # Apply this sampler?
-tani_sample = True
+similarity_sample = True
 # Number of compounds per generation to sample
 sample_size = 100
 
-def fingerprint(smiles):
-    """ fingerprint is a function that accepts a smiles string and
-    generates and rdkit fingerprint object.
+# Default is RDKit
+sample_fingerprint_method = "Morgan"
+# arguments to pass to fingerprint_method
+sample_fingerprint_args = {"radius": 2}
+sample_similarity_method = "Tanimoto"
 
-    Passing none will use default RDKitFingerprint.
+def weight(score):
+    """weight is a function that accepts a similarity score as the sole argument
+    and returns a scaled value. 
     """
-    mol = AllChem.MolFromSmiles(smiles)
-    fp = AllChem.GetMorganFingerprint(mol, 2)
-    
-    return fp
+    return score**4
 
-def similarity(fp1, fp2):
-    """ similarity is a function that accepts two fingerprints and returns
-    a similarity score between them with range [0, 1]. 
+# How to represent the function in text for database entry
+weight_representation = "score^4"
 
-    Passing None will use tanimoto similarity.
-    """
-    return DataStructs.FingerprintSimilarity(fp1, fp2)
-
-def weight(T):
-    """weight is a function that accepts a tanimoto similarity score and returns
-    a scaled value by some weighting function.
-    """
-    return T**4
-
-# How to represent the function in text
-weight_representation = "T^4"
-
-###############################################################################
+##########################################
 # Maximum common substructure (MCS) filter
 
 # Apply this filter?
@@ -202,7 +200,7 @@ mcs_filter = False
 # the MCS composes
 crit_mcs = [0.3, 0.8, 0.95]
 
-##############################################################################
+##########################################
 # Metabolomics Filter Options
 
 # Apply this filter?
@@ -270,13 +268,29 @@ def print_run_parameters():
         ]
     )
 
-    if tani_sample:
+    if similarity_sample:
         print("\nTanimoto Sampling Filter Options")
-        print_parameter_list(["sample_size", "weight_representation"])
+        print_parameter_list(
+            [
+                "sample_size",
+                "weight_representation",
+                "sample_fingerprint_args",
+                "sample_fingerprint_method",
+                "sample_similarity_method"
+            ]
+        )
 
-    if tani_filter:
+    if similarity_filter:
         print("\nTanimoto Threshold Filter Options")
-        print_parameter_list(["tani_threshold", "increasing_tani"])
+        print_parameter_list(
+            [
+                "similarity_threshold",
+                "increasing_similarity",
+                "cutoff_fingerprint_args",
+                "cutoff_fingerprint_method",
+                "cutoff_similarity_method"
+            ]
+        )
 
     if mcs_filter:
         print("\nMaximum Common Substructure Filter Options")
@@ -302,7 +316,6 @@ def print_run_parameters():
             "explicit_h",
             "kekulize",
             "neutralise",
-            "image_dir",
             "quiet",
             "indexing"
         ]
@@ -313,13 +326,25 @@ def print_run_parameters():
 
 ###############################################################################
 #   Running pickaxe, don"t touch unless you know what you are doing
-if __name__ == "__main__":  # required for parallelization on Windows
+if __name__ == "__main__":
     # Use "spawn" for multiprocessing
     multiprocessing.set_start_method("spawn")
-    # Initialize the Pickaxe class
+
+    # Define mongo_uri
+    # mongo_uri definition, don't modify
+    if write_db == False:
+        mongo_uri = None
+    elif use_local:
+        mongo_uri = "mongodb://localhost:27017"
+    else:
+        mongo_uri = open("mongo_uri.csv").readline().strip("\n")
+
+    # Change database to none if not writing
     if write_db is False:
         database = None
 
+    ### Initialize the Pickaxe class
+    # print parameters
     if print_parameters:
         print_run_parameters()
 
@@ -330,7 +355,7 @@ if __name__ == "__main__":  # required for parallelization on Windows
         explicit_h=explicit_h,
         kekulize=kekulize,
         neutralise=neutralise,
-        image_dir=image_dir,
+        image_dir=None,
         inchikey_blocks_for_cid=inchikey_blocks_for_cid,
         database=database,
         database_overwrite=database_overwrite,
@@ -348,19 +373,33 @@ if __name__ == "__main__":  # required for parallelization on Windows
     #     pk.load_partial_operators(mapped_rxns)
 
     # Load target compounds for filters
-    if (tani_filter or mcs_filter or tani_sample or load_targets_without_filter or MW_filter or atomic_composition_filter):
+    if (similarity_filter or mcs_filter or similarity_sample or load_targets_without_filter or MW_filter or atomic_composition_filter):
         pk.load_targets(target_cpds)
 
-    # Apply filters
-    if tani_filter:
-        taniFilter = TanimotoFilter(
-            crit_tani=tani_threshold,
-            increasing_tani=increasing_tani
+    # Apply filters in this order
+    if MW_filter:
+        pk.filters.append(MWFilter(min_MW, max_MW))
+
+    if atomic_composition_filter:
+        pk.filters.append(AtomicCompositionFilter(atomic_composition_constraints))
+
+    if similarity_filter:
+        taniFilter = SimilarityFilter(
+            crit_similarity=similarity_threshold,
+            increasing_similarity=increasing_similarity,
+            fingerprint_method=cutoff_fingerprint_args,
+            fingerprint_args=cutoff_fingerprint_args,
+            similarity_method=cutoff_similarity_method
         )
         pk.filters.append(taniFilter)
 
-    if tani_sample:
-        taniSampleFilter = TanimotoSamplingFilter(sample_size=sample_size, weight=weight, fingerprint_function=fingerprint, similarity_function=similarity)
+    if similarity_sample:
+        taniSampleFilter = SimilaritySamplingFilter(
+            sample_size=sample_size,
+            weight=weight,
+            fingerprint_method=sample_fingerprint_method,
+            fingerprint_args=sample_fingerprint_args,
+            similarity_method=sample_similarity_method)
         pk.filters.append(taniSampleFilter)
 
     if mcs_filter:
@@ -374,22 +413,18 @@ if __name__ == "__main__":  # required for parallelization on Windows
         else:
             rt_predictor = None
 
-        metFilter = MetabolomicsFilter(filter_name="ADP1_Metabolomics_Data",
-                                       met_data_name=met_data_name,
-                                       met_data_path=met_data_path,
-                                       possible_adducts=possible_adducts,
-                                       mass_tolerance=mass_tolerance,
-                                       rt_predictor=rt_predictor,
-                                       rt_threshold=rt_threshold,
-                                       rt_important_features=rt_important_features)
+        metFilter = MetabolomicsFilter(
+            filter_name="ADP1_Metabolomics_Data",
+            met_data_name=met_data_name,
+            met_data_path=met_data_path,
+            possible_adducts=possible_adducts,
+            mass_tolerance=mass_tolerance,
+            rt_predictor=rt_predictor,
+            rt_threshold=rt_threshold,
+            rt_important_features=rt_important_features
+        )
         pk.filters.append(metFilter)
 
-    if MW_filter:
-        pk.filters.append(MWFilter(min_MW, max_MW))
-
-    if atomic_composition_filter:
-        pk.filters.append(AtomicCompositionFilter(atomic_composition_constraints))
-        
     # Transform compounds (the main step)
     pk.transform_all(processes, generations)
 
@@ -411,18 +446,21 @@ if __name__ == "__main__":  # required for parallelization on Windows
         db.meta_data.insert_one({"Timestamp": datetime.datetime.now(),
                                  "Message": message})
 
-        if (tani_filter or mcs_filter or tani_sample):
-            db.meta_data.insert_one({"Timestamp": datetime.datetime.now(),
-                                     "React Targets": react_targets,
-                                     "Tanimoto Filter": tani_filter,
-                                     "Tanimoto Values": f"{tani_threshold}",
-                                     "MCS Filter": mcs_filter,
-                                     "MCS Values": f"{crit_mcs}",
-                                     "Sample By": tani_sample,
-                                     "Sample Size": sample_size,
-                                     "Sample Weight": weight_representation,
-                                     "Pruned": prune_to_targets
-                                     })
+        if (similarity_filter or mcs_filter or similarity_sample):
+            db.meta_data.insert_one(
+                {
+                    "Timestamp": datetime.datetime.now(),
+                    "React Targets": react_targets,
+                    "Tanimoto Filter": similarity_filter,
+                    "Tanimoto Values": f"{similarity_threshold}",
+                    "MCS Filter": mcs_filter,
+                    "MCS Values": f"{crit_mcs}",
+                    "Sample By": similarity_sample,
+                    "Sample Size": sample_size,
+                    "Sample Weight": weight_representation,
+                    "Pruned": prune_to_targets
+                }
+            )
 
     if write_to_csv:
         pk.assign_ids()

@@ -297,11 +297,11 @@ class Filter(metaclass=abc.ABCMeta):
 
 
 class SimilaritySamplingFilter(Filter):
-    """Filter that samples randomly from weighted Tanimoto.
+    """Filter that samples randomly from weighted similarity scores.
 
-    TanimotoSamplingFilter takes a distribution of similarity scores and uses
+    SimilaritySamplingFilter takes a distribution of similarity scores and uses
     inverse CDF sampling to select N compounds for further expansion. Each compound
-    is assigned a similarity score that corresponds to the maximum Tanimoto
+    is assigned a similarity score that corresponds to the maximum similarity score
     score of the set of similarity scores obtained by comparing that compound to each
     target. These scores can also be weighted by a specified function to bias higher
     or lower similarity scores scores.
@@ -319,7 +319,7 @@ class SimilaritySamplingFilter(Filter):
     sample_size : int
         Number of compounds to sample.
     weight : Callable
-        Function to weight the Tanimoto similarity score with.
+        Function to weight the similarity score with.
     fingerprint_method : str
         Method by which to calculate fingerprints. Options are RDKitFingerprint and
         Morgan, by default RDKitFingerprint.
@@ -334,7 +334,7 @@ class SimilaritySamplingFilter(Filter):
     sample_size : int
         Number of compounds to sample.
     sample_weight : Callable
-        Function to weight the Tanimoto similarity score with.
+        Function to weight the similarity score with.
     fingerprint_method : str
         Fingerprint calculation method.
     fingerprint_args : dict
@@ -353,7 +353,7 @@ class SimilaritySamplingFilter(Filter):
         fingerprint_args: str = None,
         similarity_method: str = None,
     ) -> None:
-        self._filter_name = "Tanimoto Sampling Filter"
+        self._filter_name = "Similarity Sampling Filter"
         self.sample_size = sample_size
         self.sample_weight = weight
 
@@ -373,7 +373,7 @@ class SimilaritySamplingFilter(Filter):
             if self.fingerprint_method == "Morgan":
                 fp = AllChem.GetMorganFingerprintAsBitVect(mol, **self.fingerprint_args)
             else:
-                fp = RDKFingerprint(mol, **self.fingerprint_args)
+                fp = RDKFingerprint(mol)
 
             self.target_fps.append(fp)
 
@@ -382,7 +382,7 @@ class SimilaritySamplingFilter(Filter):
         print(
             (
                 f"Sampling {self.sample_size} Compounds Based on a "
-                f"Weighted Tanimoto Distribution"
+                f"Weighted Similarity Distribution"
             )
         )
 
@@ -394,14 +394,14 @@ class SimilaritySamplingFilter(Filter):
             (
                 f"{n_filtered} of {n_total} "
                 "compounds selected after "
-                f"Tanimoto Sampling of generation {pickaxe.generation}"
+                f"Similarity Sampling of generation {pickaxe.generation}"
                 f"--took {time.time() - time_sample}s.\n"
             )
         )
 
     def _choose_cpds_to_filter(self, pickaxe: Pickaxe, processes: int) -> Set[str]:
         """
-        Samples N compounds to expand based on the weighted Tanimoto distribution.
+        Samples N compounds to expand based on the weighted Similarity distribution.
 
         Parameters
         ----------
@@ -411,7 +411,7 @@ class SimilaritySamplingFilter(Filter):
             Number of processes to use.
         """
 
-        print(f"Filtering Generation {pickaxe.generation}" " via Tanimoto Sampling.")
+        print(f"Filtering Generation {pickaxe.generation}" " via Similarity Sampling.")
 
         if not self.target_fps:
             self._set_target_fps(pickaxe)
@@ -452,7 +452,7 @@ class SimilaritySamplingFilter(Filter):
             cpd_info,
             self.target_fps,
             self.sample_size,
-            min_T=0.15,
+            min_S=0.15,
             weighting=self.sample_weight,
             max_iter=None,
             processes=processes,
@@ -474,15 +474,15 @@ class SimilaritySamplingFilter(Filter):
         mol_info: List[Tuple[str, str]],
         t_fp: List[AllChem.RDKFingerprint],
         n_cpds: int = None,
-        min_T: float = 0.05,
+        min_S: float = 0.05,
         weighting: Callable = None,
         max_iter: int = None,
         processes: int = 1,
     ) -> List[str]:
-        """Sample compounds by weighted Tanimoto coefficient.
+        """Sample compounds by weighted similarity coefficient.
 
         Use inverse cumulative distrbution function (CDF) sampling to select
-        compounds based on a weighted Tanimoto coefficient distribution.
+        compounds based on a weighted similarity coefficient distribution.
 
         Parameters
         ----------
@@ -492,10 +492,10 @@ class SimilaritySamplingFilter(Filter):
             Target fingerprints to compare compounds to.
         n_cpds : int, optional
             Number of compounds to select for sampling, by default None.
-        min_T : float, optional
-            Minimum Tanimoto similarity to be considered for sampling, by default 0.05.
+        min_S : float, optional
+            Minimum similarity similarity to be considered for sampling, by default 0.05.
         weighting : Callable, optional
-            Function that accepts a Tanimoto similarity score and returns
+            Function that accepts a similarity score and returns
             a float, by default None.
         max_iter : int, optional
             The maximum number of iterations before regenerating the CDF for sampling
@@ -519,13 +519,13 @@ class SimilaritySamplingFilter(Filter):
             return ids
 
         # Get pandas df and ids
-        df = self._gen_df_from_tanimoto(
-            mol_info, t_fp, min_T=min_T, processes=processes
+        df = self.gen_df_from_similarity(
+            mol_info, t_fp, min_S=min_S, processes=processes
         )
         if len(df) <= n_cpds:
             ids = set(df["_id"])
             print(
-                f"-- After filtering by minimum tanimoto ({min_T}) "
+                f"-- After filtering by minimum similarity ({min_S}) "
                 "number to sample is less than number of compounds. "
                 "Returning all compounds."
             )
@@ -579,7 +579,7 @@ class SimilaritySamplingFilter(Filter):
         chosen : List, optional
             Compound ids that have already been chosen, by default [].
         weighting : Callable, optional
-            Function to weight the Tanimoto distribution by, by default None.
+            Function to weight the Similarity distribution by, by default None.
 
         Returns
         -------
@@ -608,14 +608,14 @@ class SimilaritySamplingFilter(Filter):
 
         return rv, ids
 
-    def _gen_df_from_tanimoto(
+    def gen_df_from_similarity(
         self,
         mol_info: List[Tuple[str, str]],
         t_fp: List[AllChem.RDKFingerprint],
-        min_T: float = 0.05,
+        min_S: float = 0.05,
         processes: int = 1,
     ) -> pd.DataFrame:
-        """Generate a dataframe from Tanimoto
+        """Generate a dataframe from similarity
 
         Parameters
         ----------
@@ -623,22 +623,22 @@ class SimilaritySamplingFilter(Filter):
             A list consisting of (compound_id, SMILES).
         t_fp : List[RDKFingerprint]
             Target fingerprints to compare compounds to.
-        min_T : float, optional
-            Minimum Tanimoto similarity to be considered for sampling, by default 0.05.
+        min_S : float, optional
+            Minimum similarity similarity to be considered for sampling, by default 0.05.
         processes : int, optional
             Number of processes to use, by default 1.
         """
 
         then = time.time()
-        print("-- Calculating Fingerprints and Tanimoto Values.")
+        print("-- Calculating Fingerprints and Similarity Values.")
         # target fingerprint dataframe
         t_df = pd.DataFrame(t_fp, columns=["fp"])
 
-        # Calculate Tanimoto for each compound and drop T < min_T
+        # Calculate similarity for each compound and drop T < min_S
         partial_T_calc = partial(
-            _calc_max_T,
+            _calc_max_S,
             t_df,
-            min_T,
+            min_S,
             self.fingerprint_method,
             self.fingerprint_args,
             self.similarity_method,
@@ -652,7 +652,7 @@ class SimilaritySamplingFilter(Filter):
 
         # Reset index for CDF calculation
         df.reset_index(inplace=True, drop=True)
-        print(f"-- Completed Tanimoto Calculation in {time.time() - then}")
+        print(f"-- Completed Similarity Calculation in {time.time() - then}")
 
         return df
 
@@ -693,39 +693,39 @@ def _parallelize_dataframe(
     return df
 
 
-def _calc_max_T(
+def _calc_max_S(
     t_df: pd.DataFrame,
-    min_T: float,
+    min_S: float,
     fingerprint_method: str,
     fingerprint_args: str,
     similarity_method: str,
     df: pd.DataFrame,
 ) -> pd.DataFrame:
-    """Calculate maximum Tanimoto.
+    """Calculate maximum similarity.
 
-    Generate the Tanimoto to use to generate the PMF to sample from.
-    For each compound a list of tanimoito values are obtained by a generated
+    Generate the similarity to use to generate the PMF to sample from.
+    For each compound a list of similarity values are obtained by a generated
     compound to every target compound and the max is taken.
 
     Parameters
     ----------
     t_df : pd.Dataframe
         Dataframe containing the target fingerprints.
-    min_T : float
-        The minimum Tanimoto similarity score needed to consider a compound.
+    min_S : float
+        The minimum similarity similarity score needed to consider a compound.
     fingerprint_method: str
         Which fingerprint method to use, suppoorts RDKit and Morgan, by default RDKit.
     fingerprint_args: dict
         Keyword arguments to pass to fingerprint function, by default empty dict.
     similarity_method: str
-        Which similarity method to use. Supports Tanimotoo and Dice.
+        Which similarity method to use. Supports Tanimoto and Dice.
     df : pd.DataFrame
-        Dataframe to calculate the max Tanimoto for.
+        Dataframe to calculate the max similarity for.
 
     Returns
     -------
     df : pd.Dataframe
-        New dataframe with max Tanimoto values calculated.
+        New dataframe with max similarity values calculated.
     """
 
     def fingerprint(fingerprint_method, keyword_dict, smi):
@@ -733,9 +733,9 @@ def _calc_max_T(
         if fingerprint_method == "Morgan":
             return AllChem.GetMorganFingerprintAsBitVect(mol, **keyword_dict)
         else:
-            return RDKFingerprint(mol, **keyword_dict)
+            return RDKFingerprint(mol)
 
-    def similarity(similarity_method, fp1, fp2):
+    def calc_similarity(similarity_method, fp1, fp2):
         if similarity_method == "dice":
             return FingerprintSimilarity(fp1, fp2, metric=DataStructs.DiceSimilarity)
         else:
@@ -750,15 +750,15 @@ def _calc_max_T(
     for i in range(len(df)):
         fp = df["fp"].iloc[i]
         df["T"].iloc[i] = max(
-            t_df["fp"].map(lambda x: similarity(similarity_method, x, fp))
+            t_df["fp"].map(lambda x: calc_similarity(similarity_method, x, fp))
         )
-    # Filter out low Tanimoto
-    df = df[df["T"] > min_T]
+    # Filter out low similarity
+    df = df[df["T"] > min_S]
 
     return df
 
 
-# End Tanimoto Sampling Filter
+# End similarity Sampling Filter
 ###############################################################################
 
 ###############################################################################
@@ -1120,7 +1120,7 @@ class MetabolomicsFilter(Filter):
 ###############################################################################
 
 ###############################################################################
-# Cutoff filters -- e.g. Tanimoto, MCS metric, and molecular weight
+# Cutoff filters -- e.g. similarity, MCS metric, and molecular weight
 
 
 class SimilarityFilter(Filter):
@@ -1139,10 +1139,10 @@ class SimilarityFilter(Filter):
 
     Parameters
     ----------
-    crit_tani : float
-        The Tanimoto similarity score threshold.
-    increasing_tani : bool
-        Whether or not to only keep compounds whos Tanimoto score is higher than its
+    crit_similarity : float
+        The similarity similarity score threshold.
+    increasing_similarity : bool
+        Whether or not to only keep compounds whos similarity score is higher than its
         parent.
     fingerprint_method : str
         Function to calculate fingerprint with. Accepts a SMILES, by default uses
@@ -1155,10 +1155,10 @@ class SimilarityFilter(Filter):
 
     Attributes
     ----------
-    crit_tani : float
-        The Tanimoto similarity score threshold.
-    increasing_tani : bool
-        Whether or not to only keep compounds whos Tanimoto score is higher than its
+    crit_similarity : float
+        The similarity similarity score threshold.
+    increasing_similarity : bool
+        Whether or not to only keep compounds whos similarity score is higher than its
         parent.
     fingerprint_method : str
         Fingerprint calculation method.
@@ -1172,15 +1172,15 @@ class SimilarityFilter(Filter):
 
     def __init__(
         self,
-        crit_tani: float,
-        increasing_tani: bool,
+        crit_similarity: float,
+        increasing_similarity: bool,
         fingerprint_method: str = "RDKit",
         fingerprint_args: dict = None,
         similarity_method: str = "Tanimoto",
     ) -> None:
-        self._filter_name = "Tanimoto Cutoff"
-        self.crit_tani = crit_tani
-        self.increasing_tani = increasing_tani
+        self._filter_name = "Similarity Cutoff"
+        self.crit_similarity = crit_similarity
+        self.increasing_similarity = increasing_similarity
 
         self.fingerprint_method = fingerprint_method
         self.fingerprint_args = fingerprint_args or dict()
@@ -1197,17 +1197,18 @@ class SimilarityFilter(Filter):
         for smiles in pickaxe.target_smiles:
             mol = MolFromSmiles(smiles)
             if self.fingerprint_method == "Morgan":
-                fp = AllChem.GetMorganFingerprintAsBitVect(mol, **self.fingerprint_args)
+                fingerprint_args = self.fingerprint_args["radius"]
+                fp = AllChem.GetMorganFingerprintAsBitVect(mol, fingerprint_args)
             else:
-                fp = RDKFingerprint(mol, **self.fingerprint_args)
+                fp = RDKFingerprint(mol)
 
             self.target_fps.append(fp)
 
     def _choose_cpds_to_filter(self, pickaxe: Pickaxe, processes: int = 1) -> Set[str]:
         """
         Compares the current generation to the target compound fingerprints
-        marking compounds, who have a Tanimoto similarity score to a target
-        compound greater than or equal to the crit_tani, for expansion.
+        marking compounds, who have a similarity score to a target
+        compound greater than or equal to the crit_similarity, for expansion.
         """
         if not self.target_fps:
             self._set_target_fps(pickaxe)
@@ -1216,14 +1217,14 @@ class SimilarityFilter(Filter):
             return None
 
         # Set up variables required for filtering
-        # Tanimoto Threshold
-        if type(self.crit_tani) in [list, tuple]:
-            if len(self.crit_tani) - 1 < pickaxe.generation:
-                crit_tani = self.crit_tani[-1]
+        # similarity Threshold
+        if type(self.crit_similarity) in [list, tuple]:
+            if len(self.crit_similarity) - 1 < pickaxe.generation:
+                crit_similarity = self.crit_similarity[-1]
             else:
-                crit_tani = self.crit_tani[pickaxe.generation]
+                crit_similarity = self.crit_similarity[pickaxe.generation]
         else:
-            crit_tani = self.crit_tani
+            crit_similarity = self.crit_similarity
 
         # Get compounds eligible for expansion in the current generation
         compounds_to_check = []
@@ -1249,46 +1250,46 @@ class SimilarityFilter(Filter):
         # Run the filtering code to get a list of compounds to ignore
         print(
             f"Filtering Generation {pickaxe.generation} "
-            f"with Tanimoto > {crit_tani}."
+            f"with similarity > {crit_similarity}."
         )
         # Get input to filter code, c_id and smiles (to be
         # turned into fingerprint)
         cpd_info = [(cpd["_id"], cpd["SMILES"]) for cpd in compounds_to_check]
-        if type(self.crit_tani) in [list, tuple]:
-            if len(self.crit_tani) - 1 < pickaxe.generation:
-                this_gen_crit_tani = self.crit_tani[-1]
+        if type(self.crit_similarity) in [list, tuple]:
+            if len(self.crit_similarity) - 1 < pickaxe.generation:
+                this_gen_crit_similarity = self.crit_similarity[-1]
             else:
-                this_gen_crit_tani = self.crit_tani[pickaxe.generation]
+                this_gen_crit_similarity = self.crit_similarity[pickaxe.generation]
         else:
-            this_gen_crit_tani = self.crit_tani
-        cpd_filters = self._filter_by_tani_helper(
-            cpd_info, self.target_fps, processes, this_gen_crit_tani
+            this_gen_crit_similarity = self.crit_similarity
+        cpd_filters = self._filter_by_similarity_helper(
+            cpd_info, self.target_fps, processes, this_gen_crit_similarity
         )
 
         # Process filtering results
         cpds_remove_set = set()
-        for c_id, current_tani in cpd_filters:
-            # Check if tani is increasing
-            if self.increasing_tani:
-                if current_tani >= pickaxe.compounds[c_id]["last_tani"]:
-                    pickaxe.compounds[c_id]["last_tani"] = current_tani
+        for c_id, current_similarity in cpd_filters:
+            # Check if similarity is increasing
+            if self.increasing_similarity:
+                if current_similarity >= pickaxe.compounds[c_id]["last_similarity"]:
+                    pickaxe.compounds[c_id]["last_similarity"] = current_similarity
                 else:
                     pickaxe.compounds[c_id]["Expand"] = False
                     cpds_remove_set.add(c_id)
                     continue
 
-            if current_tani < this_gen_crit_tani:
+            if current_similarity < this_gen_crit_similarity:
                 pickaxe.compounds[c_id]["Expand"] = False
                 cpds_remove_set.add(c_id)
 
         return cpds_remove_set
 
-    def _filter_by_tani_helper(
+    def _filter_by_similarity_helper(
         self,
         compounds_info: List[Tuple[str, str]],
         target_fps: List[AllChem.RDKFingerprint],
         processes: int,
-        this_crit_tani: float,
+        this_crit_similarity: float,
     ) -> List[Tuple[str, float]]:
         def print_progress(done: int, total: int, section: str) -> None:
             # Use print_on to print % completion roughly every 5 percent
@@ -1301,7 +1302,7 @@ class SimilarityFilter(Filter):
         # compound_info = [(smiles, id)]
         cpds_to_filter = list()
         compare_target_fps_partial = partial(
-            self._compare_target_fps, target_fps, this_crit_tani
+            self._compare_target_fps, target_fps, this_crit_similarity
         )
 
         if processes > 1:
@@ -1318,28 +1319,28 @@ class SimilarityFilter(Filter):
                 # specify expansion
                 if res:
                     cpds_to_filter.append(res)
-                print_progress(i, len(compounds_info), "Tanimoto filter progress:")
+                print_progress(i, len(compounds_info), "Similarity filter progress:")
 
         else:
             for i, cpd in enumerate(compounds_info):
                 res = compare_target_fps_partial(cpd)
                 if res:
                     cpds_to_filter.append(res)
-                print_progress(i, len(compounds_info), "Tanimoto filter progress:")
-        print("Tanimoto filter progress: 100 percent complete")
+                print_progress(i, len(compounds_info), "Similarity filter progress:")
+        print("Similarity filter progress: 100 percent complete")
 
         return cpds_to_filter
 
     def _compare_target_fps(
         self,
         target_fps: List[AllChem.RDKFingerprint],
-        this_crit_tani: float,
+        this_crit_similarity: float,
         compound_info: Tuple[str, str],
     ) -> Tuple[str, float]:
         # do finger print loop here
         """
-        Helper function to allow parallel computation of Tanimoto filtering.
-        Works with _filter_by_tani_helper.
+        Helper function to allow parallel computation of Similarity filtering.
+        Works with _filter_by_similarity_helper.
 
         Returns cpd_id if a the compound is similar enough to a target.
         """
@@ -1350,9 +1351,9 @@ class SimilarityFilter(Filter):
             if fingerprint_method == "Morgan":
                 return AllChem.GetMorganFingerprintAsBitVect(mol, **keyword_dict)
             else:
-                return RDKFingerprint(mol, **keyword_dict)
+                return RDKFingerprint(mol)
 
-        def similarity(similarity_method, fp1, fp2):
+        def calc_similarity(similarity_method, fp1, fp2):
             if similarity_method == "dice":
                 return FingerprintSimilarity(
                     fp1, fp2, metric=DataStructs.DiceSimilarity
@@ -1366,40 +1367,40 @@ class SimilarityFilter(Filter):
 
         try:
             fp1 = fingerprint_partial(compound_info[1])
-            max_tani = 0
+            max_similarity = 0
             for fp2 in target_fps:
-                tani = similarity(self.similarity_method, fp1, fp2)
-                if tani >= this_crit_tani:
-                    return (compound_info[0], tani)
-                elif tani >= max_tani:
-                    max_tani = tani
-            return (compound_info[0], max_tani)
+                similarity = calc_similarity(self.similarity_method, fp1, fp2)
+                if similarity >= this_crit_similarity:
+                    return (compound_info[0], similarity)
+                elif similarity >= max_similarity:
+                    max_similarity = similarity
+            return (compound_info[0], max_similarity)
             # TODO what except to use here?
         except:  # noqa
             return (compound_info[0], -1)
 
     def preprint(self, pickaxe: Pickaxe) -> None:
-        if type(self.crit_tani) in [list, tuple]:
-            print_tani = self.crit_tani[pickaxe.generation]
+        if type(self.crit_similarity) in [list, tuple]:
+            print_similarity = self.crit_similarity[pickaxe.generation]
         else:
-            print_tani = self.crit_tani
-        print(f"Filtering out compounds with maximum Tanimoto match < {print_tani}")
+            print_similarity = self.crit_similarity
+        print(f"Filtering out compounds with maximum Similarity match < {print_similarity}")
 
     def _post_print(
         self, pickaxe: Pickaxe, n_total: int, n_filtered: int, time_sample: float
     ) -> None:
-        if type(self.crit_tani) in [list, tuple]:
-            if len(self.crit_tani) - 1 < pickaxe.generation:
-                print_tani = self.crit_tani[-1]
+        if type(self.crit_similarity) in [list, tuple]:
+            if len(self.crit_similarity) - 1 < pickaxe.generation:
+                print_similarity = self.crit_similarity[-1]
             else:
-                print_tani = self.crit_tani[pickaxe.generation]
+                print_similarity = self.crit_similarity[pickaxe.generation]
         else:
-            print_tani = self.crit_tani
+            print_similarity = self.crit_similarity
         print(
             (
                 f"{n_filtered} of {n_total} compounds selected after "
-                f"Tanimoto filtering of generation {pickaxe.generation} "
-                f"at cutoff of {print_tani}. "
+                f"Similarity filtering of generation {pickaxe.generation} "
+                f"at cutoff of {print_similarity}. "
                 f"--took {round(time.time() - time_sample, 2)}s.\n"
             )
         )
@@ -1433,8 +1434,8 @@ class MCSFilter(Filter):
     def _choose_cpds_to_filter(self, pickaxe: Pickaxe, processes: int = 1) -> Set[str]:
         """
         Compares the current generation to the target compound fingerprints
-        marking compounds, who have a Tanimoto similarity score to a target
-        compound greater than or equal to the crit_tani, for expansion.
+        marking compounds, who have a similarity score to a target
+        compound greater than or equal to the crit_similarity, for expansion.
         """
 
         if not pickaxe.target_smiles:
