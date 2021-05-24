@@ -1,6 +1,5 @@
 Generating Pickaxe Inputs
 =========================
-Links to intput / reactions
 
 Compound Inputs
 ---------------
@@ -47,6 +46,8 @@ Default rules are supplied with pickaxe, however custom rules can be written and
 
 Default Rules
 ~~~~~~~~~~~~~
+Overview
+********
 A set of biological reaction rules and cofactors are provided by default. These consist of approximately 70,000 MetaCyc
 reactions condensed into generic rules. Selecting all of these rules will result in a large expansion,
 but they can be trimmed down significantly while still retaining high coverage of MetaCyc reactions.
@@ -68,6 +69,55 @@ but they can be trimmed down significantly while still retaining high coverage o
 | 1221            | 100                 |
 +-----------------+---------------------+
 
+Additionally, a set of intermediate reaction rule operators are provided as well. These
+operators are less generalized than the generalized ruleset and provide uniprot information
+for each operator.
+
+Generating Default Rule Inputs
+******************************
+Default rules are imported from the rules module of minedatabase and have a few options
+to specify what is loaded:
+    #. Number of Rules
+    #. Fractional Coverage of MetaCyc
+    #. Anaerobic Rules only
+    #. Groups to Include
+    #. Groups to Ignore
+
+Possible groups to ignore and include are: aromatic, aromatic_oxygen, carbonyl, nitrogen,
+oxygen, fluorine, phosphorus, sulfur, chlorine, bromine, iodine, halogen. Examples of Defining
+rules are given below.
+
+The provided code returns the rule_list and coreactant_list that is passed to the pickaxe object.
+
+Generalized Rules Mapping 90% Metacyc
+*************************************
+.. code-block:: python
+
+    from minedatabase.rules import metacyc_generalized
+    rule_list, coreactant_list, rule_name = metacyc_generalized(
+        fraction_coverage=0.9
+    )
+
+Generalized Rules with 200 Anaerobic and Halogens
+*************************************************
+.. code-block:: python
+
+    from minedatabase.rules import metacyc_generalized
+    rule_list, coreactant_list, rule_name = metacyc_generalized(
+        n_rules=200
+        anaerobic=True,
+        include_containing=["halogen"]
+    )
+
+Intermediate Rules with all Halogens except Chlorine
+****************************************************
+.. code-block:: python
+
+    from minedatabase.rules import metacyc_intermediate
+    rule_list, coreactant_list, rule_name = metacyc_intermediate(
+        include_containing=["halogen"],
+        exclude_containing=["chlorine"]
+    )
 
 Generating Custom Rules
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -80,7 +130,7 @@ of three parts
 #. Writing the coreactant list.
 
 Writing Reactiton SMIRKS
-^^^^^^^^^^^^^^^^^^^^^^^^
+************************
 Rules are generated using `reaction SMIRKS <https://daylight.com/dayhtml/doc/theory/theory.smirks.html>`_
 which represent reactions in a string. Importantly, these reaction rules specify atom mapping,
 which keeps track of the species throughout the reaction. To higlight a simple reaction rule generation,
@@ -104,7 +154,7 @@ the radius of the atom away from the reactive site is decreased.
 
 
 Writing Reaction Rules
-^^^^^^^^^^^^^^^^^^^^^^
+**********************
 With the reaction SMIRKS written, now the whole rule for Pickaxe must be written. The rules are written
 as follows in a .tsv::
 
@@ -131,7 +181,7 @@ Below is an example of a reaction rule made for a deesterification reaction.
     defined as a coreactant.
 
 Defining Coreactants
-^^^^^^^^^^^^^^^^^^^^^
+********************
 Coreactants are defined in their own file that the Pickaxe object will load and use
 alongside the reaction rules. The coreactant file for the example deesterification reaction
 is::
@@ -140,25 +190,25 @@ is::
     WATER	WATER	O
 
 Reaction Rule Example Summary
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+*****************************
 
 Summarized here is the input files for a deesterification reaction.
 
-Reaction
-~~~~~~~~
+**Reaction**
+
 .. image:: _static/figures/deesterification.png
     :width: 500
     :align: center
 
-Reaction Rule Input
-~~~~~~~~~~~~~~~~~~~
+**Reaction Rule Input**
+
 ::
 
     RULE_ID REACTANTS   RULE    PROODUCTS   NOTES
     rule1   Any;WATER     [#6:2]-(=[#8:1])-[#8:4]-[#6:5].[#8:3]>>[#6:2]-(=[#8:1])-[#8:3].[#8:4]-[#6:5]    Any;Any
 
-Coreactant Input
-~~~~~~~~~~~~~~~~
+**Coreactant Input**
+
 ::
 
     #ID Name    SMILES
