@@ -1,6 +1,7 @@
 """Generate rules to use in pickaxe runs."""
 from bisect import bisect_right
 from io import StringIO
+from os import remove
 from pathlib import Path
 from typing import List, Tuple
 
@@ -90,11 +91,12 @@ def metacyc_generalized(
     Returns
     -------
     Tuple[StringIO, StringIO, str]
-        A tuple containing two streams that contain the reaction rule information and
+        A tuple containing two streams (reaction rules and cofactor) and
         the rule name.
     """
     # Whether or not to return counts
     return_counts = kwargs.get("return_counts", False)
+    return_all = kwargs.get("return_all", False)
     # Metacyc Rules
     reaction_mapping = pwd / Path("data/metacyc_rules/metacyc_mapped.tsv")
     rules = pwd / Path("data/metacyc_rules/metacyc_generalized_rules.tsv")
@@ -115,31 +117,64 @@ def metacyc_generalized(
         delimiter="\t"
         # usecols=["Name", "Reactants", "SMARTS", "Prod"]
     )
-    rule_df = pd.merge(rule_counts, rule_df, on="Name")
-    rule_df["cdf"] = rule_df["counts"].cumsum() / rule_counts.counts.sum()
+    removed_df = pd.DataFrame()
 
     # Filter out any reactions based on filtering
     name_append = ""
+    removed_ids = set()
     if anaerobic:
-        rule_df = rule_df[~rule_df["Reactants"].str.contains("^O2|;O2|O2;")]
+        removed_ids.update(
+            rule_df[rule_df["Reactants"].str.contains("^O2|;O2|O2;")].index.to_list()
+        )
+        # rule_df = rule_df[~rule_df["Reactants"].str.contains("^O2|;O2|O2;")]
         name_append += "_anaerobic"
 
     if include_containing:
         patterns_to_include = r"|".join(
             pattern_dictionary[feature] for feature in include_containing
         )
-        rule_df = rule_df[rule_df["SMARTS"].str.contains(patterns_to_include)]
+        removed_ids.update(
+            rule_df[
+                ~rule_df["SMARTS"].str.contains(patterns_to_include)
+            ].index.to_list()
+        )
+        # rule_df = rule_df[rule_df["SMARTS"].str.contains(patterns_to_include)]
         name_append += "_with_inclusion"
 
     if exclude_containing:
         patterns_to_exclude = r"|".join(
             pattern_dictionary[feature] for feature in exclude_containing
         )
-        rule_df = rule_df[~rule_df["SMARTS"].str.contains(patterns_to_exclude)]
+        removed_ids.update(
+            rule_df[rule_df["SMARTS"].str.contains(patterns_to_exclude)].index.to_list()
+        )
+        # rule_df = rule_df[~rule_df["SMARTS"].str.contains(patterns_to_exclude)]
         name_append += "_with_exclusion"
 
-    # Reindex DF
-    rule_df = rule_df.reset_index(drop=True)
+    # Reorder dataframe
+    rule_ids = rule_df.index.to_list()
+    keep_ids = [i for i in rule_ids if i not in removed_ids]
+    removed_ids = [i for i in rule_ids if i in removed_ids]
+    new_ids = keep_ids + removed_ids
+
+    # Merge with rule counts, saving old ids
+    rule_df["index"] = rule_df.index
+    rule_df = pd.merge(rule_counts, rule_df, on="Name").set_index("index")
+
+    # TODO why is this happening?
+    # Calculate ids to keep, some rules are dropped due to not having reactions
+    new_ids = [i for i in new_ids if i in rule_df.index]
+    rule_df = rule_df.loc[new_ids]
+
+    # Calculate CDF and drop unwanted rules
+    rule_df["cdf"] = rule_df["counts"].cumsum() / rule_df["counts"].sum()
+
+    if return_all:
+        rule_df.loc[rule_df.index.isin(keep_ids), "type"] = "keep"
+        rule_df.loc[~rule_df.index.isin(keep_ids), "type"] = "drop"
+    else:
+        rule_df = rule_df[rule_df.index.isin(keep_ids)]
+        rule_df = rule_df.reset_index(drop=False)
 
     # Get regex pattern to search for rules to filter dataframe
     if n_rules:
@@ -170,11 +205,11 @@ def metacyc_generalized(
         if "cdf" in new_rules.columns:
             new_rules = new_rules.drop(columns=["cdf"])
 
-    stream = StringIO()
-    new_rules.to_csv(stream, sep="\t", index=False)
-    stream = StringIO(stream.getvalue())
+    rule_stream = StringIO()
+    new_rules.to_csv(rule_stream, sep="\t", index=False)
+    rule_stream = StringIO(rule_stream.getvalue())
 
-    return stream, coreactants, rule_name
+    return rule_stream, coreactants, rule_name
 
 
 def metacyc_intermediate(
@@ -325,11 +360,11 @@ def metacyc_intermediate(
         new_rules = new_rules.drop(columns=["cdf"])
     if "counts" in new_rules.columns:
         new_rules = new_rules.drop(columns=["counts"])
-    stream = StringIO()
-    new_rules.to_csv(stream, sep="\t", index=False)
-    stream = StringIO(stream.getvalue())
+    rule_stream = StringIO()
+    new_rules.to_csv(rule_stream, sep="\t", index=False)
+    rule_stream = StringIO(rule_stream.getvalue())
 
-    return stream, coreactants, rule_name
+    return rule_stream, coreactants, rule_name
 
 
 def BNICE() -> Tuple[Path, Path, str]:
@@ -348,3 +383,9 @@ def BNICE() -> Tuple[Path, Path, str]:
     rule_name = "BNICE"
 
     return rules, coreactants, rule_name
+
+
+import seaborn as sns
+
+
+sns.scatterplot()

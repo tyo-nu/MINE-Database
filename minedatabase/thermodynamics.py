@@ -4,6 +4,7 @@ from typing import Union
 
 import pint
 from equilibrator_api import (
+    Q_,
     ComponentContribution,
     Reaction,
     default_physiological_ionic_strength,
@@ -11,7 +12,6 @@ from equilibrator_api import (
     default_physiological_p_mg,
     default_physiological_temperature,
 )
-from equilibrator_api import Q_
 from equilibrator_api.phased_reaction import PhasedReaction
 from equilibrator_assets.compounds import Compound
 from equilibrator_assets.local_compound_cache import LocalCompoundCache
@@ -83,7 +83,7 @@ class Thermodynamics:
             return False
 
     def _reset_CC(self):
-        """ reset CC back to defaults """
+        """reset CC back to defaults"""
         self.CC.p_h = default_physiological_p_h
         self.CC.p_mg = default_physiological_p_mg
         self.CC.temperature = default_physiological_temperature

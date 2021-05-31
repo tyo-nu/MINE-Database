@@ -17,10 +17,10 @@ from typing import Callable, Dict, List, Optional, Set, Tuple, Union
 import numpy as np
 import pandas as pd
 import periodictable
-from rdkit import DataStructs
 import rdkit.rdBase as rkrb
 import rdkit.RDLogger as rkl
 from mordred import Calculator, descriptors
+from rdkit import DataStructs
 from rdkit.Chem import AddHs, AllChem, CanonSmiles, RDKFingerprint
 from rdkit.Chem import rdFMCS as mcs
 from rdkit.Chem.Descriptors import ExactMolWt
@@ -29,8 +29,8 @@ from rdkit.Chem.rdmolfiles import MolFromSmiles
 from rdkit.DataStructs import FingerprintSimilarity
 from scipy.stats import rv_discrete
 from sklearn.ensemble import RandomForestRegressor
-from minedatabase import pickaxe
 
+from minedatabase import pickaxe
 from minedatabase.metabolomics import MetabolomicsDataset, Peak
 from minedatabase.pickaxe import Pickaxe
 from minedatabase.utils import Chunks, get_fp, neutralise_charges
@@ -1384,7 +1384,9 @@ class SimilarityFilter(Filter):
             print_similarity = self.crit_similarity[pickaxe.generation]
         else:
             print_similarity = self.crit_similarity
-        print(f"Filtering out compounds with maximum Similarity match < {print_similarity}")
+        print(
+            f"Filtering out compounds with maximum Similarity match < {print_similarity}"
+        )
 
     def _post_print(
         self, pickaxe: Pickaxe, n_total: int, n_filtered: int, time_sample: float
