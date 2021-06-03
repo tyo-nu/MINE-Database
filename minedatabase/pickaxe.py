@@ -881,10 +881,37 @@ class Pickaxe:
 
         if rxns_to_del:
             for rxn_id in rxns_to_del:
+                # Remove any links from products/reactants
+                # TODO: this should have happened in above loop
+                # but getting errors stemming from this
+                for _, cpd in self.reactions[rxn_id]["Reactants"]:
+                    if cpd.startswith("C"):
+                        if rxn_id in self.compounds[cpd]["Reactant_in"]:
+                            self.compounds[cpd]["Reactant_in"].remove(rxn_id)
+                
+                for _, cpd in self.reactions[rxn_id]["Products"]:
+                    if cpd.startswith("C"):
+                        if rxn_id in self.compounds[cpd]["Product_of"]:
+                            self.compounds[cpd]["Product_of"].remove(rxn_id)
+
                 del self.reactions[rxn_id]
 
             for cpd_id in cofactors_as_cpds:
                 del self.compounds[cpd_id]
+        
+        orphan_cpds = []
+        # Check for orphaned compounds
+        for cpd_id, cpd in self.compounds.items():
+            if cpd_id.startswith("C"):
+                if (
+                    (not cpd["Reactant_in"])
+                    and (not cpd["Product_of"])
+                    and (cpd["Type"] != "Starting Compound")
+                ):
+                    orphan_cpds.append(cpd_id)
+
+        for cpd_id in orphan_cpds:
+            del self.compounds[cpd_id]
 
     def prune_network(self, white_list: list, print_output: str = True) -> None:
         """Prune the reaction network to a list of targets.
