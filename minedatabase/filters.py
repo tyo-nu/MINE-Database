@@ -220,50 +220,24 @@ class Filter(metaclass=abc.ABCMeta):
             # Every compound isn't in cpds_to_remove
             return True
 
-        def get_compounds_to_check_from_ids(
-            pickaxe: Pickaxe, cpd_ids_to_check: List[str]
-        ) -> List[Dict]:
-            """Get compound documents from their IDs
-
-            Parameters
-            ----------
-            pickaxe : Pickaxe
-                Instance of Pickaxe being used to expand and filter the network.
-            cpd_ids_to_check : List[str]
-                List of compound IDs to get compound documents for.
-
-            Returns
-            -------
-            cpds_to_check : List[Dict]
-                List of compound documents.
-            """
-            cpds_to_check = []
-            for cpd in pickaxe.compounds.values():
-                if cpd["_id"] in cpd_ids_to_check:
-                    cpds_to_check.append(cpd)
-            return cpds_to_check
-
-        compounds_to_check = get_compounds_to_check_from_ids(
-            pickaxe, compound_ids_to_check
-        )
-
         cpds_to_remove = set()
-        rxns_to_check = set()
-        for cpd_dict in compounds_to_check:
-            cpd_id = cpd_dict["_id"]
+        rxns_to_check = []
+
+        for cpd_id in compound_ids_to_check:
+            cpd_dict = pickaxe.compounds.get(cpd_id)
+            if not cpd_dict:
+                continue
+
             if not cpd_dict["Expand"] and cpd_id.startswith("C"):
                 cpds_to_remove.add(cpd_id)
-                # Generate set of reactions to remove
-                rxn_ids = set(
-                    pickaxe.compounds[cpd_id]["Product_of"]
-                    + pickaxe.compounds[cpd_id]["Reactant_in"]
-                )
 
-                rxns_to_check = rxns_to_check.union(rxn_ids)
+                rxns_to_check.extend(pickaxe.compounds[cpd_id]["Product_of"])
+                rxns_to_check.extend(pickaxe.compounds[cpd_id]["Reactant_in"])
 
         # Function to check to see if should delete reaction
         # If reaction has compound that won't be deleted keep it
         # Check reactions for deletion
+        start_ap = time.time()
         for rxn_id in rxns_to_check:
             if should_delete_reaction(rxn_id):
                 for _, c_id in pickaxe.reactions[rxn_id]["Products"]:
@@ -286,7 +260,7 @@ class Filter(metaclass=abc.ABCMeta):
                 # for _, c_id in products:
                 #     if c_id in cpds_to_remove:
                 #         cpds_to_remove -= {c_id}
-
+        print(f"Checked reactions in {time.time()-start_ap}")
         # Remove compounds and reactions if any found
         for cpd_id in cpds_to_remove:
             del pickaxe.compounds[cpd_id]
@@ -541,22 +515,26 @@ class SimilaritySamplingFilter(Filter):
             max_iter = n_cpds / 10 if n_cpds > 1000 else n_cpds / 2
 
         chosen_ids = set()
-        i = 0
         nCDF = 0
 
+        collisions_before_recalc = n_cpds / 4
+        collisions = 0
+
         while len(chosen_ids) != n_cpds:
-            # if current iteration if greater than max then
-            # recalc distribution to exclude chosen
-            if i > max_iter:
-                i = 0
+            # Collisions merit reset
+            if collisions == collisions_before_recalc:
+                collisions = 0
                 nCDF += 1
                 rv, ids = self._gen_rv_from_df(
-                    df, chosen=chosen_ids, weighting=weighting
+                    df, chosen_ids, weighting=weighting
                 )
 
-            chosen_ids.add(ids.iloc[rv.rvs(size=1)[0]])
-            i += 1
-
+            sampled_idx = ids.iloc[rv.rvs(size=1)[0]]
+            if sampled_idx in chosen_ids:
+                # collision
+                collisions += 1
+            else:
+                chosen_ids.add(sampled_idx)
         print(
             f"-- Finished sampling in {time.time() - then} s."
             f" Recalculated CDF {nCDF} times."
