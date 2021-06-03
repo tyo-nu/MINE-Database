@@ -234,6 +234,7 @@ class Filter(metaclass=abc.ABCMeta):
                 rxns_to_check.extend(pickaxe.compounds[cpd_id]["Product_of"])
                 rxns_to_check.extend(pickaxe.compounds[cpd_id]["Reactant_in"])
 
+        rxns_to_check = set(rxns_to_check)
         # Function to check to see if should delete reaction
         # If reaction has compound that won't be deleted keep it
         # Check reactions for deletion
