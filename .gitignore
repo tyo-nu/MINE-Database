@@ -90,3 +90,6 @@ local_data/
 
 # MS2
 msrb-fragmenter/
+
+# eq
+compounds.sqlite
