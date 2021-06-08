@@ -4,21 +4,48 @@ from pathlib import Path
 import pytest
 
 from minedatabase.filters import (
+    AtomicCompositionFilter,
     MCSFilter,
     MetabolomicsFilter,
+    MWFilter,
+    ReactionFeasibilityFilter,
     SimilarityFilter,
     SimilaritySamplingFilter,
+    ThermoFilter,
 )
+
 
 file_path = Path(__file__)
 file_dir = file_path.parent
 DATA_DIR = (file_dir / "../data/").resolve()
 
+# check for eQ
+try:
+    from equilibrator_api import Q_
+
+    from minedatabase.filters.thermodynamics import ThermoFilter
+    from minedatabase.thermodynamics import Thermodynamics
+
+    thermo = Thermodynamics()
+    try:
+        thermo.load_thermo_from_postgres()
+        loaded_db = True
+    except:
+        try:
+            thermo.load_thermo_from_sqlite()
+            loaded_db = True
+        except:
+            pass
+except:
+    pass
+
 
 def test_similarity_cutoff_single(pk_target):
     """Test similarity cutoff filter"""
     tani_threshold = 0.5
-    _filter = SimilarityFilter(crit_tani=tani_threshold, increasing_tani=False)
+    _filter = SimilarityFilter(
+        crit_similarity=tani_threshold, increasing_similarity=False
+    )
     pk_target.filters.append(_filter)
     pk_target.transform_all(generations=2)
 
@@ -33,7 +60,9 @@ def test_similarity_cutoff_single(pk_target):
 def test_filter_after(pk_target):
     """Test similarity cutoff filter"""
     tani_threshold = 0.5
-    _filter = SimilarityFilter(crit_tani=tani_threshold, increasing_tani=False)
+    _filter = SimilarityFilter(
+        crit_similarity=tani_threshold, increasing_similarity=False
+    )
     pk_target.filter_after_final_gen = True
     pk_target.filters.append(_filter)
     pk_target.transform_all(generations=2)
@@ -48,7 +77,9 @@ def test_filter_after(pk_target):
 def test_similarity_cutoff_multi(pk_target):
     """Test similarity cutoff filter"""
     tani_threshold = [0, 0.3, 0.5]
-    _filter = SimilarityFilter(crit_tani=tani_threshold, increasing_tani=False)
+    _filter = SimilarityFilter(
+        crit_similarity=tani_threshold, increasing_similarity=False
+    )
     pk_target.filters.append(_filter)
     pk_target.transform_all(generations=2)
 
@@ -62,7 +93,9 @@ def test_similarity_cutoff_multi(pk_target):
 def test_similarity_cutoff_multi_short_list(pk_target):
     """Test similarity filter when the tani_threshold is shorter than generations."""
     tani_threshold = [0.5]
-    _filter = SimilarityFilter(crit_tani=tani_threshold, increasing_tani=False)
+    _filter = SimilarityFilter(
+        crit_similarity=tani_threshold, increasing_similarity=False
+    )
     pk_target.filters.append(_filter)
     pk_target.transform_all(generations=2)
 
@@ -76,12 +109,14 @@ def test_similarity_cutoff_multi_short_list(pk_target):
 def test_similarity_no_targets(pk_target):
     pk_target.target_smiles = []
     tani_threshold = 0.5
-    _filter = SimilarityFilter(crit_tani=tani_threshold, increasing_tani=False)
+    _filter = SimilarityFilter(
+        crit_similarity=tani_threshold, increasing_similarity=False
+    )
 
     pk_target.filters.append(_filter)
     pk_target.transform_all(generations=2)
 
-    assert len(pk_target.compounds) == 1432
+    assert len(pk_target.compounds) == 1348
     assert (
         pk_target.compounds["C779bfa0d747509f0499664b390657a336edec104"]["Expand"]
         == True
@@ -179,6 +214,26 @@ def test_MCS_list(pk_target):
     pk_target.transform_all(generations=2)
 
     assert len(pk_target.compounds) == 340
+
+
+@pytest.mark.skipif(not loaded_db, reason="No eQuilibrator DB found.")
+def test_thermo_phys(pk_target):
+    """Test thermo cutoff for physiological"""
+    _filter = ThermoFilter(physiological=True)
+    pk_target.filters.append(_filter)
+    pk_target.transform_all(generations=1)
+
+    assert True
+
+
+@pytest.mark.skip(reason="pytorch crashes during pytest call, have to run manually.")
+def test_feasibility(pk_target):
+    """Test thermo cutoff for feasibility"""
+    _filter = ReactionFeasibilityFilter(use_unpredicted=False)
+    pk_target.filters.append(_filter)
+    pk_target.transform_all(generations=2)
+
+    assert len(pk_target.compounds) == 1348
 
 
 def test_met_filter_mass(pk_target):

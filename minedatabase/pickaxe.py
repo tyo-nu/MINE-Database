@@ -600,7 +600,7 @@ class Pickaxe:
         ):
 
             for _filter in self.filters:
-                _filter.apply_filter(self, processes)
+                _filter.apply_filter(self, processes, generation=generations)
 
             if self.generation < generations:
                 # Prune network to only things that are expanded as white list
@@ -888,7 +888,7 @@ class Pickaxe:
                     if cpd.startswith("C"):
                         if rxn_id in self.compounds[cpd]["Reactant_in"]:
                             self.compounds[cpd]["Reactant_in"].remove(rxn_id)
-                
+
                 for _, cpd in self.reactions[rxn_id]["Products"]:
                     if cpd.startswith("C"):
                         if rxn_id in self.compounds[cpd]["Product_of"]:
@@ -898,7 +898,7 @@ class Pickaxe:
 
             for cpd_id in cofactors_as_cpds:
                 del self.compounds[cpd_id]
-        
+
         orphan_cpds = []
         # Check for orphaned compounds
         for cpd_id, cpd in self.compounds.items():

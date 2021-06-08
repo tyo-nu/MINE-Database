@@ -1,0 +1,152 @@
+from minedatabase.filters.base_filter import Filter
+from minedatabase.pickaxe import Pickaxe
+from pathlib import Path
+from joblib import load
+
+from rdkit.Chem import MolFromSmiles, AddHs, AllChem
+import numpy as np
+
+from typing import List, Set
+
+import rdkit.RDLogger as rkl
+import rdkit.rdBase as rkrb
+
+logger = rkl.logger()
+logger.setLevel(rkl.ERROR)
+rkrb.DisableLog("rdApp.error")
+
+cwd = Path(__file__).parent
+PREDICTOR_FILE = cwd / "../data/toxicity/etoxpred_best_model.joblib"
+PREDICTOR_FILE = PREDICTOR_FILE.resolve()
+
+
+class ToxicityFilter(Filter):
+    """A filter that filters compounds based on their toxicity.
+
+    This filter uses #WHAT DOES IT USED
+
+    Parameters
+    ----------
+    max_toxicity : float
+        The maximum toxicity allowed, by default WHAT
+    generation_list : list
+        Generations to apply filter -- empty list filters all, by default empty list
+    last_generation_only : bool
+        Whether or not to only filter last generation, by default False
+
+    Attributes
+    ----------
+    max_toxicity : float
+        The maximum toxicity allowed, by default 0.58
+    generation_list : list
+        Generations to apply filter -- empty list filters all, by default empty list
+    last_generation_only : bool
+        Whether or not to only filter last generation, by default False
+    """
+
+    def __init__(
+        self,
+        max_toxicity: float = 0.58,
+        generation_list: List[int] = [],
+        last_generation_only: bool = False,
+    ) -> None:
+        self._filter_name = "Toxicity Filter"
+        self.max_toxicity = max_toxicity
+        self.generation_list = generation_list
+        self.last_generation_only = last_generation_only
+
+        self._clf = load(PREDICTOR_FILE)
+
+    @property
+    def filter_name(self) -> str:
+        return self._filter_name
+
+    def _pre_print(self) -> None:
+        """Print before filtering."""
+        print(f"Filter out reactions with toxicity < {self.max_toxicity}")
+
+    def _post_print(
+        self, pickaxe: Pickaxe, n_total: int, n_filtered: int, time_sample: float
+    ) -> None:
+        """Print after filtering."""
+        print(
+            (
+                f"{n_filtered} of {n_total} "
+                "compounds selected after toxicity filtering in time_sample."
+            )
+        )
+
+    def _predict(self, cpd_ids, pickaxe):
+        tox_list = list()
+        X = self._process_cpd_ids(cpd_ids, pickaxe)
+
+        for i in range(X.shape[0]):
+            tox_score = self._clf.predict_proba(X[i, :].reshape((1, 1024)))[:, 1]
+            tox_list.append((cpd_ids[i], tox_score[0]))
+
+        return tox_list
+
+    def _process_cpd_ids(self, cpd_ids, pickaxe):
+        """
+        Loading data from .smi file. And generating Morgan's fingerprints and labels
+        for the smiles data.
+        Input: filename -> path to the .smi file in the format of SmilesString\tCompoundName\tLabel
+        Output: two arrays X -> fingerprints, y -> labels
+        """
+        X = []
+
+        for cpd_id in cpd_ids:
+            mol = MolFromSmiles(pickaxe.compounds[cpd_id]["SMILES"])
+            mol = AddHs(mol)
+            fp = AllChem.GetMorganFingerprintAsBitVect(mol, radius=2, nBits=1024)
+            fp_string = fp.ToBitString()
+            tmpX = np.array(list(fp_string), dtype=float)
+            X.append(tmpX)
+
+        X = np.array(X)
+
+        return X
+
+    def _choose_items_to_filter(self, pickaxe: Pickaxe, processes: int = 1) -> Set[str]:
+        """
+        Check the compounds against the MW constraints and return
+        compounds to filter.
+        """
+        cpds_remove_set = set()
+        rxns_remove_set = set()
+
+        if len(pickaxe.target_smiles) == 0:
+            print("No compounds to check toxicity for.")
+            return cpds_remove_set, rxns_remove_set
+
+        if self.last_generation_only and pickaxe.generation != self.generation:
+            print("Not filtering for this generation using toxicity.")
+            return cpds_remove_set, rxns_remove_set
+
+        if self.generation_list and (self.generation - 1) not in self.generation_list:
+            print("Not filtering for this generation using toxicity.")
+            return cpds_remove_set, rxns_remove_set
+
+        cpds_to_check = []
+        for cpd in pickaxe.compounds.values():
+            # Compounds are in generation and correct type
+            if cpd["Generation"] == pickaxe.generation and cpd["Type"] not in [
+                "Coreactant",
+                "Target Compound",
+            ]:
+                cpds_to_check.append(cpd["_id"])
+
+        cpds_to_check = list(set(cpds_to_check))
+
+        tox_list = self._predict(cpds_to_check, pickaxe)
+
+        for cpd_id, tox in tox_list:
+            if tox > self.max_toxicity:
+                cpds_remove_set.add(cpd_id)
+                pickaxe.compounds[cpd_id]["Expand"] = False
+
+        return cpds_remove_set, rxns_remove_set
+
+
+if __name__ == "__main__":
+    pass

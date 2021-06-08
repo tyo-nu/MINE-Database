@@ -5,11 +5,7 @@ import json
 from pathlib import Path
 
 from minedatabase import pickaxe
-from minedatabase.rules import (
-    BNICE,
-    metacyc_generalized,
-    metacyc_intermediate,
-)
+from minedatabase.rules import BNICE, metacyc_generalized, metacyc_intermediate
 
 
 file_path = Path(__file__)
@@ -52,7 +48,7 @@ def test_metacyc_generalized_specify_fraction():
     pk = pickaxe.Pickaxe(rule_list=rule_list, coreactant_list=correactant_list)
 
     assert rule_name == "Metacyc_generalized_0,9_fraction_coverage"
-    assert len(pk.operators) == 273
+    assert len(pk.operators) == 353
     assert len(pk.coreactants) == 45
 
     assert (
@@ -68,7 +64,7 @@ def test_metacyc_exclude():
     pk = pickaxe.Pickaxe(rule_list=rule_list, coreactant_list=correactant_list)
 
     assert rule_name == "Metacyc_generalized_0,9_fraction_coverage_with_exclusion"
-    assert len(pk.operators) == 201
+    assert len(pk.operators) == 843
     assert len(pk.coreactants) == 45
 
 
@@ -79,7 +75,7 @@ def test_metacyc_include():
     pk = pickaxe.Pickaxe(rule_list=rule_list, coreactant_list=correactant_list)
 
     assert rule_name == "Metacyc_generalized_0,9_fraction_coverage_with_inclusion"
-    assert len(pk.operators) == 73
+    assert len(pk.operators) == 378
     assert len(pk.coreactants) == 45
 
 

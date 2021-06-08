@@ -1,31 +1,34 @@
 """Tests for thermodynamics.py using pytest."""
-
-
-import json
 from pathlib import Path
+
 import pytest
-from minedatabase.thermodynamics import Thermodynamics
-from equilibrator_api import Q_
+
 
 file_path = Path(__file__)
 file_dir = file_path.parent
 
 # Thermodynamics
 loaded_db = False
-thermo = Thermodynamics()
+
 
 try:
-    thermo.load_thermo_from_postgres()
-    loaded_db = True
-except:
-    pass
+    from equilibrator_api import Q_
 
-if not loaded_db:
+    from minedatabase.thermodynamics import Thermodynamics
+
+    thermo = Thermodynamics()
+
     try:
-        thermo.load_thermo_from_sqlite()
+        thermo.load_thermo_from_postgres()
         loaded_db = True
     except:
-        pass
+        try:
+            thermo.load_thermo_from_sqlite()
+            loaded_db = True
+        except:
+            pass
+except:
+    pass
 
 
 @pytest.mark.skipif(not loaded_db, reason="No eQuilibrator DB found.")
@@ -47,7 +50,7 @@ def test_dgf_standard(pk_transformed):
         "C75ec1165c59bd4ec72b0636a8ae4904a20b4c4f3", pk_transformed
     )
 
-    assert abs(dgf[0]) == pytest.approx(2580, 2582)
+    assert abs(dgf) == pytest.approx(2580, 2582)
 
 
 @pytest.mark.skipif(not loaded_db, reason="No eQuilibrator DB found.")

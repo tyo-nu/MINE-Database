@@ -25,8 +25,12 @@ from minedatabase.filters import (
     MetabolomicsFilter,
     MWFilter,
     SimilarityFilter,
-    SimilaritySamplingFilter,
+    SimilaritySamplingFilter
 )
+# Uncomment to use these. Pickaxe doesn't come packaged with dependencies by default.
+# from minedatabase.filters import ThermoFilter
+# from minedatabase.filters import ReactionFeasibilityFilter
+
 from minedatabase.pickaxe import Pickaxe
 from minedatabase.rules import metacyc_generalized, metacyc_intermediate
 
@@ -98,7 +102,7 @@ indexing = False             #
 #############################################
 # Global Filtering Options
 
-# Path to target cpds file (not required for metabolomics filter)
+# Path to target cpds file (not required for all filters)
 target_cpds = "./example_data/target_list_many.csv"
 
 # Load compounds even without a filter
@@ -141,6 +145,50 @@ atomic_composition_constraints = {
     "C": [4, 7],
     "O": [5, 5]
 }
+
+##########################################
+# Thermodynamics Filter options.
+# Uses eQuilibrator to filter by ∆Gr
+
+# Information for use of eQuilibrator
+# URI of eQuilibrator DB, either postgres URI, or sqlite file name location
+eq_uri = "compounds.sqlite"
+
+# Maximum allowable ∆Gr in kJ/mol
+dg_max = 10
+
+# conditions
+p_h = 7
+p_mg = 3
+ionic_strength = 0.15
+
+# comment below line and uncomment other definition if using thermo filter
+thermo_filter = None
+# thermo_filter = ThermoFilter(
+#             eq_uri=eq_uri,
+#             dg_max=dg_max,
+#             p_h=p_h,
+#             p_mg=p_mg,
+#             ionic_strength=ionic_strength
+#         )
+
+##########################################
+# Feasibility Filter options.
+# Checks Feasibility of reaction
+
+# Apply this filter?
+feasibility_filter = False
+
+# Which generations to filter, empty list filtters all
+generation_list = []
+last_generation_only = True
+
+# comment below line and uncomment other definition if using thermo filter
+feasibility_filter = None
+feasibility_filter = ReactionFeasibilityFilter(
+    generation_list=generation_list,
+    last_generation_only=last_generation_only
+)
 
 
 ##########################################
@@ -368,12 +416,13 @@ if __name__ == "__main__":
     # Load compounds
     pk.load_compound_set(compound_file=input_cpds)
 
-    # Load partial operators
-    # if partial_rules:
-    #     pk.load_partial_operators(mapped_rxns)
-
     # Load target compounds for filters
-    if (similarity_filter or mcs_filter or similarity_sample or load_targets_without_filter or MW_filter or atomic_composition_filter):
+    if (
+        similarity_filter or mcs_filter or similarity_sample
+        or load_targets_without_filter or MW_filter
+        or atomic_composition_filter or thermo_filter
+        or feasibility_filter
+    ):
         pk.load_targets(target_cpds)
 
     # Apply filters in this order
@@ -424,6 +473,12 @@ if __name__ == "__main__":
             rt_important_features=rt_important_features
         )
         pk.filters.append(metFilter)
+
+    if feasibility_filter:
+        pk.filers.append(feasibility_filter)
+
+    if thermo_filter:
+        pk.filters.append(thermo_filter)
 
     # Transform compounds (the main step)
     pk.transform_all(processes, generations)
