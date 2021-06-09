@@ -8,12 +8,9 @@ from minedatabase.filters import (
     MCSFilter,
     MetabolomicsFilter,
     MWFilter,
-    ReactionFeasibilityFilter,
     SimilarityFilter,
     SimilaritySamplingFilter,
-    ThermoFilter,
 )
-
 
 file_path = Path(__file__)
 file_dir = file_path.parent
@@ -224,17 +221,7 @@ def test_thermo_phys(pk_target):
     pk_target.transform_all(generations=1)
 
     assert True
-
-
-@pytest.mark.skip(reason="pytorch crashes during pytest call, have to run manually.")
-def test_feasibility(pk_target):
-    """Test thermo cutoff for feasibility"""
-    _filter = ReactionFeasibilityFilter(use_unpredicted=False)
-    pk_target.filters.append(_filter)
-    pk_target.transform_all(generations=2)
-
-    assert len(pk_target.compounds) == 1348
-
+    
 
 def test_met_filter_mass(pk_target):
     """Test MetabolomicsFilter output without RT predictor."""

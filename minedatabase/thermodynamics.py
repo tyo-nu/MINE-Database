@@ -167,7 +167,7 @@ class Thermodynamics:
                     compound_smiles = compound["SMILES"]
 
         # No compound_smiles at all
-        if not compound_smiles:
+        if not compound_smiles or "*" in compound_smiles:
             return None
         else:
             eQ_compound = self.lc.get_compounds(
@@ -232,7 +232,6 @@ class Thermodynamics:
             if not reaction_info:
                 return None
         else:
-            print("Specify pickaxe or database name.")
             return None
 
         reactants = reaction_info["Reactants"]
