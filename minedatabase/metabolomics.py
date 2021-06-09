@@ -216,7 +216,7 @@ class MetabolomicsDataset:
         # find nominal mass for a given m/z for each adduct and the max and
         # min values for db
         potential_masses = [(peak.mz - adduct[2]) / adduct[1] for adduct in adducts]
-        print(potential_masses, adducts)
+
         if self.ppm:
             precision = (self.tolerance / 100000.0) * potential_masses
         else:
@@ -293,7 +293,6 @@ class MetabolomicsDataset:
 
             if positive:
                 self.find_db_hits(peak, db, core_db, self.pos_adducts)
-                print("searching for db hits")
             elif negative:
                 self.find_db_hits(peak, db, core_db, self.neg_adducts)
             else:
@@ -721,7 +720,6 @@ def read_mzxml(input_string: str, charge: bool) -> List[Peak]:
     prefix = root.tag.strip("mzXML")
 
     for scan in root.findall(f".//{prefix}scan"):
-        print(scan)
         # somewhat counter intuitively we will get the peak info from the
         # second fragments precursor info.
         if scan.attrib["msLevel"] == "2":
