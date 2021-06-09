@@ -75,6 +75,7 @@ Scripts/cfm_id/esi_msms_models/*
 
 # ipynbs
 *ipynb
+.ipynb_checkpoints
 
 # Models
 Models/
@@ -89,3 +90,6 @@ local_data/
 
 # MS2
 msrb-fragmenter/
+
+# eq
+compounds.sqlite

@@ -5,12 +5,7 @@ import json
 from pathlib import Path
 
 from minedatabase import pickaxe
-from minedatabase.rules import (
-    BNICE,
-    metacyc_generalized,
-    metacyc_intermediate,
-    metacyc_intermediate_uniprot,
-)
+from minedatabase.rules import BNICE, metacyc_generalized, metacyc_intermediate
 
 
 file_path = Path(__file__)
@@ -49,11 +44,11 @@ def test_metacyc_generalized_specify_number():
 
 
 def test_metacyc_generalized_specify_fraction():
-    rule_list, correactant_list, rule_name = metacyc_generalized(fraction_coverage=0.5)
+    rule_list, correactant_list, rule_name = metacyc_generalized(fraction_coverage=0.9)
     pk = pickaxe.Pickaxe(rule_list=rule_list, coreactant_list=correactant_list)
 
-    assert rule_name == "Metacyc_generalized_0,5_fraction_coverage"
-    assert len(pk.operators) == 20
+    assert rule_name == "Metacyc_generalized_0,9_fraction_coverage"
+    assert len(pk.operators) == 353
     assert len(pk.coreactants) == 45
 
     assert (
@@ -62,12 +57,34 @@ def test_metacyc_generalized_specify_fraction():
     )
 
 
+def test_metacyc_exclude():
+    rule_list, correactant_list, rule_name = metacyc_generalized(
+        fraction_coverage=0.9, exclude_containing=["aromatic", "halogen"]
+    )
+    pk = pickaxe.Pickaxe(rule_list=rule_list, coreactant_list=correactant_list)
+
+    assert rule_name == "Metacyc_generalized_0,9_fraction_coverage_with_exclusion"
+    assert len(pk.operators) == 843
+    assert len(pk.coreactants) == 45
+
+
+def test_metacyc_include():
+    rule_list, correactant_list, rule_name = metacyc_generalized(
+        fraction_coverage=0.9, include_containing=["aromatic", "halogen"]
+    )
+    pk = pickaxe.Pickaxe(rule_list=rule_list, coreactant_list=correactant_list)
+
+    assert rule_name == "Metacyc_generalized_0,9_fraction_coverage_with_inclusion"
+    assert len(pk.operators) == 378
+    assert len(pk.coreactants) == 45
+
+
 def test_metacyc_intermediate():
     rule_list, correactant_list, rule_name = metacyc_intermediate()
     pk = pickaxe.Pickaxe(rule_list=rule_list, coreactant_list=correactant_list)
 
     assert rule_name == "Metacyc_intermediate"
-    assert len(pk.operators) == 7325
+    assert len(pk.operators) == 7358
     assert len(pk.coreactants) == 45
 
     assert (
@@ -81,13 +98,8 @@ def test_metacyc_intermediate_specify_number():
     pk = pickaxe.Pickaxe(rule_list=rule_list, coreactant_list=correactant_list)
 
     assert rule_name == "Metacyc_intermediate_20_rules"
-    assert len(pk.operators) == 1947
+    assert len(pk.operators) == 20
     assert len(pk.coreactants) == 45
-
-    assert (
-        pk.operators["rule0001_0167"][1]["SMARTS"]
-        == rule_assert_dict["Metacyc_intermediate_rule0001_0167"]
-    )
 
 
 def test_metacyc_intermediate_specify_fraction():
@@ -95,57 +107,30 @@ def test_metacyc_intermediate_specify_fraction():
     pk = pickaxe.Pickaxe(rule_list=rule_list, coreactant_list=correactant_list)
 
     assert rule_name == "Metacyc_intermediate_0,2_fraction_coverage"
-    assert len(pk.operators) == 585
+    assert len(pk.operators) == 74
     assert len(pk.coreactants) == 45
 
-    assert (
-        pk.operators["rule0006_0028"][1]["SMARTS"]
-        == rule_assert_dict["Metacyc_intermediate_rule0006_0028"]
-    )
 
-
-def test_metacyc_intermediate_uniprot():
-    rule_list, correactant_list, rule_name = metacyc_intermediate_uniprot()
-    pk = pickaxe.Pickaxe(rule_list=rule_list, coreactant_list=correactant_list)
-
-    assert rule_name == "Metacyc_intermediate_uniprot"
-    assert len(pk.operators) == 3370
-    assert len(pk.coreactants) == 45
-
-    assert (
-        pk.operators["rule0001_0177"][1]["SMARTS"]
-        == rule_assert_dict["Metacyc_intermediate_uniprot_rule0001_0177"]
-    )
-
-
-def test_metacyc_intermediate_uniprot_specify_number():
-    rule_list, correactant_list, rule_name = metacyc_intermediate_uniprot(n_rules=20)
-    pk = pickaxe.Pickaxe(rule_list=rule_list, coreactant_list=correactant_list)
-
-    assert rule_name == "Metacyc_intermediate_uniprot_20_rules"
-    assert len(pk.operators) == 878
-    assert len(pk.coreactants) == 45
-
-    assert (
-        pk.operators["rule0001_0177"][1]["SMARTS"]
-        == rule_assert_dict["Metacyc_intermediate_uniprot_rule0001_0177"]
-    )
-
-
-def test_metacyc_intermediate_uniprot_specify_fraction():
-    rule_list, correactant_list, rule_name = metacyc_intermediate_uniprot(
-        fraction_coverage=0.2
+def test_metacyc_intermediate_exclude():
+    rule_list, correactant_list, rule_name = metacyc_intermediate(
+        fraction_coverage=0.9, exclude_containing=["aromatic", "halogen"]
     )
     pk = pickaxe.Pickaxe(rule_list=rule_list, coreactant_list=correactant_list)
 
-    assert rule_name == "Metacyc_intermediate_uniprot_0,2_fraction_coverage"
-    assert len(pk.operators) == 280
+    assert rule_name == "Metacyc_intermediate_0,9_fraction_coverage_with_exclusion"
+    assert len(pk.operators) == 5887
     assert len(pk.coreactants) == 45
 
-    assert (
-        pk.operators["rule0006_005"][1]["SMARTS"]
-        == rule_assert_dict["Metacyc_intermediate_uniprot_rule0006_005"]
+
+def test_metacyc_intermediate_include():
+    rule_list, correactant_list, rule_name = metacyc_intermediate(
+        fraction_coverage=0.9, include_containing=["halogen"]
     )
+    pk = pickaxe.Pickaxe(rule_list=rule_list, coreactant_list=correactant_list)
+
+    assert rule_name == "Metacyc_intermediate_0,9_fraction_coverage_with_inclusion"
+    assert len(pk.operators) == 84
+    assert len(pk.coreactants) == 45
 
 
 def test_BNICE():
