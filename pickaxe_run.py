@@ -41,6 +41,8 @@ start = time.time()
 write_db = False
 database_overwrite = False
 database = "example_pathway"
+# Whether to write compounds to core compound database with extra info
+write_core = False
 # Message to insert into metadata
 message = ("Example run to show how pickaxe is run.")
 
@@ -343,7 +345,7 @@ if __name__ == "__main__":  # required for parallelization on Windows
 
     # Write results to database
     if write_db:
-        pk.save_to_mine(processes=processes, indexing=indexing)
+        pk.save_to_mine(processes=processes, indexing=indexing, write_core=write_core)
         client = pymongo.MongoClient(mongo_uri)
         db = client[database]
         db.meta_data.insert_one({"Timestamp": datetime.datetime.now(),

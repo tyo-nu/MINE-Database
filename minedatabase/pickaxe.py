@@ -1085,7 +1085,7 @@ class Pickaxe:
                 )
 
     def save_to_mine(
-        self, processes: int = 1, indexing: bool = True, write_core: bool = True
+        self, processes: int = 1, indexing: bool = True, write_core: bool = False
     ) -> None:
         """Save pickaxe run to MINE database.
 
@@ -1096,7 +1096,7 @@ class Pickaxe:
         indexing : bool, optional
             Whether or not to add indexes, by default True.
         write_core : bool, optional
-            Whether or not to write to core database, by default True.
+            Whether or not to write to core database, by default False.
         """
         print("\n----------------------------------------")
         print(f"Writing results to {self.mine} Database")
@@ -1162,7 +1162,6 @@ class Pickaxe:
         print("-------------- Overall ---------------")
         print(f"Finished uploading everything in {time.time() - start} sec")
         print("----------------------------------------\n")
-
 
     def _transform_helper(self, compound_smiles: List[str], processes: int) -> None:
         """Help to transform reactions external to pickaxe class
