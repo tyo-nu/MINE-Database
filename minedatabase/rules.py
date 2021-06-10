@@ -273,14 +273,14 @@ def metacyc_intermediate(
     """
     # Metacyc Rules
     rules = pwd / Path("data/metacyc_rules/metacyc_intermediate_rules.tsv")
-    uniprot_rules = pwd / Path(
-        "data/metacyc_rules/metacyc_intermediate_rules_uniprot.tsv"
-    )
+    # uniprot_rules = pwd / Path(
+    #     "data/metacyc_rules/metacyc_intermediate_rules_uniprot.tsv"
+    # )
     coreactants = pwd / Path("data/metacyc_rules/metacyc_coreactants.tsv")
 
     # Get intermediate dataframe and sort by reactions mapped
     rule_df = pd.read_csv(rules, delimiter="\t")
-    rule_df["counts"] = rule_df.Comments.map(lambda s: len(s.split(";")))
+    # rule_df["counts"] = rule_df.Comments.map(lambda s: len(s.split(";")))
     total_rxns = rule_df.counts.sum()
 
     # Filter DF to only desired compounds using general rules pattern matching
@@ -301,27 +301,28 @@ def metacyc_intermediate(
     rule_df = rule_df[rule_df["Name"].str.contains(valid_rules_pattern)]
 
     # Some generalized have no intermediate, bring those in
-    missing_rules = set(general_rule_df.Name) - set(
-        v.split("_")[0] for v in rule_df["Name"].values
-    )
-    if missing_rules:
-        missing_df = general_rule_df[
-            general_rule_df["Name"].str.contains("|".join(missing_rules))
-        ]
-        rule_df = rule_df.append(missing_df)
+    # missing_rules = set(general_rule_df.Name) - set(
+    #     v.split("_")[0] for v in rule_df["Name"].values
+    # )
+    # if missing_rules:
+    #     missing_df = general_rule_df[
+    #         general_rule_df["Name"].str.contains("|".join(missing_rules))
+    #     ]
+    #     rule_df = rule_df.append(missing_df)
 
     # Generate
     # CDF for determining fraction coverage
     rule_df = rule_df.sort_values(by="counts", ascending=False)
     rule_df["cdf"] = rule_df["counts"].cumsum() / total_rxns
 
-    # Change Comments to be uniprot
-    uniprot_df = pd.read_csv(
-        uniprot_rules, delimiter="\t", usecols=["Name", "Comments"]
-    )
-    uniprot_df = uniprot_df.rename(columns={"Comments": "Uniprot"})
-    # rule_df = rule_df.drop(columns=["Comments"])
-    rule_df = pd.merge(rule_df, uniprot_df, on="Name", how="left")
+    # saved file to do this instead
+    # # Change Comments to be uniprot
+    # uniprot_df = pd.read_csv(
+    #     uniprot_rules, delimiter="\t", usecols=["Name", "Comments"]
+    # )
+    # uniprot_df = uniprot_df.rename(columns={"Comments": "Uniprot"})
+    # # rule_df = rule_df.drop(columns=["Comments"])
+    # rule_df = pd.merge(rule_df, uniprot_df, on="Name", how="left")
 
     # Filter out any reactions based on filtering
     name_append = ""

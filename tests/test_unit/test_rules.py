@@ -107,7 +107,7 @@ def test_metacyc_intermediate_specify_fraction():
     pk = pickaxe.Pickaxe(rule_list=rule_list, coreactant_list=correactant_list)
 
     assert rule_name == "Metacyc_intermediate_0,2_fraction_coverage"
-    assert len(pk.operators) == 74
+    assert len(pk.operators) == 75
     assert len(pk.coreactants) == 45
 
 
