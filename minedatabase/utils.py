@@ -546,6 +546,34 @@ def get_atom_count(
     return atoms
 
 
+def mongo_ids_to_mine_ids(mongo_ids: List[str], core_db) -> int:
+    """Convert mongo ID to a MINE ID for a given compound.
+
+    Parameters
+    ----------
+    mongo_id : List[str]
+        List of IDs in Mongo (hashes).
+    core_db : MINE
+        Core database connection. Type annotation not present to avoid circular
+        imports.
+
+    Returns
+    -------
+    mine_id : int
+        MINE ID.
+    """
+    mongo_to_mine = {}
+    cpd_docs = core_db.compounds.find({"_id": {"$in": mongo_ids}})
+    for cpd_doc in cpd_docs:
+        if cpd_doc and "MINE_id" in cpd_doc:
+            mine_id = cpd_doc["MINE_id"]
+        else:
+            mine_id = None
+            print(f'Warning: {cpd_doc["MINE_id"]} not found in core DB.')
+        mongo_to_mine[cpd_doc["_id"]] = mine_id
+    return mongo_to_mine
+
+
 # TODO: Mark for deletion.
 # def _racemization(compound, max_centers=3, carbon_only=True):
 #     """Enumerates all possible stereoisomers for unassigned chiral centers.

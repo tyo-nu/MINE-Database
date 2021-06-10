@@ -15,7 +15,7 @@ import pymongo
 
 import minedatabase
 from minedatabase.databases import MINE
-from minedatabase.utils import score_compounds
+from minedatabase.utils import mongo_ids_to_mine_ids, score_compounds
 
 
 MINEDB_DIR = os.path.dirname(minedatabase.__file__)
@@ -194,7 +194,11 @@ class MetabolomicsDataset:
         return rt
 
     def find_db_hits(
-        self, peak: Peak, db: MINE, adducts: List[Tuple[str, float, float]]
+        self,
+        peak: Peak,
+        db: MINE,
+        core_db: MINE,
+        adducts: List[Tuple[str, float, float]],
     ) -> None:
         """This function searches the database for matches of a peak given
         adducts and updates the peak object with that information.
@@ -212,6 +216,7 @@ class MetabolomicsDataset:
         # find nominal mass for a given m/z for each adduct and the max and
         # min values for db
         potential_masses = [(peak.mz - adduct[2]) / adduct[1] for adduct in adducts]
+
         if self.ppm:
             precision = (self.tolerance / 100000.0) * potential_masses
         else:
@@ -221,16 +226,18 @@ class MetabolomicsDataset:
 
         # search database for hits in the each adducts mass range that have no
         # innate charge.
+        mongo_ids = []
         for i, adduct in enumerate(adducts):
             # build the query by adding the optional terms
             query_terms = [
                 {"Mass": {"$gte": float(lower_bounds[i])}},
                 {"Mass": {"$lte": float(upper_bounds[i])}},
                 {"Charge": 0},
+                {"MINES": {"$eq": db.name}},
             ]
             if adduct[0] == "[M]+":
                 query_terms[2] = {"Charge": 1}
-            for compound in db.compounds.find(
+            for compound in core_db.compounds.find(
                 {"$and": query_terms}, self.hit_projection
             ):
                 # Filters out halogens if the flag is enabled by moving to the
@@ -248,15 +255,18 @@ class MetabolomicsDataset:
                     peak.native_hit = True
                     compound["native_hit"] = True
 
-                if compound["Generation"] < peak.min_steps:
-                    peak.min_steps = compound["Generation"]
-
                 peak.formulas.add(compound["Formula"])
                 compound["adduct"] = adduct[0]
                 compound["peak_name"] = peak.name
+                mongo_ids.append(compound["_id"])
                 peak.isomers.append(compound)
 
-    def annotate_peaks(self, db: MINE) -> None:
+        # Get MINE IDs in bulk
+        mongo_to_mine = mongo_ids_to_mine_ids(mongo_ids, core_db)
+        for cpd in peak.isomers:
+            cpd["MINE_id"] = mongo_to_mine[cpd["_id"]]
+
+    def annotate_peaks(self, db: MINE, core_db: MINE) -> None:
         """This function iterates through the unknown peaks in the dataset and
         searches the database for compounds that match a peak m/z given the
         adducts permitted. Statistics on the annotated data set are printed.
@@ -265,6 +275,8 @@ class MetabolomicsDataset:
         ----------
         db : MINE
             MINE database.
+        core_db : MINE
+            Core database containing spectra info.
         """
         for i, peak in enumerate(self.unknown_peaks):
 
@@ -280,9 +292,9 @@ class MetabolomicsDataset:
             )
 
             if positive:
-                self.find_db_hits(peak, db, self.pos_adducts)
+                self.find_db_hits(peak, db, core_db, self.pos_adducts)
             elif negative:
-                self.find_db_hits(peak, db, self.neg_adducts)
+                self.find_db_hits(peak, db, core_db, self.neg_adducts)
             else:
                 raise ValueError(
                     "Invalid compound charge specification. "
@@ -446,9 +458,6 @@ class Peak:
         Number of compound hits for this peak.
     native_hit : bool
         Whether this peak matches a compound provided in the native set.
-    min_steps : int
-        Compound from generations greater than this value will not be matchted
-        against.
     """
 
     def __init__(
@@ -461,7 +470,10 @@ class Peak:
         ms2: List[(float, float)] = None,
     ) -> None:
         self.name = name
-        self.r_time = float(r_time)
+        if r_time:
+            self.r_time = float(r_time)
+        else:
+            self.r_time = None
         self.mz = float(mz)
         self.charge = charge
         self.inchi_key = inchi_key
@@ -471,7 +483,6 @@ class Peak:
         self.formulas = set()
         self.total_hits = 0
         self.native_hit = False
-        self.min_steps = 99
 
     def __str__(self) -> str:
         """String representation of the peak.
@@ -482,6 +493,19 @@ class Peak:
             Name of the peak.
         """
         return self.name
+
+    def __repr__(self) -> str:
+        """Print representation of the peak.
+
+        Returns
+        -------
+        str
+            Print representation of the peak.
+        """
+        return (
+            f"Peak {self.name}: {self.mz} m/z, {self.r_time} RT, {self.charge} mode, "
+            f"Contains {len(self.ms2peaks)} MS2 peaks starting with {self.ms2peaks[:3]}..."
+        )
 
     def score_isomers(
         self,
@@ -587,7 +611,7 @@ def read_adduct_names(filepath: str) -> List[str]:
     return adducts
 
 
-def read_mgf(input_string: str, charge: bool) -> List[Peak]:
+def read_mgf(input_string: str, charge: bool, ms2_delim="\t") -> List[Peak]:
     """Parse mgf metabolomics data file.
 
     Parameters
@@ -596,6 +620,9 @@ def read_mgf(input_string: str, charge: bool) -> List[Peak]:
         Metabolomics input data file.
     charge : bool
         True if positive, False if negative.
+    ms2_delim : str
+        Delimiter for whitespace between intensity and m/z value. Usually tab
+        but can also be a space in some MGF files. Tab by default.
 
     Returns
     -------
@@ -604,12 +631,19 @@ def read_mgf(input_string: str, charge: bool) -> List[Peak]:
     """
     peaks = []
     ms2 = []
+    r_time = None
     for line in input_string.split("\n"):
         sl = line.strip(" \r\n").split("=")
         if sl[0] == "PEPMASS":
-            mass = sl[1]
+            if len(sl) > 1:
+                mass = sl[1]
+            else:
+                mass = None
         elif sl[0] == "TITLE":
-            name = sl[1]
+            if len(sl) > 1:
+                name = sl[1]
+            else:
+                name = ""
         elif sl[0] == "RTINSECONDS":
             r_time = sl[1]
         elif sl[0] == "END IONS":
@@ -617,7 +651,7 @@ def read_mgf(input_string: str, charge: bool) -> List[Peak]:
             ms2 = []
         else:
             try:
-                mz, i = sl[0].split("\t")
+                mz, i = sl[0].split(ms2_delim)
                 ms2.append((float(mz), float(i)))
             except ValueError:
                 continue
@@ -686,7 +720,6 @@ def read_mzxml(input_string: str, charge: bool) -> List[Peak]:
     prefix = root.tag.strip("mzXML")
 
     for scan in root.findall(f".//{prefix}scan"):
-        print(scan)
         # somewhat counter intuitively we will get the peak info from the
         # second fragments precursor info.
         if scan.attrib["msLevel"] == "2":
@@ -708,7 +741,12 @@ class Struct:
 
 
 def ms_adduct_search(
-    db: MINE, keggdb: pymongo.database.Database, text: str, text_type: str, ms_params
+    db: MINE,
+    core_db: MINE,
+    keggdb: pymongo.database.Database,
+    text: str,
+    text_type: str,
+    ms_params,
 ) -> List:
     """Search for compound-adducts matching precursor mass.
 
@@ -716,6 +754,8 @@ def ms_adduct_search(
     ----------
     db : MINE
         Contains compound documents to search.
+    core_db : MINE
+        Contains extra info (including spectra) for compounds in db.
     keggdb : pymongo.database.Database
         Contains models with associated compound documents.
     text : str
@@ -731,7 +771,7 @@ def ms_adduct_search(
         ------------------------
         "tolerance": float specifying tolerance for m/z, in mDa by default.
             Can specify in ppm if "ppm" key's value is set to True.
-        "charge": bool (1 for positive, 0 for negative).
+        "charge": bool ('+' for positive, '-' for negative).
         ------------------------
         Optional Key-Value Pairs
         ------------------------
@@ -760,7 +800,14 @@ def ms_adduct_search(
     if isinstance(ms_params, dict):
         ms_params = Struct(**ms_params)
 
-    dataset = MetabolomicsDataset(name, ms_params)
+    dataset = MetabolomicsDataset(
+        name,
+        adducts=ms_params.adducts,
+        ppm=ms_params.ppm,
+        tolerance=ms_params.tolerance,
+        halogens=ms_params.halogens,
+        verbose=ms_params.verbose,
+    )
     ms_adduct_output = []
 
     if text_type == "form":
@@ -777,11 +824,12 @@ def ms_adduct_search(
     else:
         raise IOError(f"{text_type} files not supported")
 
-    if not ms_params.models:
-        ms_params.models = ["eco"]
+    if ms_params.models:
+        dataset.native_set = get_KEGG_comps(db, keggdb, ms_params.models)
+    else:
+        dataset.native_set = set()
 
-    dataset.native_set = get_KEGG_comps(db, keggdb, ms_params.models)
-    dataset.annotate_peaks(db)
+    dataset.annotate_peaks(db, core_db)
 
     for peak in dataset.unknown_peaks:
         for hit in peak.isomers:
@@ -789,9 +837,14 @@ def ms_adduct_search(
                 del hit["CFM_spectra"]
             ms_adduct_output.append(hit)
 
-    ms_adduct_output = score_compounds(
-        db, ms_adduct_output, ms_params.models[0], parent_frac=0.75, reaction_frac=0.25
-    )
+    if ms_params.models:
+        ms_adduct_output = score_compounds(
+            db,
+            ms_adduct_output,
+            ms_params.models[0],
+            parent_frac=0.75,
+            reaction_frac=0.25,
+        )
 
     return ms_adduct_output
 
@@ -851,7 +904,14 @@ def ms2_search(
     if isinstance(ms_params, dict):
         ms_params = Struct(**ms_params)
 
-    dataset = MetabolomicsDataset(name, ms_params)
+    dataset = MetabolomicsDataset(
+        name,
+        adducts=ms_params.adducts,
+        ppm=ms_params.ppm,
+        tolerance=ms_params.tolerance,
+        halogens=ms_params.halogens,
+        verbose=ms_params.verbose,
+    )
     ms_adduct_output = []
 
     if text_type == "form":

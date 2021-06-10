@@ -541,6 +541,11 @@ def _get_core_cpd_insert(cpd_dict: dict) -> pymongo.UpdateOne:
     }
 
     mol_object = AllChem.MolFromSmiles(core_dict["SMILES"])
+    rdk_fp = [
+        i
+        for i, val in enumerate(list(AllChem.RDKFingerprint(mol_object, fpSize=512)))
+        if val
+    ]
 
     # Store all different representations of the molecule (SMILES, Formula,
     #  InChI key, etc.) as well as its properties in a dictionary
@@ -552,8 +557,11 @@ def _get_core_cpd_insert(cpd_dict: dict) -> pymongo.UpdateOne:
         core_dict["Inchikey"] = AllChem.InchiToInchiKey(core_dict["Inchi"])
 
     core_dict["Mass"] = AllChem.CalcExactMolWt(mol_object)
+    core_dict["Charge"] = AllChem.GetFormalCharge(mol_object)
     core_dict["Formula"] = AllChem.CalcMolFormula(mol_object)
     core_dict["logP"] = AllChem.CalcCrippenDescriptors(mol_object)[0]
+    core_dict["RDKit_fp"] = rdk_fp
+    core_dict["len_RDKit_fp"] = len(rdk_fp)
     # core_dict['NP_likeness'] = nps.scoreMol(mol_object, nps_model)
     core_dict["Spectra"] = {}
     # Record which expansion it's coming from

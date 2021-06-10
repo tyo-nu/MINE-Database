@@ -50,6 +50,8 @@ write_db = False
 # Database name and message to print in metadata
 database = "example_db"
 message = "Example run to show how pickaxe is run."
+# Whether to write compounds to core compound database with extra info
+write_core = False
 # Force overwrite existing database
 database_overwrite = False
 # Use local DB, i.e. localhost:27017
@@ -488,7 +490,7 @@ if __name__ == "__main__":
 
     # Write results to database
     if write_db:
-        pk.save_to_mine(processes=processes, indexing=indexing)
+        pk.save_to_mine(processes=processes, indexing=indexing, write_core=write_core)
         client = pymongo.MongoClient(mongo_uri)
         db = client[database]
         db.meta_data.insert_one({"Timestamp": datetime.datetime.now(),

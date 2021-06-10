@@ -6,29 +6,32 @@ import pytest
 
 file_path = Path(__file__)
 file_dir = file_path.parent
+sqlite_loc = file_dir / "../compounds.sqlite"
 
 # Thermodynamics
 loaded_db = False
 
-
-try:
-    from equilibrator_api import Q_
-
-    from minedatabase.thermodynamics import Thermodynamics
-
-    thermo = Thermodynamics()
-
+if sqlite_loc.is_file():
     try:
-        thermo.load_thermo_from_postgres()
-        loaded_db = True
-    except:
+        from equilibrator_api import Q_
+
+        from minedatabase.thermodynamics import Thermodynamics
+
+        thermo = Thermodynamics()
+
         try:
-            thermo.load_thermo_from_sqlite()
+            thermo.load_thermo_from_postgres()
             loaded_db = True
+            print('Thermo DB loaded from Postgres')
         except:
-            pass
-except:
-    pass
+            try:
+                thermo.load_thermo_from_sqlite()
+                loaded_db = True
+                print('Thermo DB loaded from SQLite')
+            except:
+                pass
+    except:
+        pass
 
 
 @pytest.mark.skipif(not loaded_db, reason="No eQuilibrator DB found.")

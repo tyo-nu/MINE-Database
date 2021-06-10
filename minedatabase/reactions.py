@@ -12,6 +12,7 @@ from rdkit.Chem.AllChem import (
     Kekulize,
     MolFromSmiles,
     MolToSmiles,
+    RDKFingerprint,
     RemoveHs,
     SanitizeMol,
 )
