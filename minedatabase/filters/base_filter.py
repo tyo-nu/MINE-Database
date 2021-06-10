@@ -75,10 +75,9 @@ class Filter(metaclass=abc.ABCMeta):
             pickaxe, processes
         )
 
-        if compound_ids_to_check:
-            self._apply_filter_results(
-                pickaxe, compound_ids_to_check, reaction_ids_to_check
-            )
+        self._apply_filter_results(
+            pickaxe, compound_ids_to_check, reaction_ids_to_check
+        )
 
         if print_on:
             n_filtered = self._get_n(pickaxe, "filtered")
@@ -184,18 +183,7 @@ class Filter(metaclass=abc.ABCMeta):
         """
 
         def should_delete_reaction(rxn_id: str) -> bool:
-            """Whether we should delete reaction with supplied ID.
-
-            Parameters
-            ----------
-            rxn_id : str
-                ID of reaction.
-
-            Returns
-            -------
-            bool
-                True if we should delete, False otherwise.
-            """
+            """Returns whether or not a reaction can safely be deleted."""
             products = pickaxe.reactions[rxn_id]["Products"]
             for _, c_id in products:
                 if c_id.startswith("C") and c_id not in cpds_to_remove:
@@ -203,21 +191,49 @@ class Filter(metaclass=abc.ABCMeta):
             # Every compound isn't in cpds_to_remove
             return True
 
-        # Loop through reactions to add compounds to check and to delete reactions
-        for rxn_id in reaction_ids_to_delete:
-            # Remove affiliations of reaction and check compounds
-            product_ids = [cpd[0] for cpd in pickaxe.reactions[rxn_id]["Products"]]
+        def remove_reaction(rxn_id):
+            """Removes reaction and any resulting orphan compounds"""
+            cpds_to_return = set()
+            # Remove affiliations of reaction and check for orphans
+            product_ids = [cpd[1] for cpd in pickaxe.reactions[rxn_id]["Products"]]
             for prod_id in product_ids:
-                self.compounds[prod_id]["Product_of"].remove(rxn_id)
-                compound_ids_to_check.append(prod_id)
-
-            compound_ids = [cpd[0] for cpd in pickaxe.reactions[rxn_id]["Reactants"]]
+                if prod_id.startswith("C"):
+                    pickaxe.compounds[prod_id]["Product_of"].remove(rxn_id)
+                    cpds_to_return.add(prod_id)
+            compound_ids = [cpd[1] for cpd in pickaxe.reactions[rxn_id]["Reactants"]]
             for cpd_id in compound_ids:
-                self.compounds[cpd_id]["Reactant_in"].remove(rxn_id)
-
+                if cpd_id.startswith("C"):
+                    pickaxe.compounds[cpd_id]["Reactant_in"].remove(rxn_id)
+                    cpds_to_return.add(cpd_id)
             # Delete reaction itself
-            del self.reactions[rxn_id]
+            del pickaxe.reactions[rxn_id]
 
+            return cpds_to_return
+
+        # Process reactions to delete
+        # Loop through reactions to add compounds to check and to delete reactions
+        cpd_check_from_rxn = set()
+        for rxn_id in reaction_ids_to_delete:
+            cpd_check_from_rxn = cpd_check_from_rxn.union(remove_reaction(rxn_id))
+
+        # Check for orphaned compounds due to reaction deletion
+        while len(cpd_check_from_rxn) != 0:
+            cpd_id = cpd_check_from_rxn.pop()
+            # Orphan compound is one that has no reaction connecting it
+            if cpd_id in pickaxe.compounds:
+                product_of = pickaxe.compounds[cpd_id].get("Product_of", [])
+                # Delete if no reactions
+                if not product_of:
+                    # Delete out reactions
+                    reactant_in = pickaxe.compounds[cpd_id].get("Reactant_in", [])
+                    for rxn_id in reactant_in:
+                        cpd_check_from_rxn = cpd_check_from_rxn.union(
+                            remove_reaction(rxn_id)
+                        )
+                    # Now delete compound
+                    del pickaxe.compounds[cpd_id]
+
+        # Go through compounds_ids_to_check and delete cpds/rxns as needed
         cpds_to_remove = set()
         rxns_to_check = []
 
@@ -237,7 +253,6 @@ class Filter(metaclass=abc.ABCMeta):
         # Function to check to see if should delete reaction
         # If reaction has compound that won't be deleted keep it
         # Check reactions for deletion
-        start_ap = time.time()
         for rxn_id in rxns_to_check:
             if should_delete_reaction(rxn_id):
                 for _, c_id in pickaxe.reactions[rxn_id]["Products"]:

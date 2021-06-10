@@ -135,6 +135,9 @@ class ReactionFeasibilityFilter(Filter):
         self.generation_list = generation_list
         self.last_generation_only = last_generation_only
 
+        # Threshold for feasibility
+        self._feas_threshold = 0.32
+
     @property
     def filter_name(self) -> str:
         return self._filter_name
@@ -150,7 +153,7 @@ class ReactionFeasibilityFilter(Filter):
         print(
             (
                 f"{n_filtered} of {n_total} "
-                "compounds selected after thermodynamic filtering in time_sample."
+                "compounds selected after feasibility filtering in time_sample."
             )
         )
 
@@ -236,7 +239,7 @@ class ReactionFeasibilityFilter(Filter):
         rfc_input, rfc_fails = self._get_inputs(reactions_to_check, pickaxe)
 
         feasibility_dict = {}
-        rfc_predictions = _get_feasibility(rfc_input)
+        rfc_predictions = _get_feasibility(rfc_input, self._feas_threshold)
 
         for rxn_id, feas_scores in rfc_predictions.items():
             rxn_id = rxn_id.split("_")[0]
@@ -258,7 +261,7 @@ class ReactionFeasibilityFilter(Filter):
         return cpds_remove_set, rxns_remove_set
 
 
-def _get_feasibility(input_info):
+def _get_feasibility(input_info, feas_threshold):
     # inputs
     # Load Model
 
@@ -282,74 +285,18 @@ def _get_feasibility(input_info):
     vae_model.to(device)
     vae_model.eval()
 
-    # Calculate Features
-    # r = 2
-    # feature_info = {}
-    # for each_label in input_info:
-
-    #     reactant_smi = input_info[each_label][0]
-    #     product_smi = input_info[each_label][1]
-
-    #     z1 = _calc_z(vae_model, reactant_smi)
-    #     z1 = z1[0]
-
-    #     z2 = _calc_z(vae_model, product_smi)
-    #     z2 = z2[0]
-
-    #     reactant_mol = MolFromSmiles(reactant_smi)
-    #     fp = AllChem.GetMorganFingerprintAsBitVect(reactant_mol, radius=r, nBits=1024)
-    #     bits = fp.ToBitString()
-    #     reactant_feature = []
-    #     for f in z1:
-    #         reactant_feature.append(float(f))
-    #     for f in bits:
-    #         reactant_feature.append(int(f))
-
-    #     product_mol = MolFromSmiles(product_smi)
-    #     fp = AllChem.GetMorganFingerprintAsBitVect(product_mol, radius=r, nBits=1024)
-    #     bits = fp.ToBitString()
-    #     product_feature = []
-    #     for f in z2:
-    #         product_feature.append(float(f))
-    #     for f in bits:
-    #         product_feature.append(int(f))
-
-    #     reactant_feature = [reactant_feature]
-    #     product_feature = [product_feature]
-    #     reactant_feature = np.asarray(reactant_feature)
-    #     product_feature = np.asarray(product_feature)
-
-    #     feature_info[each_label] = [reactant_feature, product_feature]
-
     feature_info = _calculate_features(input_info, vae_model)
-    results = _predict_reaction_feasibility(feature_info, loaded_model)
-    # Predict
-    # results = {}
-    # for each_label in feature_info:
-    #     X1 = feature_info[each_label][0]
-    #     X2 = feature_info[each_label][1]
-
-    #     val_list = []
-    #     for i in range(10):
-    #         pred_result = loaded_model.predict([X1, X2])
-    #         val = pred_result[0][0]
-    #         val_list.append(val)
-    #     mean_val = np.mean(val_list)
-    #     std_val = np.std(val_list)
-    #     final_val = mean_val - (std_val * 0.5)
-    #     if final_val >= 0.32:
-    #         feasibility = "feasible"
-    #     else:
-    #         feasibility = "infeasible"
-
-    #     results[each_label] = [mean_val, std_val, feasibility]
+    results = _predict_reaction_feasibility(feature_info, loaded_model, feas_threshold)
 
     return results
 
 
-def _predict_reaction_feasibility(feature_info, model):
+def _predict_reaction_feasibility(feature_info, model, feas_threshold):
     results = {}
     for each_label in feature_info:
+        if all([type(a) == type(None) for a in feature_info[each_label]]):
+            continue
+
         X1 = feature_info[each_label][0]
         X2 = feature_info[each_label][1]
 
@@ -361,7 +308,7 @@ def _predict_reaction_feasibility(feature_info, model):
         mean_val = np.mean(val_list)
         std_val = np.std(val_list)
         final_val = mean_val - (std_val * 0.5)
-        if final_val >= 0.32:
+        if final_val >= feas_threshold:
             feasibility = "feasible"
         else:
             feasibility = "infeasible"
@@ -378,6 +325,11 @@ def _calculate_features(input_info, vae_model):
 
         reactant_smi = input_info[each_label][0]
         product_smi = input_info[each_label][1]
+
+        if "9" in reactant_smi or "9" in product_smi:
+            # Does do large rings
+            feature_info[each_label] = [None, None]
+            continue
 
         z1 = _calc_z(vae_model, reactant_smi)
         z1 = z1[0]
