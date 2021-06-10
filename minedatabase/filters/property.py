@@ -1,8 +1,9 @@
 from typing import Set, Union
 
-import periodictable
 import rdkit.rdBase as rkrb
 import rdkit.RDLogger as rkl
+from rdkit.Chem.AllChem import MolFromSmiles
+from rdkit.Chem.Descriptors import ExactMolWt
 
 from minedatabase.filters.base_filter import Filter
 from minedatabase.pickaxe import Pickaxe
@@ -44,8 +45,8 @@ class MWFilter(Filter):
     ) -> None:
         self._filter_name = "Molecular Weight"
 
-        self.min_MW = min_MW or -1
-        self.max_MW = max_MW
+        self.min_MW = min_MW or 0
+        self.max_MW = max_MW or 100000
 
     @property
     def filter_name(self) -> str:
@@ -58,7 +59,7 @@ class MWFilter(Filter):
         """
 
         def MW_is_good(cpd):
-            cpd_MW = periodictable.formula(cpd["Formula"]).mass
+            cpd_MW = ExactMolWt(MolFromSmiles(cpd["SMILES"]))
             return self.min_MW < cpd_MW and cpd_MW < self.max_MW
 
         def is_target(cpd, pickaxe):
@@ -68,6 +69,7 @@ class MWFilter(Filter):
             return False
 
         cpds_remove_set = set()
+        rxn_remove_set = set()
 
         print(
             f"Filtering Generation {pickaxe.generation} "
@@ -94,7 +96,7 @@ class MWFilter(Filter):
         for c_id in cpds_remove_set:
             pickaxe.compounds[c_id]["Expand"] = False
 
-        return cpds_remove_set, []
+        return cpds_remove_set, rxn_remove_set
 
 
 class AtomicCompositionFilter(Filter):
