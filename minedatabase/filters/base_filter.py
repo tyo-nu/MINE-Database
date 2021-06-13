@@ -1,5 +1,6 @@
 import abc
 import time
+from copy import copy
 from typing import List, Set
 
 import rdkit.rdBase as rkrb
@@ -221,11 +222,11 @@ class Filter(metaclass=abc.ABCMeta):
             cpd_id = cpd_check_from_rxn.pop()
             # Orphan compound is one that has no reaction connecting it
             if cpd_id in pickaxe.compounds:
-                product_of = pickaxe.compounds[cpd_id].get("Product_of", [])
+                product_of = copy(pickaxe.compounds[cpd_id].get("Product_of", []))
                 # Delete if no reactions
                 if not product_of:
                     # Delete out reactions
-                    reactant_in = pickaxe.compounds[cpd_id].get("Reactant_in", [])
+                    reactant_in = copy(pickaxe.compounds[cpd_id].get("Reactant_in", []))
                     for rxn_id in reactant_in:
                         cpd_check_from_rxn = cpd_check_from_rxn.union(
                             remove_reaction(rxn_id)

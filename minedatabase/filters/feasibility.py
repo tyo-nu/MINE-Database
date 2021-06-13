@@ -108,6 +108,8 @@ class ReactionFeasibilityFilter(Filter):
     ----------
     use_unpredicted : Bool
         Whether or not use to unpredicted reactions, by default False
+    use_wildcards : Bool
+        Whether or not to allow wildcard reactions through, by default True
     generation_list : list
         Generations to apply filter -- empty list filters all, by default empty list
     last_generation_only : bool
@@ -117,6 +119,8 @@ class ReactionFeasibilityFilter(Filter):
     ----------
     use_unpredicted : bool
         Whether or not use to unpredicted reactions, by default False
+    use_wildcards : Bool
+        Whether or not to allow wildcard reactions through, by default True
     generation_list : list
         Generations to apply filter -- empty list filters all, by default empty list
     last_generation_only : bool
@@ -126,6 +130,7 @@ class ReactionFeasibilityFilter(Filter):
     def __init__(
         self,
         use_unpredicted: bool = False,
+        use_wildcards: bool = True,
         generation_list: List[int] = [],
         last_generation_only: bool = False,
     ) -> None:
@@ -208,6 +213,10 @@ class ReactionFeasibilityFilter(Filter):
         Check the compounds against the MW constraints and return
         compounds to filter.
         """
+
+        def get_cpd_smiles(cpd_id):
+            return pickaxe.compounds[cpd_id]["SMILES"]
+
         cpds_remove_set = set()
         rxns_remove_set = set()
 
@@ -251,8 +260,28 @@ class ReactionFeasibilityFilter(Filter):
 
         # Assign values for unpredicted
         for rxn_id in reactions_to_check:
+            rxn = pickaxe.reactions[rxn_id]
+            use_rxn = False
             if rxn_id not in feasibility_dict:
-                feasibility_dict[rxn_id] = self.use_unpredicted
+                use_rxn = self.use_unpredicted
+
+                # Check for asterisks
+                reactants = [
+                    get_cpd_smiles(v[1])
+                    for v in rxn["Reactants"]
+                    if v[1].startswith("C")
+                ]
+                products = [
+                    get_cpd_smiles(v[1])
+                    for v in rxn["Products"]
+                    if v[1].startswith("C")
+                ]
+
+                compounds = reactants.extend(products)
+                if any([("*" in cpd) for cpd in compounds]) and self.use_wildcards:
+                    use_rxn = True
+
+            feasibility_dict[rxn_id] = use_rxn
 
         rxns_remove_set = set(
             rxn_id for rxn_id, keep in feasibility_dict.items() if not keep
@@ -261,7 +290,7 @@ class ReactionFeasibilityFilter(Filter):
         return cpds_remove_set, rxns_remove_set
 
 
-def _get_feasibility(input_info, feas_threshold):
+def _get_feasibility(input_info, feas_threshold=0.32):
     # inputs
     # Load Model
 
