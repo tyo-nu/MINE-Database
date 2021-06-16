@@ -133,7 +133,7 @@ class MetabolomicsFilter(Filter):
                 name=row["Peak ID"],
                 r_time=row["Retention Time"],
                 mz=row["Aggregate M/Z"],
-                charge=row["Polarity"].capitalize(),
+                charge=row["Polarity"],
                 inchi_key=inchi_key,
             )
 
@@ -208,7 +208,7 @@ class MetabolomicsFilter(Filter):
         # Get compounds to keep
         cpd_info = [(cpd["_id"], cpd["SMILES"]) for cpd in compounds_to_check]
 
-        possible_ranges = self.metabolomics_dataset.possible_ranges
+        possible_ranges = self.metabolomics_dataset.possible_ranges['+'] + self.metabolomics_dataset.possible_ranges['-']
 
         filter_by_mass_and_rt_partial = partial(
             self._filter_by_mass_and_rt, possible_ranges

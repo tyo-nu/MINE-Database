@@ -106,8 +106,8 @@ class MetabolomicsDataset:
         self.total_formulas = 0
         self.total_hits = 0
         self.matched_peaks = 0
-        self.possible_masses = []
-        self.possible_ranges = []
+        self.possible_masses = {'+': [], '-': []}
+        self.possible_ranges = {'+': [], '-': []}
 
     def __str__(self) -> str:
         """Give string representation.
@@ -154,23 +154,18 @@ class MetabolomicsDataset:
         tolerance : float
             Mass tolerance in Daltons.
         """
-        possible_masses = []
-        possible_ranges = []
         for peak in self.unknown_peaks:
-            for adduct in self.pos_adducts + self.neg_adducts:
-                possible_mass = (peak.mz - adduct[2]) / adduct[1]
-                possible_masses.append(possible_mass)
-                possible_ranges.append(
-                    (
-                        possible_mass - tolerance,
-                        possible_mass + tolerance,
-                        peak.name,
-                        adduct[0],
-                    )
-                )
+            if peak.charge == '+':
+                peak_adducts = self.pos_adducts
+            else:
+                peak_adducts = self.neg_adducts
+            
+            masses, ranges = peak._enumerate_possible_masses(self, peak_adducts, tolerance)
+            self.possible_masses[peak.charge] += masses
+            self.possible_ranges[peak.charge] += ranges
 
-        self.possible_masses = np.array(set(possible_masses))
-        self.possible_ranges = possible_ranges
+        for charge in ['+', '-']:
+            self.possible_masses[charge] = np.array(set(self.possible_masses[charge]))
 
     def get_rt(self, peak_id: str) -> Optional[float]:
         """Return retention time for peak with given ID. If not found, returns
@@ -506,6 +501,45 @@ class Peak:
             f"Peak {self.name}: {self.mz} m/z, {self.r_time} RT, {self.charge} mode, "
             f"Contains {len(self.ms2peaks)} MS2 peaks starting with {self.ms2peaks[:3]}..."
         )
+
+    def _enumerate_possible_masses(self, met_dataset: MetabolomicsDataset, adducts: List[str], tolerance: float) -> (List[float], List[Tuple[float, float]]):
+        """Generate all possible masses for a given peak.
+
+        Parameters
+        ----------
+        met_dataset : MetabolomicsDataset
+            Instance of MetabolomicsDataset with associated adducts.
+        adducts : List[str]
+            List of adducts, charge should match charge of this peak.
+        tolerance : float
+            Mass tolernace in Daltons.
+
+        Returns
+        -------
+        possible_masses : List[float]
+            List of possible masses.
+        possible_ranges : List[Tuple(float, float)]
+            List of lower and upper bounds provided aggregate mass + tolerance.
+        """
+        possible_masses = []
+        possible_ranges = []
+        if self.charge == '+':
+            adducts = met_dataset.pos_adducts
+        else:
+            adducts = met_dataset.neg_adducts
+
+        for adduct in adducts:
+            possible_mass = (self.mz - adduct[2]) / adduct[1]
+            possible_masses.append(possible_mass)
+            possible_ranges.append(
+                (
+                    possible_mass - tolerance,
+                    possible_mass + tolerance,
+                    self.name,
+                    adduct[0],
+                )
+            )
+        return possible_masses, possible_ranges
 
     def score_isomers(
         self,
