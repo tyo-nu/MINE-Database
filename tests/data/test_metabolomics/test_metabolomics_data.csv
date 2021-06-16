@@ -1,4 +1,4 @@
 Peak ID,Retention Time,Aggregate M/Z,Polarity,Compound Name,Predicted Structure (smiles),ID
-Test1,19.82,62.05983021,positive,,,no
-Test2,4.33,115.00477753,negative,succinate,O=C([O-])CCC(=O)[O-],yes
-Test3,26.29,253.09337,positive,,,no
+Test1,19.82,62.05983021,+,,,no
+Test2,4.33,115.00477753,-,succinate,O=C([O-])CCC(=O)[O-],yes
+Test3,26.29,253.09337,+,,,no
