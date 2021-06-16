@@ -22,12 +22,12 @@ if sqlite_loc.is_file():
         try:
             thermo.load_thermo_from_postgres()
             loaded_db = True
-            print('Thermo DB loaded from Postgres')
+            print("Thermo DB loaded from Postgres")
         except:
             try:
                 thermo.load_thermo_from_sqlite()
                 loaded_db = True
-                print('Thermo DB loaded from SQLite')
+                print("Thermo DB loaded from SQLite")
             except:
                 pass
     except:

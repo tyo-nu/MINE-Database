@@ -213,73 +213,77 @@ class Filter(metaclass=abc.ABCMeta):
 
         # Process reactions to delete
         # Loop through reactions to add compounds to check and to delete reactions
-        cpd_check_from_rxn = set()
-        for rxn_id in reaction_ids_to_delete:
-            cpd_check_from_rxn = cpd_check_from_rxn.union(remove_reaction(rxn_id))
+        if reaction_ids_to_delete:
+            cpd_check_from_rxn = set()
+            for rxn_id in reaction_ids_to_delete:
+                cpd_check_from_rxn = cpd_check_from_rxn.union(remove_reaction(rxn_id))
 
-        # Check for orphaned compounds due to reaction deletion
-        while len(cpd_check_from_rxn) != 0:
-            cpd_id = cpd_check_from_rxn.pop()
-            # Orphan compound is one that has no reaction connecting it
-            if cpd_id in pickaxe.compounds:
-                product_of = copy(pickaxe.compounds[cpd_id].get("Product_of", []))
-                # Delete if no reactions
-                if not product_of:
-                    # Delete out reactions
-                    reactant_in = copy(pickaxe.compounds[cpd_id].get("Reactant_in", []))
-                    for rxn_id in reactant_in:
-                        cpd_check_from_rxn = cpd_check_from_rxn.union(
-                            remove_reaction(rxn_id)
+            # Check for orphaned compounds due to reaction deletion
+            while len(cpd_check_from_rxn) != 0:
+                cpd_id = cpd_check_from_rxn.pop()
+                # Orphan compound is one that has no reaction connecting it
+                if cpd_id in pickaxe.compounds:
+                    product_of = copy(pickaxe.compounds[cpd_id].get("Product_of", []))
+                    # Delete if no reactions
+                    if not product_of:
+                        # Delete out reactions
+                        reactant_in = copy(
+                            pickaxe.compounds[cpd_id].get("Reactant_in", [])
                         )
-                    # Now delete compound
-                    del pickaxe.compounds[cpd_id]
+                        for rxn_id in reactant_in:
+                            cpd_check_from_rxn = cpd_check_from_rxn.union(
+                                remove_reaction(rxn_id)
+                            )
+                        # Now delete compound
+                        del pickaxe.compounds[cpd_id]
 
         # Go through compounds_ids_to_check and delete cpds/rxns as needed
-        cpds_to_remove = set()
-        rxns_to_check = []
+        if compound_ids_to_check:
+            cpds_to_remove = set()
+            rxns_to_check = []
 
-        compound_ids_to_check = set(compound_ids_to_check)
-        for cpd_id in compound_ids_to_check:
-            cpd_dict = pickaxe.compounds.get(cpd_id)
-            if not cpd_dict:
-                continue
+            compound_ids_to_check = set(compound_ids_to_check)
+            for cpd_id in compound_ids_to_check:
+                cpd_dict = pickaxe.compounds.get(cpd_id)
+                if not cpd_dict:
+                    continue
 
-            if not cpd_dict["Expand"] and cpd_id.startswith("C"):
-                cpds_to_remove.add(cpd_id)
+                if not cpd_dict["Expand"] and cpd_id.startswith("C"):
+                    cpds_to_remove.add(cpd_id)
 
-                rxns_to_check.extend(pickaxe.compounds[cpd_id]["Product_of"])
-                rxns_to_check.extend(pickaxe.compounds[cpd_id]["Reactant_in"])
+                    rxns_to_check.extend(pickaxe.compounds[cpd_id]["Product_of"])
+                    rxns_to_check.extend(pickaxe.compounds[cpd_id]["Reactant_in"])
 
-        rxns_to_check = set(rxns_to_check)
-        # Function to check to see if should delete reaction
-        # If reaction has compound that won't be deleted keep it
-        # Check reactions for deletion
-        for rxn_id in rxns_to_check:
-            if should_delete_reaction(rxn_id):
-                for _, c_id in pickaxe.reactions[rxn_id]["Products"]:
-                    if c_id.startswith("C"):
-                        if rxn_id in pickaxe.compounds[c_id]["Product_of"]:
-                            pickaxe.compounds[c_id]["Product_of"].remove(rxn_id)
+            rxns_to_check = set(rxns_to_check)
+            # Function to check to see if should delete reaction
+            # If reaction has compound that won't be deleted keep it
+            # Check reactions for deletion
+            for rxn_id in rxns_to_check:
+                if should_delete_reaction(rxn_id):
+                    for _, c_id in pickaxe.reactions[rxn_id]["Products"]:
+                        if c_id.startswith("C"):
+                            if rxn_id in pickaxe.compounds[c_id]["Product_of"]:
+                                pickaxe.compounds[c_id]["Product_of"].remove(rxn_id)
 
-                for _, c_id in pickaxe.reactions[rxn_id]["Reactants"]:
-                    if c_id.startswith("C"):
-                        if rxn_id in pickaxe.compounds[c_id]["Reactant_in"]:
-                            pickaxe.compounds[c_id]["Reactant_in"].remove(rxn_id)
+                    for _, c_id in pickaxe.reactions[rxn_id]["Reactants"]:
+                        if c_id.startswith("C"):
+                            if rxn_id in pickaxe.compounds[c_id]["Reactant_in"]:
+                                pickaxe.compounds[c_id]["Reactant_in"].remove(rxn_id)
 
-                del pickaxe.reactions[rxn_id]
-            else:
-                # Reaction is dependent on compound that is flagged to be
-                # removed. Don't remove compound
-                products = pickaxe.reactions[rxn_id]["Products"]
-                cpds_to_remove -= set(i[1] for i in products)
+                    del pickaxe.reactions[rxn_id]
+                else:
+                    # Reaction is dependent on compound that is flagged to be
+                    # removed. Don't remove compound
+                    products = pickaxe.reactions[rxn_id]["Products"]
+                    cpds_to_remove -= set(i[1] for i in products)
 
-                # for _, c_id in products:
-                #     if c_id in cpds_to_remove:
-                #         cpds_to_remove -= {c_id}
+                    # for _, c_id in products:
+                    #     if c_id in cpds_to_remove:
+                    #         cpds_to_remove -= {c_id}
 
-        # Remove compounds and reactions if any found
-        for cpd_id in cpds_to_remove:
-            del pickaxe.compounds[cpd_id]
+            # Remove compounds and reactions if any found
+            for cpd_id in cpds_to_remove:
+                del pickaxe.compounds[cpd_id]
 
 
 if __name__ == "__main__":

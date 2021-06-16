@@ -106,8 +106,8 @@ class MetabolomicsDataset:
         self.total_formulas = 0
         self.total_hits = 0
         self.matched_peaks = 0
-        self.possible_masses = {'+': [], '-': []}
-        self.possible_ranges = {'+': [], '-': []}
+        self.possible_masses = {"+": [], "-": []}
+        self.possible_ranges = {"+": [], "-": []}
 
     def __str__(self) -> str:
         """Give string representation.
@@ -155,16 +155,18 @@ class MetabolomicsDataset:
             Mass tolerance in Daltons.
         """
         for peak in self.unknown_peaks:
-            if peak.charge == '+':
+            if peak.charge == "+":
                 peak_adducts = self.pos_adducts
             else:
                 peak_adducts = self.neg_adducts
-            
-            masses, ranges = peak._enumerate_possible_masses(self, peak_adducts, tolerance)
+
+            masses, ranges = peak._enumerate_possible_masses(
+                self, peak_adducts, tolerance
+            )
             self.possible_masses[peak.charge] += masses
             self.possible_ranges[peak.charge] += ranges
 
-        for charge in ['+', '-']:
+        for charge in ["+", "-"]:
             self.possible_masses[charge] = np.array(set(self.possible_masses[charge]))
 
     def get_rt(self, peak_id: str) -> Optional[float]:
@@ -502,7 +504,9 @@ class Peak:
             f"Contains {len(self.ms2peaks)} MS2 peaks starting with {self.ms2peaks[:3]}..."
         )
 
-    def _enumerate_possible_masses(self, met_dataset: MetabolomicsDataset, adducts: List[str], tolerance: float) -> (List[float], List[Tuple[float, float]]):
+    def _enumerate_possible_masses(
+        self, met_dataset: MetabolomicsDataset, adducts: List[str], tolerance: float
+    ) -> (List[float], List[Tuple[float, float]]):
         """Generate all possible masses for a given peak.
 
         Parameters
@@ -523,7 +527,7 @@ class Peak:
         """
         possible_masses = []
         possible_ranges = []
-        if self.charge == '+':
+        if self.charge == "+":
             adducts = met_dataset.pos_adducts
         else:
             adducts = met_dataset.neg_adducts
@@ -571,7 +575,7 @@ class Peak:
         """
         if not self.ms2peaks:
             raise ValueError("The ms2 peak list is empty")
-        if self.charge:
+        if self.charge == "+":
             spec_key = "Pos_CFM_spectra"
         else:
             spec_key = "Neg_CFM_spectra"
