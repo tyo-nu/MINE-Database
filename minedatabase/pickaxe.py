@@ -12,7 +12,7 @@ from argparse import ArgumentParser
 from io import StringIO
 from pathlib import Path, PosixPath, WindowsPath
 from sys import exit
-from typing import List, Set, Tuple
+from typing import List, Set, Tuple, Union
 
 from rdkit.Chem.AllChem import (
     AddHs,
@@ -242,7 +242,7 @@ class Pickaxe:
 
     def load_targets(
         self,
-        target_compound_file: str,
+        target_compound_file: Union[str, None],
         id_field: str = "id",
     ) -> None:
         """Load targets into pickaxe.
@@ -254,6 +254,10 @@ class Pickaxe:
         id_field : str, optional
             Header value of compound id in input file, by default 'id'.
         """
+        if not target_compound_file:
+            print("No target file given")
+            return None
+
         for target_dict in utils.file_to_dict_list(target_compound_file):
             mol = self._mol_from_dict(target_dict)
             if not mol:

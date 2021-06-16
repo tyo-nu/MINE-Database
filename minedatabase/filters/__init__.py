@@ -9,4 +9,3 @@ from minedatabase.filters.similarity import (
 
 # from minedatabase.filters.thermodynamics import ThermoFilter
 # from minedatabase.filters.toxicity import ToxicityFilter
-

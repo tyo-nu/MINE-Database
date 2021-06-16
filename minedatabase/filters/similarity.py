@@ -162,7 +162,7 @@ class SimilaritySamplingFilter(Filter):
             self._set_target_fps(pickaxe)
         if not self.target_fps:
             print("No targets to filter for. Can't expand.")
-            return None, None
+            return [], []
 
         # Get compounds eligible for expansion in the current generation
         compounds_to_check = []
@@ -603,7 +603,7 @@ class SimilarityFilter(Filter):
             self._set_target_fps(pickaxe)
         if not self.target_fps:
             print("No targets to filter for. Can't expand.")
-            return None, None
+            return [], []
 
         # Set up variables required for filtering
         # similarity Threshold
@@ -831,7 +831,7 @@ class MCSFilter(Filter):
 
         if not pickaxe.target_smiles:
             print("No targets to filter for. Can't expand.")
-            return None
+            return [], []
 
         # Set up variables required for filtering
         # MCS Threshold
