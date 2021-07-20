@@ -180,7 +180,6 @@ class MetabolomicsFilter(Filter):
                     return True
             return False
 
-
         if pickaxe.generation == 0:
             return None, None
 
@@ -266,7 +265,7 @@ class MetabolomicsFilter(Filter):
         rxns_remove_set = set()
         # Remove any reaction that does not produce a t
         for cpd_id in cpds_remove_set:
-            for rxn_id in  pickaxe.compounds[cpd_id].get("Product_of", []):
+            for rxn_id in pickaxe.compounds[cpd_id].get("Product_of", []):
                 # Reaction doesn't make a met match
                 if not reaction_makes_match(pickaxe, rxn_id, ids):
                     rxns_remove_set.update([rxn_id])

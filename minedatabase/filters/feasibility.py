@@ -197,9 +197,9 @@ class ReactionFeasibilityFilter(Filter):
                         mol2 = RemoveHs(mol2)
                         reactant_smiles = MolToSmiles(mol1)
                         product_smiles = MolToSmiles(mol2)
-                        
+
                         # TODO what does this fix? from original code
-                        if 'M' in reactant_smiles or 'M' in product_smiles:
+                        if "M" in reactant_smiles or "M" in product_smiles:
                             input_fails[rxn_id + "_" + str(i)] = None
                         else:
                             input_info[rxn_id + "_" + str(i)] = [
@@ -310,7 +310,7 @@ def _get_feasibility(input_info, feas_threshold=0.32):
     json_file = open(model_file, "r")
     loaded_model_json = json_file.read()
     json_file.close()
-    
+
     loaded_model = model_from_json(loaded_model_json)
     loaded_model.load_weights(weight_file)
 
