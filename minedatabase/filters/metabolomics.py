@@ -172,6 +172,15 @@ class MetabolomicsFilter(Filter):
         cpds_remove_set : Set[str]
             Set of IDs for compounds to try to remove from the expansion.
         """
+        # Function to determine if a reaction has a match in it
+        def reaction_makes_match(pickaxe, rxn_id, matches):
+            products = pickaxe.reactions[rxn_id]["Products"]
+            for _, c_id in products:
+                if c_id in matches:
+                    return True
+            return False
+
+
         if pickaxe.generation == 0:
             return None, None
 
@@ -254,10 +263,18 @@ class MetabolomicsFilter(Filter):
         ids = set(i[0] for i in cpd_info)
         cpds_remove_set = ids - mass_matched_ids
 
+        rxns_remove_set = set()
+        # Remove any reaction that does not produce a t
+        for cpd_id in cpds_remove_set:
+            for rxn_id in  pickaxe.compounds[cpd_id].get("Product_of", []):
+                # Reaction doesn't make a met match
+                if not reaction_makes_match(pickaxe, rxn_id, ids):
+                    rxns_remove_set.update([rxn_id])
+
         for c_id in cpds_remove_set:
             pickaxe.compounds[c_id]["Expand"] = False
 
-        return cpds_remove_set, []
+        return cpds_remove_set, rxns_remove_set
 
     def _filter_by_mass_and_rt(
         self,

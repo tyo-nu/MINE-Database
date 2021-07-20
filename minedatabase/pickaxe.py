@@ -1334,6 +1334,7 @@ class Pickaxe:
             self.reactions = pickle_d["reactions"]
             self.operators = pickle_d["operators"]
             self.targets = pickle_d["targets"]
+            self.target_smiles = [target["SMILES"] for target in self.targets.values()]
 
             for key in pickle_d:
                 var = getattr(self, key)
