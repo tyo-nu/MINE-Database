@@ -83,14 +83,11 @@ class MetabolomicsDataset:
         self.hit_projection = {
             "Formula": 1,
             "MINE_id": 1,
-            "NP_likeness": 1,
-            "Names": 1,
             "SMILES": 1,
             "Inchikey": 1,
-            "Generation": 1,
-            "Pos_CFM_spectra": 1,
-            "Neg_CFM_spectra": 1,
-            "Sources": 1,
+            "Spectra.Positive": 1,
+            "Spectra.Negative": 1,
+            "logP": 1
         }
 
         # Load peak data and initialize other attributes
@@ -576,24 +573,23 @@ class Peak:
         if not self.ms2peaks:
             raise ValueError("The ms2 peak list is empty")
         if self.charge == "+":
-            spec_key = "Pos_CFM_spectra"
+            spec_key = "Positive"
         else:
-            spec_key = "Neg_CFM_spectra"
+            spec_key = "Negative"
 
         for i, hit in enumerate(self.isomers):
-            if spec_key in hit:
-                hit_spec = hit[spec_key][f"{energy_level} V"]
+            if spec_key in hit['Spectra']:
+                hit_spec = hit['Spectra'][spec_key][f"{energy_level}V"]
                 score = metric(self.ms2peaks, hit_spec, epsilon=tolerance)
                 rounded_score = round(score * 1000)
                 self.isomers[i]["Spectral_score"] = rounded_score
-                del hit[spec_key]
             else:
-                self.isomers[i]["Spectral_score"] = None
+                self.isomers[i]["Spectral_score"] = 0
         self.isomers.sort(key=lambda x: x["Spectral_score"], reverse=True)
 
 
 def get_KEGG_comps(
-    db: MINE, kegg_db: pymongo.database.Database, model_ids: List[str]
+    db: MINE, core_db: MINE, kegg_db: pymongo.database.Database, model_ids: List[str]
 ) -> set:
     """Get KEGG IDs from KEGG MINE database for compounds in model(s).
 
@@ -613,15 +609,12 @@ def get_KEGG_comps(
         the organisms in model_ids.
     """
     kegg_ids, _ids = set(), set()
-    for model_id in model_ids:
-        comp_ids = kegg_db.models.find_one({"_id": model_id}, {"Compounds": 1})[
-            "Compounds"
-        ]
-        for comp_id in comp_ids:
-            kegg_ids.add(comp_id)
-    for kegg_id in kegg_ids:
-        for comp in db.compounds.find({"DB_links.KEGG": kegg_id}, {"_id": 1}):
-            _ids.add(comp["_id"])
+    for model in kegg_db.models.find({"_id": {"$in": model_ids}}):
+        comp_ids = model['Compounds']
+        kegg_ids = kegg_ids.union(comp_ids)
+    kegg_id_list = list(kegg_ids)  # sets are not accepted as query params for pymongo
+    for comp in core_db.compounds.find({"$and": [{"KEGG_id": {"$in": kegg_id_list}}, {"MINES": db.name}]}):
+        _ids.add(comp["_id"])
     return _ids
 
 
@@ -863,17 +856,21 @@ def ms_adduct_search(
         raise IOError(f"{text_type} files not supported")
 
     if ms_params.models:
-        dataset.native_set = get_KEGG_comps(db, keggdb, ms_params.models)
+        dataset.native_set = get_KEGG_comps(db, core_db, keggdb, ms_params.models)
     else:
         dataset.native_set = set()
 
     dataset.annotate_peaks(db, core_db)
 
+    if ms_params.logp:
+        min_logp, max_logp = ms_params.logp
+    else:
+        min_logp, max_logp = (-1000, 1000)
+
     for peak in dataset.unknown_peaks:
         for hit in peak.isomers:
-            if "CFM_spectra" in hit:
-                del hit["CFM_spectra"]
-            ms_adduct_output.append(hit)
+            if min_logp < hit['logP'] < max_logp:
+                ms_adduct_output.append(hit)
 
     if ms_params.models:
         ms_adduct_output = score_compounds(
@@ -888,7 +885,7 @@ def ms_adduct_search(
 
 
 def ms2_search(
-    db: MINE, keggdb: pymongo.database.Database, text: str, text_type: str, ms_params
+    db: MINE, core_db: MINE, keggdb: pymongo.database.Database, text: str, text_type: str, ms_params
 ) -> List:
     """Search for compounds matching MS2 spectra.
 
@@ -896,6 +893,8 @@ def ms2_search(
     ----------
     db : MINE
         Contains compound documents to search.
+    core_db : MINE
+        Contains extra info (including spectra) for compounds in db.
     keggdb : pymongo.database.Database
         Contains models with associated compound documents.
     text : str
@@ -936,7 +935,7 @@ def ms2_search(
     ms_adduct_output : list
         Compound JSON documents matching ms2 search query.
     """
-    print(f"<MS Adduct Sea" f"rch: TextType={text_type}, Parameters={ms_params}>")
+    print(f"<MS2 Search: TextType={text_type}, Parameters={ms_params}, Spectra={repr(text)}>")
     name = text_type + time.strftime("_%d-%m-%Y_%H:%M:%S", time.localtime())
 
     if isinstance(ms_params, dict):
@@ -976,8 +975,15 @@ def ms2_search(
     if not ms_params.models:
         ms_params.models = ["eco"]
 
-    dataset.native_set = get_KEGG_comps(db, keggdb, ms_params.models)
-    dataset.annotate_peaks(db)
+    if ms_params.models:
+        dataset.native_set = get_KEGG_comps(db, core_db, keggdb, ms_params.models)
+
+    dataset.annotate_peaks(db, core_db)
+
+    if ms_params.logp:
+        min_logp, max_logp = ms_params.logp
+    else:
+        min_logp, max_logp = (-1000, 1000)
 
     for peak in dataset.unknown_peaks:
 
@@ -1008,7 +1014,8 @@ def ms2_search(
             )
 
         for hit in peak.isomers:
-            ms_adduct_output.append(hit)
+            if min_logp < hit['logP'] < max_logp:
+                ms_adduct_output.append(hit)
 
         if ms_params.models:
             ms_adduct_output = score_compounds(
@@ -1064,8 +1071,8 @@ def spectra_download(
         "Formula": 1,
         "SMILES": 1,
         "Sources": 1,
-        "Pos_CFM_spectra": 1,
-        "Neg_CFM_spectra": 1,
+        "Spectra.Positive": 1,
+        "Spectra.Negative": 1,
     }
 
     if mongo_query:
