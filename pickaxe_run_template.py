@@ -19,6 +19,7 @@ import pymongo
 from rdkit import DataStructs
 from rdkit.Chem import AllChem
 
+# Make sure you have minedatabase installed! (either from GitHub or via pip)
 from minedatabase.filters import (
     AtomicCompositionFilter,
     MCSFilter,
@@ -187,10 +188,11 @@ last_generation_only = True
 
 # comment below line and uncomment other definition if using thermo filter
 feasibility_filter = None
-feasibility_filter = ReactionFeasibilityFilter(
-    generation_list=generation_list,
-    last_generation_only=last_generation_only
-)
+# uncomment below if using feasibility filter (note this requires extra dependencies)
+# feasibility_filter = ReactionFeasibilityFilter(
+#     generation_list=generation_list,
+#     last_generation_only=last_generation_only
+# )
 
 
 ##########################################
