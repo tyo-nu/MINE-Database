@@ -197,10 +197,15 @@ class ReactionFeasibilityFilter(Filter):
                         mol2 = RemoveHs(mol2)
                         reactant_smiles = MolToSmiles(mol1)
                         product_smiles = MolToSmiles(mol2)
-                        input_info[rxn_id + "_" + str(i)] = [
-                            reactant_smiles,
-                            product_smiles,
-                        ]
+
+                        # TODO what does this fix? from original code
+                        if "M" in reactant_smiles or "M" in product_smiles:
+                            input_fails[rxn_id + "_" + str(i)] = None
+                        else:
+                            input_info[rxn_id + "_" + str(i)] = [
+                                reactant_smiles,
+                                product_smiles,
+                            ]
                     else:
                         input_fails[rxn_id + "_" + str(i)] = None
                 else:
@@ -231,7 +236,7 @@ class ReactionFeasibilityFilter(Filter):
             return cpds_remove_set, rxns_remove_set
 
         if self.generation_list and (self.generation - 1) not in self.generation_list:
-            print("Not filter for this generation using feasibility.")
+            print("Not filtering for this generation using feasibility.")
             return cpds_remove_set, rxns_remove_set
 
         reactions_to_check = []
