@@ -303,10 +303,6 @@ def _get_feasibility(input_info, feas_threshold=0.32):
     vae_model_file = cwd.parent / "data/feasibility/vae_model.pth"
     model_file = cwd.parent / "data/feasibility/final_model.json"
 
-    weight_file = "/Users/kevbot/Box Sync/Research/Projects/MINE/MINE-Database/minedatabase/data/feasibility/final_model.h5"
-    vae_model_file = "/Users/kevbot/Box Sync/Research/Projects/MINE/MINE-Database/minedatabase/data/feasibility/vae_model.pth"
-    model_file = "/Users/kevbot/Box Sync/Research/Projects/MINE/MINE-Database/minedatabase/data/feasibility/final_model.json"
-
     json_file = open(model_file, "r")
     loaded_model_json = json_file.read()
     json_file.close()
