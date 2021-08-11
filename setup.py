@@ -1,11 +1,3 @@
-
-from setuptools import setup
-
-
-# Most arguments are set in the `setup.cfg`.
-# TODO fix this
-setup(version=0.1)
-
 from setuptools import setup
 import setuptools
 
@@ -22,13 +14,12 @@ setup(name='minedatabase',
       author_email='jonstrutz11@gmail.com',
       license='MIT',
       packages=setuptools.find_packages(),
-      install_requires=['mordred', 'pymongo', 'scikit-learn==0.23.2', 'seaborn'],
+      install_requires=['mordred', 'pymongo', 'scikit-learn<=0.23.2', 'seaborn'],
       package_data={'minedatabase': ['data/*'],
                     'minedatabase.NP_Score': ['*.gz'],
                     'minedatabase.tests': ['data/*'],
                     },
       include_package_data=True,
-      extras_require={},
       classifiers=[
           'Development Status :: 5 - Production/Stable',
           'Intended Audience :: Science/Research',
