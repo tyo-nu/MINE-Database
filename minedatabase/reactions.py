@@ -12,6 +12,7 @@ from rdkit.Chem.AllChem import (
     Kekulize,
     MolFromSmiles,
     MolToSmiles,
+    RDKFingerprint,
     RemoveHs,
     SanitizeMol,
 )
@@ -152,10 +153,11 @@ def _run_reaction(
     except BaseException:
         reactants = None, None
 
-    if not reactants:
+    if not all(reactants):
         return local_cpds, local_rxns
 
     reactant_set = set([r[1]["_id"] for r in reactants])
+
     for product_mols in product_sets:
         try:
             products, product_atoms = _make_half_rxn(product_mols, rule[1]["Products"])
@@ -332,8 +334,7 @@ def transform_all_compounds_with_full(
     )
     # par loop
     if processes > 1:
-        chunk_size = 1
-        # print(f'Chunk size = {chunk_size}')
+        chunk_size = max([round(len(compound_smiles) / (processes * 10)), 1])
         pool = multiprocessing.Pool(processes=processes)
         for i, res in enumerate(
             pool.imap_unordered(transform_compound_partial, compound_smiles, chunk_size)

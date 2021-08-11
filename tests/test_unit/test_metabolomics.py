@@ -40,14 +40,14 @@ def known_peaks():
         name="Test1Known",
         r_time=5.00,
         mz=867.1391,
-        charge=True,
+        charge="+",
         inchi_key="IRPOHFRNKHKIQA-UHFFFAOYSA-N",
     )
     peak2 = Peak(
         name="Test2Known",
         r_time=8.00,
         mz=260.0297,
-        charge=False,
+        charge="-",
         inchi_key="HXXFSFRBOHSIMQ-FPRJBGLDSA-N",
     )
     return [peak1, peak2]
@@ -60,14 +60,14 @@ def unknown_peaks():
         name="Test1Unknown",
         r_time=3.00,
         mz=427.0294,
-        charge=True,
+        charge="+",
         ms2=[(10, 110), (20, 320), (25, 5)],
     )
     peak2 = Peak(
         name="Test2Unknown",
         r_time=1.50,
         mz=180.0000,
-        charge=False,
+        charge="-",
         ms2=[(10, 105), (20, 50), (25, 90)],
     )
     return [peak1, peak2]
@@ -130,18 +130,14 @@ def test_metabolomics_dataset_enumerate_possible_masses(metabolomics_dataset):
     """
     metabolomics_dataset.enumerate_possible_masses(tolerance=0.001)
     # possible masses are each peak mass +/- each adduct
-    possible_masses = set([178.992724, 181.007276, 426.022124, 428.036676])
+    possible_masses = {"+": set([426.022124]), "-": set([181.007276])}
     assert metabolomics_dataset.possible_masses == possible_masses
     # possible ranges are possible masses +/- tolerance
-    possible_ranges = set(
-        [
-            (426.02112400000004, 426.023124, "Test1Unknown", "[M+H]+"),
-            (428.035676, 428.037676, "Test1Unknown", "[M-H]-"),
-            (178.991724, 178.99372400000001, "Test2Unknown", "[M+H]+"),
-            (181.00627599999999, 181.008276, "Test2Unknown", "[M-H]-"),
-        ]
-    )
-    assert set(metabolomics_dataset.possible_ranges) == possible_ranges
+    possible_ranges = {
+        "+": [(426.02112400000004, 426.023124, "Test1Unknown", "[M+H]+")],
+        "-": [(181.00627599999999, 181.008276, "Test2Unknown", "[M-H]-")],
+    }
+    assert metabolomics_dataset.possible_ranges == possible_ranges
 
 
 def test_metabolomics_dataset_get_rt(metabolomics_dataset):

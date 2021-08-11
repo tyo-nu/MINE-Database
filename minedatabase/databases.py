@@ -6,12 +6,12 @@ import os
 import platform
 import sys
 from copy import deepcopy
+from math import ceil
 from shutil import move
 from subprocess import call
 from typing import List, Union
 
 import pymongo
-from pymongo.database import Collection
 from pymongo.errors import ServerSelectionTimeoutError
 from rdkit.Chem import AllChem
 from rdkit.RDLogger import logger
@@ -109,6 +109,8 @@ class MINE:
         self.reactions = self._db.reactions
         self.operators = self._db.operators
         self.models = self._db.models
+        self.reactant_in = self._db.reactant_in
+        self.product_of = self._db.product_of
         # self.nps_model = nps.readNPModel()
         self._mass_cache = {}  # for rapid calculation of reaction mass change
 
@@ -286,7 +288,7 @@ def write_reactions_to_mine(
 
 # Compounds
 def write_compounds_to_mine(
-    compounds: List[dict], db: MINE, chunk_size: int = 10000
+    compounds: List[dict], db: MINE, chunk_size: int = 10000, processes: int = 1
 ) -> None:
     """Write compounds to reaction collection of MINE.
 
@@ -298,33 +300,177 @@ def write_compounds_to_mine(
         MINE object to write compounds with.
     chunk_size : int, optional
         Size of chunks to break compounds into when writing, by default 10000.
+    processes : int, optional
+        Number of processors to use, by default 1.
     """
-
-    def _get_cpd_insert(cpd_dict: dict):
-        output_keys = [
-            "_id",
-            "ID",
-            "SMILES",
-            "InChI_key",
-            "Type",
-            "Generation",
-            "Reactant_in",
-            "Product_of",
-            "Expand",
-            "Matched_Peak_IDs",
-            "Matched_Adducts",
-            "Predicted_RT",
-        ]
-        return pymongo.InsertOne(
-            {key: cpd_dict.get(key) for key in output_keys if cpd_dict.get(key) != None}
-        )
-
     n_cpds = len(compounds)
+    if processes == 1:
+        pool = None
+    else:
+        pool = multiprocessing.Pool(processes)
+
     for i, cpd_chunk in enumerate(utils.Chunks(compounds, chunk_size)):
         if i % 20 == 0:
             print(f"Writing Compounds: Chunk {i} of {int(n_cpds/chunk_size) + 1}")
-        cpd_requests = [_get_cpd_insert(cpd_dict) for cpd_dict in cpd_chunk]
+
+        cpd_requests = []
+        reactant_in_requests = []
+        product_of_requests = []
+
+        if pool:
+            for res in pool.imap_unordered(_get_cpd_insert, cpd_chunk):
+                cpd_request, reactant_in_request, product_of_request = res
+                cpd_requests.append(cpd_request)
+                reactant_in_requests.extend(reactant_in_request)
+                product_of_requests.extend(product_of_request)
+        else:
+            for res in map(_get_cpd_insert, cpd_chunk):
+                cpd_request, reactant_in_request, product_of_request = res
+                cpd_requests.append(cpd_request)
+                reactant_in_requests.extend(reactant_in_request)
+                product_of_requests.extend(product_of_request)
+
         db.compounds.bulk_write(cpd_requests, ordered=False)
+        if reactant_in_requests:
+            db.reactant_in.bulk_write(reactant_in_requests, ordered=False)
+        if product_of_requests:
+            db.product_of.bulk_write(product_of_requests, ordered=False)
+
+    if pool:
+        pool.close()
+        pool.join()
+
+
+def _get_cpd_insert(cpd_dict: dict):
+    output_keys = [
+        "_id",
+        "ID",
+        "SMILES",
+        "InChI_key",
+        "Type",
+        "Generation",
+        "Expand",
+        "Reactant_in",
+        "Product_of",
+        "Matched_Peak_IDs",
+        "Matched_Adducts",
+        "Predicted_RT",
+    ]
+
+    # create Reactant_in
+    reactant_in_requests = []
+    product_of_requests = []
+    insert_dict = {
+        key: cpd_dict.get(key) for key in output_keys if cpd_dict.get(key) != None
+    }
+    if "Reactant_in" in insert_dict:
+        chunked_reactant_in = _get_reactant_in_insert(cpd_dict)
+        insert_dict["Reactant_in"] = []
+        for r_in_dict in chunked_reactant_in:
+            reactant_in_requests.append(pymongo.InsertOne(r_in_dict))
+            insert_dict["Reactant_in"].append(r_in_dict["_id"])
+
+    # create Product_of
+    if "Product_of" in insert_dict:
+        chunked_product_of = _get_product_of_insert(cpd_dict)
+        insert_dict["Product_of"] = []
+        for p_of_dict in chunked_product_of:
+            product_of_requests.append(pymongo.InsertOne(p_of_dict))
+            insert_dict["Product_of"].append(p_of_dict["_id"])
+
+    cpd_request = pymongo.InsertOne(insert_dict)
+    return cpd_request, reactant_in_requests, product_of_requests
+
+
+def _get_reactant_in_insert(compound: dict) -> List[dict]:
+    """Write reactants_in, ensuring memory size isn't too big.
+
+    MongoDB only allows < 16 MB entries. This function breaks large reactants_in
+    up to ensure this doesn't happen.
+
+    Parameters
+    ----------
+    compounds : List[dict]
+        Dictionary of compounds to write.
+    db : MINE
+        MINE object to write compounds with.
+
+    Returns
+    -------
+    List[dict]
+        dicts of reactant_in to insert
+    """
+
+    # Get number of chunks reactant_in must be broken up into
+    # 16 MB is the max for BSON, cut to 14 MB max just to be safe
+    # Also some weirdness is that max_size must be 1 order of magnitude lower
+    max_size = 1.4 * 10 ** 6
+    r_in_size = sys.getsizeof(compound["Reactant_in"])
+    chunks, rem = divmod(r_in_size, max_size)
+
+    if rem:
+        chunks += 1
+    chunk_size = ceil(len(compound["Reactant_in"]) / chunks)
+
+    # Generate the InsertOne requests
+    r_in_chunks = utils.Chunks(compound["Reactant_in"], chunk_size, return_list=True)
+
+    requests = []
+    for i, r_in_chunk in enumerate(r_in_chunks):
+        requests.append(
+            {
+                "_id": f"{compound['_id']}_{i}",
+                "c_id": compound["_id"],
+                "Reactant_in": r_in_chunk,
+            }
+        )
+
+    return requests
+
+
+def _get_product_of_insert(compound: dict) -> List[dict]:
+    """Write reactants_in, ensuring memory size isn't too big.
+
+    MongoDB only allows < 16 MB entries. This function breaks large reactants_in
+    up to ensure this doesn't happen.
+
+    Parameters
+    ----------
+    compounds : List[dict]
+        Dictionary of compounds to write.
+    db : MINE
+        MINE object to write compounds with.
+
+    Returns
+    -------
+    List[dict]
+        dicts of product_of to insert
+    """
+
+    # Get number of chunks product_of must be broken up into
+    # 16 MB is the max for BSON, cut to 14 MB max just to be safe
+    # Also some weirdness is that max_size must be 1 order of magnitude lower
+    max_size = 1.4 * 10 ** 6
+    p_of_size = sys.getsizeof(compound["Product_of"])
+    chunks, rem = divmod(p_of_size, max_size)
+    if rem:
+        chunks += 1
+    chunk_size = ceil(len(compound["Product_of"]) / chunks)
+
+    # Generate the InsertOne requests
+    p_of_chunks = utils.Chunks(compound["Product_of"], chunk_size, return_list=True)
+
+    requests = []
+    for i, p_of_chunk in enumerate(p_of_chunks):
+        requests.append(
+            {
+                "_id": f"{compound['_id']}_{i}",
+                "c_id": compound["_id"],
+                "Product_of": p_of_chunk,
+            }
+        )
+
+    return requests
 
 
 # Core Compounds
@@ -352,7 +498,10 @@ def write_core_compounds(
         The number of processors to use, by default 1.
     """
     n_cpds = len(compounds)
-    pool = multiprocessing.Pool(processes)
+    if processes == 1:
+        pool = None
+    else:
+        pool = multiprocessing.Pool(processes)
 
     for i, cpd_chunk in enumerate(utils.Chunks(compounds, chunk_size)):
         if i % 20 == 0:
@@ -361,7 +510,11 @@ def write_core_compounds(
         # Capture annoying RDKit output
 
         cpd_chunk = [deepcopy(cpd) for cpd in cpd_chunk if cpd["_id"].startswith("C")]
-        core_requests = [req for req in pool.map(_get_core_cpd_insert, cpd_chunk)]
+        if pool:
+            core_requests = [req for req in pool.map(_get_core_cpd_insert, cpd_chunk)]
+        else:
+            core_requests = [req for req in map(_get_core_cpd_insert, cpd_chunk)]
+
         core_update_requests = [
             _get_core_cpd_update(cpd_dict, mine) for cpd_dict in cpd_chunk
         ]
@@ -371,8 +524,9 @@ def write_core_compounds(
         # first to ensure cpd exists
         db.core_compounds.bulk_write(core_requests)
         db.core_compounds.bulk_write(core_update_requests)
-
-    pool.close()
+    if pool:
+        pool.close()
+        pool.join()
 
 
 def _get_core_cpd_update(cpd_dict: dict, mine: str) -> pymongo.UpdateOne:
@@ -387,6 +541,11 @@ def _get_core_cpd_insert(cpd_dict: dict) -> pymongo.UpdateOne:
     }
 
     mol_object = AllChem.MolFromSmiles(core_dict["SMILES"])
+    rdk_fp = [
+        i
+        for i, val in enumerate(list(AllChem.RDKFingerprint(mol_object, fpSize=512)))
+        if val
+    ]
 
     # Store all different representations of the molecule (SMILES, Formula,
     #  InChI key, etc.) as well as its properties in a dictionary
@@ -398,8 +557,11 @@ def _get_core_cpd_insert(cpd_dict: dict) -> pymongo.UpdateOne:
         core_dict["Inchikey"] = AllChem.InchiToInchiKey(core_dict["Inchi"])
 
     core_dict["Mass"] = AllChem.CalcExactMolWt(mol_object)
+    core_dict["Charge"] = AllChem.GetFormalCharge(mol_object)
     core_dict["Formula"] = AllChem.CalcMolFormula(mol_object)
     core_dict["logP"] = AllChem.CalcCrippenDescriptors(mol_object)[0]
+    core_dict["RDKit_fp"] = rdk_fp
+    core_dict["len_RDKit_fp"] = len(rdk_fp)
     # core_dict['NP_likeness'] = nps.scoreMol(mol_object, nps_model)
     core_dict["Spectra"] = {}
     # Record which expansion it's coming from

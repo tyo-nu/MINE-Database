@@ -48,7 +48,7 @@ def get_cross_references(row):
 def get_db_entry(row):
     dict_for_db[row["#ID"]] = {
             "mnxm_id": row["#ID"],
-            "inchi_key": row.InChIKey,
+            "Inchikey": row.InChIKey,
             "primary_reference": row.reference,
             "cross_references": cross_ref_dict[row["#ID"]]
     }
@@ -82,3 +82,4 @@ if __name__ == "__main__":
     mongo_uri = open(pwd / "../mongo_uri.csv").readline().strip("\n")
     client = pymongo.MongoClient(mongo_uri)
     client.compound_references.data.insert_many(dict_for_db.values(), ordered=False)
+    client.compound_references.data.create_index("Inchikey")

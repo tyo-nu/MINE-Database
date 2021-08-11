@@ -15,7 +15,7 @@ import pymongo
 
 import minedatabase
 from minedatabase.databases import MINE
-from minedatabase.utils import score_compounds
+from minedatabase.utils import mongo_ids_to_mine_ids, score_compounds
 
 
 MINEDB_DIR = os.path.dirname(minedatabase.__file__)
@@ -83,14 +83,11 @@ class MetabolomicsDataset:
         self.hit_projection = {
             "Formula": 1,
             "MINE_id": 1,
-            "NP_likeness": 1,
-            "Names": 1,
             "SMILES": 1,
             "Inchikey": 1,
-            "Generation": 1,
-            "Pos_CFM_spectra": 1,
-            "Neg_CFM_spectra": 1,
-            "Sources": 1,
+            "Spectra.Positive": 1,
+            "Spectra.Negative": 1,
+            "logP": 1
         }
 
         # Load peak data and initialize other attributes
@@ -106,8 +103,8 @@ class MetabolomicsDataset:
         self.total_formulas = 0
         self.total_hits = 0
         self.matched_peaks = 0
-        self.possible_masses = []
-        self.possible_ranges = []
+        self.possible_masses = {"+": [], "-": []}
+        self.possible_ranges = {"+": [], "-": []}
 
     def __str__(self) -> str:
         """Give string representation.
@@ -154,23 +151,20 @@ class MetabolomicsDataset:
         tolerance : float
             Mass tolerance in Daltons.
         """
-        possible_masses = []
-        possible_ranges = []
         for peak in self.unknown_peaks:
-            for adduct in self.pos_adducts + self.neg_adducts:
-                possible_mass = (peak.mz - adduct[2]) / adduct[1]
-                possible_masses.append(possible_mass)
-                possible_ranges.append(
-                    (
-                        possible_mass - tolerance,
-                        possible_mass + tolerance,
-                        peak.name,
-                        adduct[0],
-                    )
-                )
+            if peak.charge == "+":
+                peak_adducts = self.pos_adducts
+            else:
+                peak_adducts = self.neg_adducts
 
-        self.possible_masses = np.array(set(possible_masses))
-        self.possible_ranges = possible_ranges
+            masses, ranges = peak._enumerate_possible_masses(
+                self, peak_adducts, tolerance
+            )
+            self.possible_masses[peak.charge] += masses
+            self.possible_ranges[peak.charge] += ranges
+
+        for charge in ["+", "-"]:
+            self.possible_masses[charge] = np.array(set(self.possible_masses[charge]))
 
     def get_rt(self, peak_id: str) -> Optional[float]:
         """Return retention time for peak with given ID. If not found, returns
@@ -194,7 +188,11 @@ class MetabolomicsDataset:
         return rt
 
     def find_db_hits(
-        self, peak: Peak, db: MINE, adducts: List[Tuple[str, float, float]]
+        self,
+        peak: Peak,
+        db: MINE,
+        core_db: MINE,
+        adducts: List[Tuple[str, float, float]],
     ) -> None:
         """This function searches the database for matches of a peak given
         adducts and updates the peak object with that information.
@@ -212,6 +210,7 @@ class MetabolomicsDataset:
         # find nominal mass for a given m/z for each adduct and the max and
         # min values for db
         potential_masses = [(peak.mz - adduct[2]) / adduct[1] for adduct in adducts]
+
         if self.ppm:
             precision = (self.tolerance / 100000.0) * potential_masses
         else:
@@ -221,16 +220,18 @@ class MetabolomicsDataset:
 
         # search database for hits in the each adducts mass range that have no
         # innate charge.
+        mongo_ids = []
         for i, adduct in enumerate(adducts):
             # build the query by adding the optional terms
             query_terms = [
                 {"Mass": {"$gte": float(lower_bounds[i])}},
                 {"Mass": {"$lte": float(upper_bounds[i])}},
                 {"Charge": 0},
+                {"MINES": {"$eq": db.name}},
             ]
             if adduct[0] == "[M]+":
                 query_terms[2] = {"Charge": 1}
-            for compound in db.compounds.find(
+            for compound in core_db.compounds.find(
                 {"$and": query_terms}, self.hit_projection
             ):
                 # Filters out halogens if the flag is enabled by moving to the
@@ -248,15 +249,18 @@ class MetabolomicsDataset:
                     peak.native_hit = True
                     compound["native_hit"] = True
 
-                if compound["Generation"] < peak.min_steps:
-                    peak.min_steps = compound["Generation"]
-
                 peak.formulas.add(compound["Formula"])
                 compound["adduct"] = adduct[0]
                 compound["peak_name"] = peak.name
+                mongo_ids.append(compound["_id"])
                 peak.isomers.append(compound)
 
-    def annotate_peaks(self, db: MINE) -> None:
+        # Get MINE IDs in bulk
+        mongo_to_mine = mongo_ids_to_mine_ids(mongo_ids, core_db)
+        for cpd in peak.isomers:
+            cpd["MINE_id"] = mongo_to_mine[cpd["_id"]]
+
+    def annotate_peaks(self, db: MINE, core_db: MINE) -> None:
         """This function iterates through the unknown peaks in the dataset and
         searches the database for compounds that match a peak m/z given the
         adducts permitted. Statistics on the annotated data set are printed.
@@ -265,6 +269,8 @@ class MetabolomicsDataset:
         ----------
         db : MINE
             MINE database.
+        core_db : MINE
+            Core database containing spectra info.
         """
         for i, peak in enumerate(self.unknown_peaks):
 
@@ -280,9 +286,9 @@ class MetabolomicsDataset:
             )
 
             if positive:
-                self.find_db_hits(peak, db, self.pos_adducts)
+                self.find_db_hits(peak, db, core_db, self.pos_adducts)
             elif negative:
-                self.find_db_hits(peak, db, self.neg_adducts)
+                self.find_db_hits(peak, db, core_db, self.neg_adducts)
             else:
                 raise ValueError(
                     "Invalid compound charge specification. "
@@ -446,9 +452,6 @@ class Peak:
         Number of compound hits for this peak.
     native_hit : bool
         Whether this peak matches a compound provided in the native set.
-    min_steps : int
-        Compound from generations greater than this value will not be matchted
-        against.
     """
 
     def __init__(
@@ -461,7 +464,10 @@ class Peak:
         ms2: List[(float, float)] = None,
     ) -> None:
         self.name = name
-        self.r_time = float(r_time)
+        if r_time:
+            self.r_time = float(r_time)
+        else:
+            self.r_time = None
         self.mz = float(mz)
         self.charge = charge
         self.inchi_key = inchi_key
@@ -471,7 +477,6 @@ class Peak:
         self.formulas = set()
         self.total_hits = 0
         self.native_hit = False
-        self.min_steps = 99
 
     def __str__(self) -> str:
         """String representation of the peak.
@@ -482,6 +487,60 @@ class Peak:
             Name of the peak.
         """
         return self.name
+
+    def __repr__(self) -> str:
+        """Print representation of the peak.
+
+        Returns
+        -------
+        str
+            Print representation of the peak.
+        """
+        return (
+            f"Peak {self.name}: {self.mz} m/z, {self.r_time} RT, {self.charge} mode, "
+            f"Contains {len(self.ms2peaks)} MS2 peaks starting with {self.ms2peaks[:3]}..."
+        )
+
+    def _enumerate_possible_masses(
+        self, met_dataset: MetabolomicsDataset, adducts: List[str], tolerance: float
+    ) -> (List[float], List[Tuple[float, float]]):
+        """Generate all possible masses for a given peak.
+
+        Parameters
+        ----------
+        met_dataset : MetabolomicsDataset
+            Instance of MetabolomicsDataset with associated adducts.
+        adducts : List[str]
+            List of adducts, charge should match charge of this peak.
+        tolerance : float
+            Mass tolernace in Daltons.
+
+        Returns
+        -------
+        possible_masses : List[float]
+            List of possible masses.
+        possible_ranges : List[Tuple(float, float)]
+            List of lower and upper bounds provided aggregate mass + tolerance.
+        """
+        possible_masses = []
+        possible_ranges = []
+        if self.charge == "+":
+            adducts = met_dataset.pos_adducts
+        else:
+            adducts = met_dataset.neg_adducts
+
+        for adduct in adducts:
+            possible_mass = (self.mz - adduct[2]) / adduct[1]
+            possible_masses.append(possible_mass)
+            possible_ranges.append(
+                (
+                    possible_mass - tolerance,
+                    possible_mass + tolerance,
+                    self.name,
+                    adduct[0],
+                )
+            )
+        return possible_masses, possible_ranges
 
     def score_isomers(
         self,
@@ -513,25 +572,24 @@ class Peak:
         """
         if not self.ms2peaks:
             raise ValueError("The ms2 peak list is empty")
-        if self.charge:
-            spec_key = "Pos_CFM_spectra"
+        if self.charge == "+":
+            spec_key = "Positive"
         else:
-            spec_key = "Neg_CFM_spectra"
+            spec_key = "Negative"
 
         for i, hit in enumerate(self.isomers):
-            if spec_key in hit:
-                hit_spec = hit[spec_key][f"{energy_level} V"]
+            if spec_key in hit['Spectra']:
+                hit_spec = hit['Spectra'][spec_key][f"{energy_level}V"]
                 score = metric(self.ms2peaks, hit_spec, epsilon=tolerance)
                 rounded_score = round(score * 1000)
                 self.isomers[i]["Spectral_score"] = rounded_score
-                del hit[spec_key]
             else:
-                self.isomers[i]["Spectral_score"] = None
+                self.isomers[i]["Spectral_score"] = 0
         self.isomers.sort(key=lambda x: x["Spectral_score"], reverse=True)
 
 
 def get_KEGG_comps(
-    db: MINE, kegg_db: pymongo.database.Database, model_ids: List[str]
+    db: MINE, core_db: MINE, kegg_db: pymongo.database.Database, model_ids: List[str]
 ) -> set:
     """Get KEGG IDs from KEGG MINE database for compounds in model(s).
 
@@ -551,15 +609,12 @@ def get_KEGG_comps(
         the organisms in model_ids.
     """
     kegg_ids, _ids = set(), set()
-    for model_id in model_ids:
-        comp_ids = kegg_db.models.find_one({"_id": model_id}, {"Compounds": 1})[
-            "Compounds"
-        ]
-        for comp_id in comp_ids:
-            kegg_ids.add(comp_id)
-    for kegg_id in kegg_ids:
-        for comp in db.compounds.find({"DB_links.KEGG": kegg_id}, {"_id": 1}):
-            _ids.add(comp["_id"])
+    for model in kegg_db.models.find({"_id": {"$in": model_ids}}):
+        comp_ids = model['Compounds']
+        kegg_ids = kegg_ids.union(comp_ids)
+    kegg_id_list = list(kegg_ids)  # sets are not accepted as query params for pymongo
+    for comp in core_db.compounds.find({"$and": [{"KEGG_id": {"$in": kegg_id_list}}, {"MINES": db.name}]}):
+        _ids.add(comp["_id"])
     return _ids
 
 
@@ -587,7 +642,7 @@ def read_adduct_names(filepath: str) -> List[str]:
     return adducts
 
 
-def read_mgf(input_string: str, charge: bool) -> List[Peak]:
+def read_mgf(input_string: str, charge: bool, ms2_delim="\t") -> List[Peak]:
     """Parse mgf metabolomics data file.
 
     Parameters
@@ -596,6 +651,9 @@ def read_mgf(input_string: str, charge: bool) -> List[Peak]:
         Metabolomics input data file.
     charge : bool
         True if positive, False if negative.
+    ms2_delim : str
+        Delimiter for whitespace between intensity and m/z value. Usually tab
+        but can also be a space in some MGF files. Tab by default.
 
     Returns
     -------
@@ -604,12 +662,19 @@ def read_mgf(input_string: str, charge: bool) -> List[Peak]:
     """
     peaks = []
     ms2 = []
+    r_time = None
     for line in input_string.split("\n"):
         sl = line.strip(" \r\n").split("=")
         if sl[0] == "PEPMASS":
-            mass = sl[1]
+            if len(sl) > 1:
+                mass = sl[1]
+            else:
+                mass = None
         elif sl[0] == "TITLE":
-            name = sl[1]
+            if len(sl) > 1:
+                name = sl[1]
+            else:
+                name = ""
         elif sl[0] == "RTINSECONDS":
             r_time = sl[1]
         elif sl[0] == "END IONS":
@@ -617,7 +682,7 @@ def read_mgf(input_string: str, charge: bool) -> List[Peak]:
             ms2 = []
         else:
             try:
-                mz, i = sl[0].split("\t")
+                mz, i = sl[0].split(ms2_delim)
                 ms2.append((float(mz), float(i)))
             except ValueError:
                 continue
@@ -686,7 +751,6 @@ def read_mzxml(input_string: str, charge: bool) -> List[Peak]:
     prefix = root.tag.strip("mzXML")
 
     for scan in root.findall(f".//{prefix}scan"):
-        print(scan)
         # somewhat counter intuitively we will get the peak info from the
         # second fragments precursor info.
         if scan.attrib["msLevel"] == "2":
@@ -708,7 +772,12 @@ class Struct:
 
 
 def ms_adduct_search(
-    db: MINE, keggdb: pymongo.database.Database, text: str, text_type: str, ms_params
+    db: MINE,
+    core_db: MINE,
+    keggdb: pymongo.database.Database,
+    text: str,
+    text_type: str,
+    ms_params,
 ) -> List:
     """Search for compound-adducts matching precursor mass.
 
@@ -716,6 +785,8 @@ def ms_adduct_search(
     ----------
     db : MINE
         Contains compound documents to search.
+    core_db : MINE
+        Contains extra info (including spectra) for compounds in db.
     keggdb : pymongo.database.Database
         Contains models with associated compound documents.
     text : str
@@ -731,7 +802,7 @@ def ms_adduct_search(
         ------------------------
         "tolerance": float specifying tolerance for m/z, in mDa by default.
             Can specify in ppm if "ppm" key's value is set to True.
-        "charge": bool (1 for positive, 0 for negative).
+        "charge": bool ('+' for positive, '-' for negative).
         ------------------------
         Optional Key-Value Pairs
         ------------------------
@@ -760,7 +831,14 @@ def ms_adduct_search(
     if isinstance(ms_params, dict):
         ms_params = Struct(**ms_params)
 
-    dataset = MetabolomicsDataset(name, ms_params)
+    dataset = MetabolomicsDataset(
+        name,
+        adducts=ms_params.adducts,
+        ppm=ms_params.ppm,
+        tolerance=ms_params.tolerance,
+        halogens=ms_params.halogens,
+        verbose=ms_params.verbose,
+    )
     ms_adduct_output = []
 
     if text_type == "form":
@@ -777,27 +855,37 @@ def ms_adduct_search(
     else:
         raise IOError(f"{text_type} files not supported")
 
-    if not ms_params.models:
-        ms_params.models = ["eco"]
+    if ms_params.models:
+        dataset.native_set = get_KEGG_comps(db, core_db, keggdb, ms_params.models)
+    else:
+        dataset.native_set = set()
 
-    dataset.native_set = get_KEGG_comps(db, keggdb, ms_params.models)
-    dataset.annotate_peaks(db)
+    dataset.annotate_peaks(db, core_db)
+
+    if ms_params.logp:
+        min_logp, max_logp = ms_params.logp
+    else:
+        min_logp, max_logp = (-1000, 1000)
 
     for peak in dataset.unknown_peaks:
         for hit in peak.isomers:
-            if "CFM_spectra" in hit:
-                del hit["CFM_spectra"]
-            ms_adduct_output.append(hit)
+            if min_logp < hit['logP'] < max_logp:
+                ms_adduct_output.append(hit)
 
-    ms_adduct_output = score_compounds(
-        db, ms_adduct_output, ms_params.models[0], parent_frac=0.75, reaction_frac=0.25
-    )
+    if ms_params.models:
+        ms_adduct_output = score_compounds(
+            db,
+            ms_adduct_output,
+            ms_params.models[0],
+            parent_frac=0.75,
+            reaction_frac=0.25,
+        )
 
     return ms_adduct_output
 
 
 def ms2_search(
-    db: MINE, keggdb: pymongo.database.Database, text: str, text_type: str, ms_params
+    db: MINE, core_db: MINE, keggdb: pymongo.database.Database, text: str, text_type: str, ms_params
 ) -> List:
     """Search for compounds matching MS2 spectra.
 
@@ -805,6 +893,8 @@ def ms2_search(
     ----------
     db : MINE
         Contains compound documents to search.
+    core_db : MINE
+        Contains extra info (including spectra) for compounds in db.
     keggdb : pymongo.database.Database
         Contains models with associated compound documents.
     text : str
@@ -845,13 +935,20 @@ def ms2_search(
     ms_adduct_output : list
         Compound JSON documents matching ms2 search query.
     """
-    print(f"<MS Adduct Sea" f"rch: TextType={text_type}, Parameters={ms_params}>")
+    print(f"<MS2 Search: TextType={text_type}, Parameters={ms_params}, Spectra={repr(text)}>")
     name = text_type + time.strftime("_%d-%m-%Y_%H:%M:%S", time.localtime())
 
     if isinstance(ms_params, dict):
         ms_params = Struct(**ms_params)
 
-    dataset = MetabolomicsDataset(name, ms_params)
+    dataset = MetabolomicsDataset(
+        name,
+        adducts=ms_params.adducts,
+        ppm=ms_params.ppm,
+        tolerance=ms_params.tolerance,
+        halogens=ms_params.halogens,
+        verbose=ms_params.verbose,
+    )
     ms_adduct_output = []
 
     if text_type == "form":
@@ -878,8 +975,15 @@ def ms2_search(
     if not ms_params.models:
         ms_params.models = ["eco"]
 
-    dataset.native_set = get_KEGG_comps(db, keggdb, ms_params.models)
-    dataset.annotate_peaks(db)
+    if ms_params.models:
+        dataset.native_set = get_KEGG_comps(db, core_db, keggdb, ms_params.models)
+
+    dataset.annotate_peaks(db, core_db)
+
+    if ms_params.logp:
+        min_logp, max_logp = ms_params.logp
+    else:
+        min_logp, max_logp = (-1000, 1000)
 
     for peak in dataset.unknown_peaks:
 
@@ -910,7 +1014,8 @@ def ms2_search(
             )
 
         for hit in peak.isomers:
-            ms_adduct_output.append(hit)
+            if min_logp < hit['logP'] < max_logp:
+                ms_adduct_output.append(hit)
 
         if ms_params.models:
             ms_adduct_output = score_compounds(
@@ -924,9 +1029,7 @@ def ms2_search(
     return ms_adduct_output
 
 
-def spectra_download(
-    db: MINE, mongo_query: str = None, parent_filter: str = None, putative: bool = True
-) -> str:
+def spectra_download(db: MINE, mongo_id: str = None) -> str:
     """Download one or more spectra for compounds matching a given query.
 
     Parameters
@@ -959,72 +1062,37 @@ def spectra_download(
     spectral_library = []
     msp_projection = {
         "MINE_id": 1,
-        "Names": 1,
+        "KEGG_id": 1,
         "Mass": 1,
-        "Generation": 1,
         "Inchikey": 1,
         "Formula": 1,
         "SMILES": 1,
-        "Sources": 1,
-        "Pos_CFM_spectra": 1,
-        "Neg_CFM_spectra": 1,
+        "logP": 1,
+        "Charge": 1,
+        "Spectra.Positive": 1,
+        "Spectra.Negative": 1,
     }
 
-    if mongo_query:
-        query_dict = literal_eval(mongo_query)
-    else:
-        query_dict = {}
+    query_dict = {"_id": mongo_id}
 
-    if not putative:
-        query_dict["Generation"] = 0
+    compound = db.compounds.find_one(query_dict, msp_projection)
 
-    if parent_filter:
-        model = db.models.find_one({"_id": parent_filter})
+    # add header
+    header = []
+    header.append(f"Name: MINE Compound {compound['_id']}")
 
-        if not model:
-            raise ValueError("Invalid Model specified")
+    for k, v in compound.items():
+        if k not in {"_id", "Spectra"}:
+            header.append(f"{k}: {v}")
 
-        parents = model["Compound_ids"]
-        query_dict["$or"] = [
-            {"_id": {"$in": parents}},
-            {"Sources.Compound": {"$in": parents}},
-        ]
+    header.append("Instrument: CFM-ID 4.0")
 
-    results = db.compounds.find(query_dict, msp_projection)
-
-    for compound in results:
-
-        # add header
-        header = []
-        if "Names" in compound and len(compound["Names"]) > 0:
-            header.append(f"Name: {compound['Names'][0]}")
-            for alt in compound["Names"][1:]:
-                header.append(f"Synonym: {alt}")
-        else:
-            header.append(f"Name: MINE Compound {compound['_id']}")
-
-        for k, v in compound.items():
-            if k not in {"Names", "Pos_CFM_spectra", "Neg_CFM_spectra"}:
-                header.append(f"{k}: {v}")
-
-        header.append("Instrument: CFM-ID")
-
-        # add peak lists
-        if "Pos_CFM_spectra" in compound:
-            for energy, spec in compound["Pos_CFM_spectra"].items():
-                # ??? not sure what James meant with this conditional:
-                # he had spec_type as a argument to this function
-                # if not spec_type or [True, int(energy[:2])] in spec_type:
+    # add peak lists
+    if compound["Spectra"]:
+        for ion_mode in ["Positive", "Negative"]:
+            for energy, spec in compound["Spectra"][ion_mode].items():
                 spectral_library += header
-                spectral_library += [f"Ionization: Positive", f"Energy: {energy}"]
-                spectral_library += print_peaklist(spec)
-
-        if "Neg_CFM_spectra" in compound:
-            for energy, spec in compound["Neg_CFM_spectra"].items():
-                # ??? not sure what James meant with this conditional:
-                # if not spec_type or [False, int(energy[:2])] in spec_type:
-                spectral_library += header
-                spectral_library += [f"Ionization Mode: Negative", f"Energy: {energy}"]
+                spectral_library += [f"Ionization: {ion_mode}", f"Energy: {energy}"]
                 spectral_library += print_peaklist(spec)
 
     spectral_library = "\n".join(spectral_library)

@@ -12,7 +12,7 @@ from argparse import ArgumentParser
 from io import StringIO
 from pathlib import Path, PosixPath, WindowsPath
 from sys import exit
-from typing import List, Set, Tuple
+from typing import List, Set, Tuple, Union
 
 from rdkit.Chem.AllChem import (
     AddHs,
@@ -89,6 +89,8 @@ class Pickaxe:
         targets, by default True.
     filter_after_final_gen : bool, optional
         Whether to apply filters after final expansion, by default True.
+    prune_between_gens : bool, optional
+        Whether to prune network between generations if using filters
 
     Attributes
     ----------
@@ -124,12 +126,12 @@ class Pickaxe:
         Molecules to be targeted during expansions.
     target_smiles: List[str]
         The SMILES of all the targets.
-    target_fps : List[RDKFingerprint]
-        Fingerprints of the targets.
     react_targets : bool
         Whether or not to react targets when generated.
     filter_after_final_gen : bool
         Whether or not to filter after the last expansion.
+    prune_between_gens : bool, optional
+        Whether to prune network between generations if using filters.
     mongo_uri : str
         The connection string to the mongo database.
     cid_num_inchi_blocks : int
@@ -152,6 +154,7 @@ class Pickaxe:
         quiet: bool = True,
         react_targets: bool = True,
         filter_after_final_gen: bool = True,
+        prune_between_gens: bool = False,
     ) -> None:
         # Main pickaxe properties
         self.operators = {}
@@ -173,9 +176,9 @@ class Pickaxe:
         self.filters = []
         self.targets = dict()
         self.target_smiles = []
-        self.target_fps = []
         self.react_targets = react_targets
         self.filter_after_final_gen = filter_after_final_gen
+        self.prune_between_gens = prune_between_gens
         # database info
         self.mongo_uri = mongo_uri
         # partial_operators
@@ -239,9 +242,8 @@ class Pickaxe:
 
     def load_targets(
         self,
-        target_compound_file: str,
+        target_compound_file: Union[str, None],
         id_field: str = "id",
-        calc_fp: bool = True,
     ) -> None:
         """Load targets into pickaxe.
 
@@ -251,10 +253,11 @@ class Pickaxe:
             Filepath of target compounds.
         id_field : str, optional
             Header value of compound id in input file, by default 'id'.
-        calc_fp : bool, optional.
-            Whether or not to calculate fingerprints of targets for use with
-            filters, by default True.
         """
+        if not target_compound_file:
+            print("No target file given")
+            return None
+
         for target_dict in utils.file_to_dict_list(target_compound_file):
             mol = self._mol_from_dict(target_dict)
             if not mol:
@@ -268,10 +271,6 @@ class Pickaxe:
                 SanitizeMol(mol)
                 self._add_compound(cpd_name, smi, "Target Compound", mol)
                 self.target_smiles.append(smi)
-                if calc_fp:
-                    # Generate fingerprints for tanimoto filtering
-                    fp = RDKFingerprint(mol)
-                    self.target_fps.append(fp)
 
         print(f"{len(self.target_smiles)} target compounds loaded\n")
 
@@ -605,9 +604,24 @@ class Pickaxe:
         ):
 
             for _filter in self.filters:
-                _filter.apply_filter(self, processes)
+                _filter.apply_filter(self, processes, generation=generations)
 
             if self.generation < generations:
+                # Prune network to only things that are expanded as white list
+                if self.prune_between_gens and self.filters:
+                    # Find targets and compounds where expand is true
+                    white_list = []
+                    for cpd_id, cpd_info in self.compounds.items():
+                        if cpd_id.startswith("T"):
+                            continue
+                        elif cpd_info["Expand"] or cpd_id.startswith("X"):
+                            white_list.append(cpd_id)
+                        elif f"T{cpd_id[1:]}" in self.targets:
+                            white_list.append(cpd_id)
+
+                    # Prune network to only things being expanded
+                    self.prune_network(white_list, True)
+
                 print("----------------------------------------")
                 print(f"Expanding Generation {self.generation + 1}\n")
 
@@ -871,12 +885,39 @@ class Pickaxe:
 
         if rxns_to_del:
             for rxn_id in rxns_to_del:
+                # Remove any links from products/reactants
+                # TODO: this should have happened in above loop
+                # but getting errors stemming from this
+                for _, cpd in self.reactions[rxn_id]["Reactants"]:
+                    if cpd.startswith("C"):
+                        if rxn_id in self.compounds[cpd]["Reactant_in"]:
+                            self.compounds[cpd]["Reactant_in"].remove(rxn_id)
+
+                for _, cpd in self.reactions[rxn_id]["Products"]:
+                    if cpd.startswith("C"):
+                        if rxn_id in self.compounds[cpd]["Product_of"]:
+                            self.compounds[cpd]["Product_of"].remove(rxn_id)
+
                 del self.reactions[rxn_id]
 
             for cpd_id in cofactors_as_cpds:
                 del self.compounds[cpd_id]
 
-    def prune_network(self, white_list: list) -> None:
+        orphan_cpds = []
+        # Check for orphaned compounds
+        for cpd_id, cpd in self.compounds.items():
+            if cpd_id.startswith("C"):
+                if (
+                    (not cpd["Reactant_in"])
+                    and (not cpd["Product_of"])
+                    and (cpd["Type"] != "Starting Compound")
+                ):
+                    orphan_cpds.append(cpd_id)
+
+        for cpd_id in orphan_cpds:
+            del self.compounds[cpd_id]
+
+    def prune_network(self, white_list: list, print_output: str = True) -> None:
         """Prune the reaction network to a list of targets.
 
         Prune the predicted reaction network to only compounds and reactions
@@ -886,6 +927,8 @@ class Pickaxe:
         ----------
         white_list : list
             A list of compound ids to filter the network to.
+        print_output : bool
+            Whether or not to print output
         """
         n_white = len(white_list)
         cpd_set, rxn_set = self.find_minimal_set(white_list)
@@ -895,11 +938,13 @@ class Pickaxe:
         self.reactions = dict(
             [(k, v) for k, v in self.reactions.items() if k in rxn_set]
         )
-        print(
-            f"Pruned network to {len(cpd_set)} compounds and "
-            f"{len(rxn_set)} reactions based on "
-            f"{n_white} whitelisted compounds."
-        )
+
+        if print_output:
+            print(
+                f"Pruned network to {len(cpd_set)} compounds and "
+                f"{len(rxn_set)} reactions based on "
+                f"{n_white} whitelisted compounds.\n"
+            )
 
     def prune_network_to_targets(self) -> None:
         """Prune the reaction network to the target compounds.
@@ -916,6 +961,12 @@ class Pickaxe:
         print(f"Pruning to {len(white_list)} target compounds")
         self.prune_network(white_list)
 
+        n_targets = 0
+        for cpd_id in self.compounds:
+            if f"T{cpd_id[1:]}" in self.targets:
+                n_targets += 1
+
+        print(f"Found {n_targets} targets.")
         print(f"Pruning took {time.time() - prune_start}s")
         print("----------------------------------------\n")
 
@@ -947,9 +998,11 @@ class Pickaxe:
             # Select compound from whitelist
             if cpd_id not in self.compounds:
                 continue
+            else:
+                cpd_set.add(cpd_id)
 
             # Add info for reactions that produce compound
-            for rxn_id in self.compounds[cpd_id]["Product_of"]:
+            for rxn_id in self.compounds[cpd_id].get("Product_of", []):
                 rxn_set.add(rxn_id)
                 # Add products, not to be further explored
                 for cpd in self.reactions[rxn_id]["Products"]:
@@ -1085,7 +1138,7 @@ class Pickaxe:
                 )
 
     def save_to_mine(
-        self, processes: int = 1, indexing: bool = True, write_core: bool = True
+        self, processes: int = 1, indexing: bool = True, write_core: bool = False
     ) -> None:
         """Save pickaxe run to MINE database.
 
@@ -1096,7 +1149,7 @@ class Pickaxe:
         indexing : bool, optional
             Whether or not to add indexes, by default True.
         write_core : bool, optional
-            Whether or not to write to core database, by default True.
+            Whether or not to write to core database, by default False.
         """
         print("\n----------------------------------------")
         print(f"Writing results to {self.mine} Database")
@@ -1114,7 +1167,7 @@ class Pickaxe:
         # Insert Reactions
         print("--------------- Compounds --------------")
         cpd_start = time.time()
-        write_compounds_to_mine(self.compounds.values(), db)
+        write_compounds_to_mine(self.compounds.values(), db, processes=processes)
         print(f"Wrote Compounds in {time.time() - cpd_start} seconds.")
         if write_core:
             cpd_start = time.time()
@@ -1162,7 +1215,6 @@ class Pickaxe:
         print("-------------- Overall ---------------")
         print(f"Finished uploading everything in {time.time() - start} sec")
         print("----------------------------------------\n")
-
 
     def _transform_helper(self, compound_smiles: List[str], processes: int) -> None:
         """Help to transform reactions external to pickaxe class
@@ -1282,6 +1334,7 @@ class Pickaxe:
             self.reactions = pickle_d["reactions"]
             self.operators = pickle_d["operators"]
             self.targets = pickle_d["targets"]
+            self.target_smiles = [target["SMILES"] for target in self.targets.values()]
 
             for key in pickle_d:
                 var = getattr(self, key)
