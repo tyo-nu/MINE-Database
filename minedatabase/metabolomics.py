@@ -1029,9 +1029,7 @@ def ms2_search(
     return ms_adduct_output
 
 
-def spectra_download(
-    db: MINE, mongo_query: str = None, parent_filter: str = None, putative: bool = True
-) -> str:
+def spectra_download(db: MINE, mongo_id: str = None) -> str:
     """Download one or more spectra for compounds matching a given query.
 
     Parameters
@@ -1064,72 +1062,37 @@ def spectra_download(
     spectral_library = []
     msp_projection = {
         "MINE_id": 1,
-        "Names": 1,
+        "KEGG_id": 1,
         "Mass": 1,
-        "Generation": 1,
         "Inchikey": 1,
         "Formula": 1,
         "SMILES": 1,
-        "Sources": 1,
+        "logP": 1,
+        "Charge": 1,
         "Spectra.Positive": 1,
         "Spectra.Negative": 1,
     }
 
-    if mongo_query:
-        query_dict = literal_eval(mongo_query)
-    else:
-        query_dict = {}
+    query_dict = {"_id": mongo_id}
 
-    if not putative:
-        query_dict["Generation"] = 0
+    compound = db.compounds.find_one(query_dict, msp_projection)
 
-    if parent_filter:
-        model = db.models.find_one({"_id": parent_filter})
+    # add header
+    header = []
+    header.append(f"Name: MINE Compound {compound['_id']}")
 
-        if not model:
-            raise ValueError("Invalid Model specified")
+    for k, v in compound.items():
+        if k not in {"_id", "Spectra"}:
+            header.append(f"{k}: {v}")
 
-        parents = model["Compound_ids"]
-        query_dict["$or"] = [
-            {"_id": {"$in": parents}},
-            {"Sources.Compound": {"$in": parents}},
-        ]
+    header.append("Instrument: CFM-ID 4.0")
 
-    results = db.compounds.find(query_dict, msp_projection)
-
-    for compound in results:
-
-        # add header
-        header = []
-        if "Names" in compound and len(compound["Names"]) > 0:
-            header.append(f"Name: {compound['Names'][0]}")
-            for alt in compound["Names"][1:]:
-                header.append(f"Synonym: {alt}")
-        else:
-            header.append(f"Name: MINE Compound {compound['_id']}")
-
-        for k, v in compound.items():
-            if k not in {"Names", "Pos_CFM_spectra", "Neg_CFM_spectra"}:
-                header.append(f"{k}: {v}")
-
-        header.append("Instrument: CFM-ID")
-
-        # add peak lists
-        if "Pos_CFM_spectra" in compound:
-            for energy, spec in compound["Pos_CFM_spectra"].items():
-                # ??? not sure what James meant with this conditional:
-                # he had spec_type as a argument to this function
-                # if not spec_type or [True, int(energy[:2])] in spec_type:
+    # add peak lists
+    if compound["Spectra"]:
+        for ion_mode in ["Positive", "Negative"]:
+            for energy, spec in compound["Spectra"][ion_mode].items():
                 spectral_library += header
-                spectral_library += [f"Ionization: Positive", f"Energy: {energy}"]
-                spectral_library += print_peaklist(spec)
-
-        if "Neg_CFM_spectra" in compound:
-            for energy, spec in compound["Neg_CFM_spectra"].items():
-                # ??? not sure what James meant with this conditional:
-                # if not spec_type or [False, int(energy[:2])] in spec_type:
-                spectral_library += header
-                spectral_library += [f"Ionization Mode: Negative", f"Energy: {energy}"]
+                spectral_library += [f"Ionization: {ion_mode}", f"Energy: {energy}"]
                 spectral_library += print_peaklist(spec)
 
     spectral_library = "\n".join(spectral_library)
