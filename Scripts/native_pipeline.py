@@ -3,7 +3,7 @@
 
 import pymongo
 
-uri = 'mongodb://jrs9291:miko!lupin@minedatabase.ci.northwestern.edu:27017'
+uri = 'mongodb://username:password@minedatabase.ci.northwestern.edu:27017'
 db_name = 'kegg_lte600_500mcy'
 
 
