@@ -1003,11 +1003,14 @@ def ms_adduct_search(
 
     if ms_params.models:
         ms_adduct_output = score_compounds(
-            db,
             ms_adduct_output,
-            ms_params.models[0],
+            model_id=ms_params.models[0],
+            mine_db=db,
+            core_db=core_db,
+            kegg_db=keggdb,
             parent_frac=0.75,
             reaction_frac=0.25,
+            get_native=True
         )
 
     return ms_adduct_output
@@ -1148,11 +1151,14 @@ def ms2_search(
 
         if ms_params.models:
             ms_adduct_output = score_compounds(
-                core_db,
                 ms_adduct_output,
-                ms_params.models[0],
+                model_id=ms_params.models[0],
+                mine_db=db,
+                core_db=core_db,
+                kegg_db=keggdb,
                 parent_frac=0.75,
                 reaction_frac=0.25,
+                get_native=True
             )
 
     return ms_adduct_output
