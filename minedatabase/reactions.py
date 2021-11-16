@@ -15,6 +15,7 @@ from rdkit.Chem.AllChem import (
     RDKFingerprint,
     RemoveHs,
     SanitizeMol,
+    GetFormalCharge
 )
 
 from minedatabase import utils
@@ -86,6 +87,9 @@ def _run_reaction(
     def _make_half_rxn(mol_list, rules):
         cpds = {}
         cpd_counter = collections.Counter()
+        
+        # correct for number of H based on charge
+        charge_correction = 0
 
         for mol, rule in zip(mol_list, rules):
             if rule == "Any":
@@ -99,11 +103,15 @@ def _run_reaction(
 
             cpds[cpd_dict["_id"]] = cpd_dict
             cpd_counter.update({cpd_dict["_id"]: 1})
+            charge_correction += GetFormalCharge(mol)
 
         atom_counts = collections.Counter()
         for cpd_id, cpd_dict in cpds.items():
             for atom_id, atom_count in cpd_dict["atom_count"].items():
                 atom_counts[atom_id] += atom_count * cpd_counter[cpd_id]
+
+        # correct for number of H based on charge
+        atom_counts['H'] -= charge_correction
 
         cpd_returns = [(stoich, cpds[cpd_id]) for cpd_id, stoich in cpd_counter.items()]
 

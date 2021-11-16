@@ -65,7 +65,7 @@ class Pickaxe:
         Whether rules utilize explicit hydrogens, by default True.
     kekulize : bool, optional
         Whether or not to kekulize compounds before reaction,
-        by default True.
+        by default False.
     neutralise : bool, optional
         Whether or not to neutralise compounds, by default True.
     errors : bool, optional
@@ -143,7 +143,7 @@ class Pickaxe:
         rule_list: str = None,
         coreactant_list: str = None,
         explicit_h: bool = False,
-        kekulize: bool = True,
+        kekulize: bool = False,
         neutralise: bool = True,
         errors: bool = True,
         inchikey_blocks_for_cid: int = 1,
@@ -1390,7 +1390,7 @@ if __name__ == "__main__":
         "-k",
         "--kekulize",
         action="store_true",
-        default=True,
+        default=False,
         help="Specify whether to kekulize compounds.",
     )
     parser.add_argument(
