@@ -13,7 +13,6 @@ from numbers import Number
 from os import path
 from typing import List, Tuple, Union
 
-import pymongo
 import rdkit
 from rdkit.Chem import AllChem
 
@@ -435,79 +434,6 @@ def neutralise_charges(
             rms = AllChem.ReplaceSubstructs(mol, reactant, product)
             mol = rms[0]
     return mol
-
-
-def score_compounds(
-    db: pymongo.database,
-    compounds: list,
-    model_id: str,
-    parent_frac: float = 0.75,
-    reaction_frac: float = 0.25,
-) -> List[dict]:
-    """This function validates compounds against a metabolic model, returning
-    only the compounds which pass.
-
-    Parameters
-    ----------
-    db : Mongo DB
-        Should contain a "models" collection with compound and reaction IDs
-        listed.
-    compounds : list
-        Each element is a dict describing that compound. Should have an '_id'
-        field.
-    model_id : str
-        KEGG organism code (e.g. 'hsa').
-    parent_frac : float, optional
-        Weighting for compounds derived from compounds in the provided model.
-        0.75 by default.
-    reaction_frac : float, optional
-        Weighting for compounds derived from known compounds not in the model.
-        0.25 by default.
-
-    Returns
-    -------
-    compounds : List[dict]
-        Modified version of input compounds list, where each compound now has
-        a 'Likelihood_score' key and value between 0 and 1.
-    """
-    if not model_id:
-        return compounds
-    model = db.models.find_one({"_id": model_id})
-    if not model:
-        return compounds
-    parents = set(model["Compounds"])
-
-    for comp in compounds:
-        try:
-            if set(comp["DB_links"]["KEGG"]) & parents:
-                comp["Likelihood_score"] = parent_frac + reaction_frac
-                continue
-        except KeyError:
-            pass  # no worries if no KEGG id for this comp, just continue on
-
-        if comp["Generation"] == 0:
-            comp["Likelihood_score"] = reaction_frac
-            continue
-
-        comp["Likelihood_score"] = 0.0
-        for source in comp["Sources"]:
-            likelihood_score = reaction_frac
-
-            try:
-                for s_comp in source["Compounds"]:
-                    if "DB_links" in s_comp and "KEGG" in s_comp["DB_links"]:
-                        if set(s_comp["DB_links"]["KEGG"]) & parents:
-                            likelihood_score += parent_frac
-            except KeyError:
-                s_comp = source["Compound"]  # needed for legacy MINEs
-                if "DB_links" in s_comp and "KEGG" in s_comp["DB_links"]:
-                    if set(s_comp["DB_links"]["KEGG"]) & parents:
-                        likelihood_score += parent_frac
-
-            if likelihood_score > comp["Likelihood_score"]:
-                comp["Likelihood_score"] = likelihood_score
-
-    return compounds
 
 
 def get_atom_count(

@@ -7,7 +7,6 @@ import os
 import re
 import time
 import xml.etree.ElementTree as ET
-from ast import literal_eval
 from typing import Callable, Generator, List, Optional, Set, Tuple
 
 import numpy as np
@@ -15,7 +14,7 @@ import pymongo
 
 import minedatabase
 from minedatabase.databases import MINE
-from minedatabase.utils import mongo_ids_to_mine_ids, score_compounds
+from minedatabase.utils import mongo_ids_to_mine_ids
 
 
 MINEDB_DIR = os.path.dirname(minedatabase.__file__)
@@ -245,6 +244,7 @@ class MetabolomicsDataset:
                 # compound is in the native_set
                 peak.total_hits += 1
 
+                compound['native_hit'] = False
                 if compound["_id"] in self.native_set:
                     peak.native_hit = True
                     compound["native_hit"] = True
@@ -255,10 +255,139 @@ class MetabolomicsDataset:
                 mongo_ids.append(compound["_id"])
                 peak.isomers.append(compound)
 
+        if self.native_set:
+            cpd_ids = [cpd['_id'] for cpd in peak.isomers]
+            native_product_ids = set(self.check_product_of_native(cpd_ids, db))
+        else:
+            native_product_ids = set()
+
         # Get MINE IDs in bulk
         mongo_to_mine = mongo_ids_to_mine_ids(mongo_ids, core_db)
         for cpd in peak.isomers:
             cpd["MINE_id"] = mongo_to_mine[cpd["_id"]]
+            if cpd['_id'] in native_product_ids:
+                cpd['product_of_native_hit'] = True
+            else:
+                cpd['product_of_native_hit'] = False
+
+    def check_product_of_native(self, cpd_ids: List[str], db: MINE) -> List[str]:
+        """Filters list of compound IDs to just those associated with compounds
+        produced from a native hit in the model (i.e. in native set)."""
+
+        pipeline = [
+            {
+                '$match': {
+                    '_id': {'$in': cpd_ids}
+                }
+            },
+            {
+                '$project': {
+                    'Product_of': 1,
+                }
+            },
+            {
+                '$unwind': '$Product_of'
+            },
+            {
+                '$lookup': {
+                    'from': 'product_of',
+                    'localField': 'Product_of',
+                    'foreignField': '_id',
+                    'as': 'product_of_doc'
+                }
+            },
+            {
+                '$unwind': '$product_of_doc'
+            },
+            {
+                '$project': {
+                    '_id': 1,
+                    'producing_rxns': '$product_of_doc.Product_of',
+                }
+            },
+            {
+                '$unwind': '$producing_rxns'
+            },
+            {
+                '$group': {
+                    '_id': '$_id',
+                    'producing_rxns': {'$addToSet': '$producing_rxns'},
+                    'n_rxns': {'$sum': 1}
+                }
+            },
+            {
+                '$unwind': '$producing_rxns'
+            },
+            {
+                '$lookup': {
+                    'from': 'reactions',
+                    'localField': 'producing_rxns',
+                    'foreignField': '_id',
+                    'as': 'reaction_doc'
+                }
+            },
+            {
+                '$project': {
+                    'reactants': '$reaction_doc.Reactants',
+                }
+            },
+            {
+                '$project': {
+                    'reaction_doc': 0,
+                    'producing_rxns': 0
+                }
+            },
+            {
+                '$unwind': '$reactants'
+            },
+            {
+                '$unwind': '$reactants'
+            },
+            {
+                '$project': {
+                    'reactant': {'$arrayElemAt': ['$reactants', 1]}
+                }
+            },
+            {
+                '$match': {
+                    'reactant': {'$regex': '^C.*'}
+                }
+            },
+            {
+                '$lookup': {
+                    'from': 'compounds',
+                    'localField': 'reactant',
+                    'foreignField': '_id',
+                    'as': 'reactant_doc'
+                }
+            },
+            {
+                '$project': {
+                    '_id': 1,
+                    'reactant_id': {'$arrayElemAt': ['$reactant_doc._id', 0]}
+                }
+            },
+            {
+                '$group': {
+                    '_id': '$_id',
+                    'reactant_ids': {'$addToSet': '$reactant_id'}
+                }
+            },
+            {
+                '$match': {
+                    'reactant_ids': {'$elemMatch': {'$in': list(self.native_set)}}
+                }
+            },
+            {
+                '$project': {
+                    '_id': 1
+                }
+            }
+        ]
+
+        native_product_ids = db.compounds.aggregate(pipeline)
+        native_product_ids = [doc['_id'] for doc in native_product_ids]
+        return native_product_ids
 
     def annotate_peaks(self, db: MINE, core_db: MINE) -> None:
         """This function iterates through the unknown peaks in the dataset and
@@ -591,7 +720,7 @@ class Peak:
 def get_KEGG_comps(
     db: MINE, core_db: MINE, kegg_db: pymongo.database.Database, model_ids: List[str]
 ) -> set:
-    """Get KEGG IDs from KEGG MINE database for compounds in model(s).
+    """Get MINE IDs from KEGG MINE database for compounds in model(s).
 
     Parameters
     ----------
@@ -874,11 +1003,14 @@ def ms_adduct_search(
 
     if ms_params.models:
         ms_adduct_output = score_compounds(
-            db,
             ms_adduct_output,
-            ms_params.models[0],
+            model_id=ms_params.models[0],
+            mine_db=db,
+            core_db=core_db,
+            kegg_db=keggdb,
             parent_frac=0.75,
             reaction_frac=0.25,
+            get_native=True
         )
 
     return ms_adduct_output
@@ -1019,11 +1151,14 @@ def ms2_search(
 
         if ms_params.models:
             ms_adduct_output = score_compounds(
-                db,
                 ms_adduct_output,
-                ms_params.models[0],
+                model_id=ms_params.models[0],
+                mine_db=db,
+                core_db=core_db,
+                kegg_db=keggdb,
                 parent_frac=0.75,
                 reaction_frac=0.25,
+                get_native=True
             )
 
     return ms_adduct_output
@@ -1098,3 +1233,66 @@ def spectra_download(db: MINE, mongo_id: str = None) -> str:
     spectral_library = "\n".join(spectral_library)
 
     return spectral_library
+
+
+def score_compounds(
+    compounds: list,
+    model_id: str = None,
+    core_db: pymongo.database = None,
+    mine_db: pymongo.database = None,
+    kegg_db: pymongo.database = None,
+    parent_frac: float = 0.75,
+    reaction_frac: float = 0.25,
+    get_native: bool = False
+) -> List[dict]:
+    """This function validates compounds against a metabolic model, returning
+    only the compounds which pass.
+
+    Parameters
+    ----------
+    db : Mongo DB
+        Should contain a "models" collection with compound and reaction IDs
+        listed.
+    core_db : Mongo DB
+        Core MINE database.
+    compounds : list
+        Each element is a dict describing that compound. Should have an '_id'
+        field.
+    model_id : str
+        KEGG organism code (e.g. 'hsa').
+    parent_frac : float, optional
+        Weighting for compounds derived from compounds in the provided model.
+        0.75 by default.
+    reaction_frac : float, optional
+        Weighting for compounds derived from known compounds not in the model.
+        0.25 by default.
+
+    Returns
+    -------
+    compounds : List[dict]
+        Modified version of input compounds list, where each compound now has
+        a 'Likelihood_score' key and value between 0 and 1.
+    """
+    for cpd in compounds:
+        cpd['native_hit'] = False
+        cpd['product_of_native_hit'] = False
+
+    if get_native and core_db and mine_db and kegg_db and model_id:
+        cpd_ids = [cpd['_id'] for cpd in compounds]
+        met_dataset = MetabolomicsDataset(name='temp')
+        met_dataset.native_set = get_KEGG_comps(mine_db, core_db, kegg_db, [model_id])
+        native_product_ids = met_dataset.check_product_of_native(cpd_ids, mine_db)
+
+        for cpd in compounds:
+            if cpd['_id'] in met_dataset.native_set:
+                cpd['native_hit'] = True
+            elif cpd['_id'] in native_product_ids:
+                cpd['product_of_native_hit'] = True
+
+    for comp in compounds:
+        if comp["native_hit"]:
+            comp["Likelihood_score"] = parent_frac + reaction_frac
+        if comp["product_of_native_hit"]:
+            comp["Likelihood_score"] = parent_frac
+
+    return compounds
