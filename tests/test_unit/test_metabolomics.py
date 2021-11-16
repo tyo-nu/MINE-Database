@@ -240,13 +240,17 @@ def test_peak_score_isomers(unknown_peaks):
     THEN make sure they are in the correct order
     """
     # In reality pos and neg spectra would be different, but this is just for testing
-    isomer1 = {
-        "Pos_CFM_spectra": {"20 V": [(10, 100), (20, 300), (25, 10)]},
-        "Neg_CFM_spectra": {"20 V": [(10, 100), (20, 300), (25, 10)]},
+    isomer1 = {'Spectra':
+        {
+            "Positive": {"20V": [(10, 100), (20, 300), (25, 10)]},
+            "Negative": {"20V": [(10, 100), (20, 300), (25, 10)]},
+        }
     }
-    isomer2 = {
-        "Pos_CFM_spectra": {"20 V": [(10, 10), (20, 55), (25, 100)]},
-        "Neg_CFM_spectra": {"20 V": [(10, 10), (20, 55), (25, 100)]},
+    isomer2 = {'Spectra':
+        {
+            "Positive": {"20V": [(10, 10), (20, 55), (25, 100)]},
+            "Negative": {"20V": [(10, 10), (20, 55), (25, 100)]},
+        }
     }
 
     unknown_peak1, unknown_peak2 = unknown_peaks

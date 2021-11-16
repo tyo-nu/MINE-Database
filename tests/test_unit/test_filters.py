@@ -46,7 +46,7 @@ def test_similarity_cutoff_single(pk_target):
     pk_target.filters.append(_filter)
     pk_target.transform_all(generations=2)
 
-    assert len(pk_target.compounds) == 355
+    assert len(pk_target.compounds) == 436
     assert (
         pk_target.compounds["C779bfa0d747509f0499664b390657a336edec104"]["Expand"]
         == True
@@ -80,7 +80,7 @@ def test_similarity_cutoff_multi(pk_target):
     pk_target.filters.append(_filter)
     pk_target.transform_all(generations=2)
 
-    assert len(pk_target.compounds) == 1094
+    assert len(pk_target.compounds) == 1358
     assert (
         pk_target.compounds["C779bfa0d747509f0499664b390657a336edec104"]["Expand"]
         == True
@@ -96,7 +96,7 @@ def test_similarity_cutoff_multi_short_list(pk_target):
     pk_target.filters.append(_filter)
     pk_target.transform_all(generations=2)
 
-    assert len(pk_target.compounds) == 355
+    assert len(pk_target.compounds) == 436
     assert (
         pk_target.compounds["C779bfa0d747509f0499664b390657a336edec104"]["Expand"]
         == True
@@ -113,7 +113,7 @@ def test_similarity_no_targets(pk_target):
     pk_target.filters.append(_filter)
     pk_target.transform_all(generations=2)
 
-    assert len(pk_target.compounds) == 1348
+    assert len(pk_target.compounds) == 1717
     assert (
         pk_target.compounds["C779bfa0d747509f0499664b390657a336edec104"]["Expand"]
         == True
@@ -210,7 +210,7 @@ def test_MCS_list(pk_target):
     pk_target.filters.append(_filter)
     pk_target.transform_all(generations=2)
 
-    assert len(pk_target.compounds) == 340
+    assert len(pk_target.compounds) == 382
 
 
 @pytest.mark.skipif(not loaded_db, reason="No eQuilibrator DB found.")
