@@ -442,10 +442,14 @@ def postsanitize_smiles(smiles_list):
     """Postsanitize smiles after running SMARTS.
     :returns tautomer list of list of smiles"""
     sanitized_list = []
-    tautomer_smarts = '[#7H1X3&a:1]:[#6&a:2]:[#7H0X2&a:3]>>[#7H0X2:1]:[#6:2]:[#7H1X3:3]'
+    tautomer_smarts = "[#7H1X3&a:1]:[#6&a:2]:[#7H0X2&a:3]>>[#7H0X2:1]:[#6:2]:[#7H1X3:3]"
     for s in smiles_list:
         temp_mol = Chem.MolFromSmiles(s, sanitize=False)
-        aromatic_bonds = [i.GetIdx() for i in temp_mol.GetBonds() if i.GetBondType() == Chem.rdchem.BondType.AROMATIC]
+        aromatic_bonds = [
+            i.GetIdx()
+            for i in temp_mol.GetBonds()
+            if i.GetBondType() == Chem.rdchem.BondType.AROMATIC
+        ]
         for i in temp_mol.GetBonds():
             if i.GetBondType() == Chem.rdchem.BondType.UNSPECIFIED:
                 i.SetBondType(Chem.rdchem.BondType.SINGLE)
@@ -454,9 +458,11 @@ def postsanitize_smiles(smiles_list):
             Chem.rdmolops.RemoveStereochemistry(temp_mol)
             temp_smiles = Chem.MolToSmiles(temp_mol)
         except Exception as msg:
-            if 'Can\'t kekulize mol' in str(msg):
-                pyrrole_indices = [i[0] for i in temp_mol.GetSubstructMatches(Chem.MolFromSmarts('n'))]
-                # indices to sanitize 
+            if "Can't kekulize mol" in str(msg):
+                pyrrole_indices = [
+                    i[0] for i in temp_mol.GetSubstructMatches(Chem.MolFromSmarts("n"))
+                ]
+                # indices to sanitize
                 for s_i in pyrrole_indices:
                     temp_mol = Chem.MolFromSmiles(s, sanitize=False)
                     if temp_mol.GetAtomWithIdx(s_i).GetNumExplicitHs() == 0:
@@ -465,18 +471,28 @@ def postsanitize_smiles(smiles_list):
                         temp_mol.GetAtomWithIdx(s_i).SetNumExplicitHs(0)
                     try:
                         Chem.SanitizeMol(temp_mol)
-                        processed_pyrrole_indices = [i[0] for i in
-                                                     temp_mol.GetSubstructMatches(Chem.MolFromSmarts('n'))]
-                        processed_aromatic_bonds = [i.GetIdx() for i in
-                                                    temp_mol.GetBonds() if i.GetBondType() == Chem.rdchem.BondType.AROMATIC]
-                        if processed_pyrrole_indices != pyrrole_indices or aromatic_bonds != processed_aromatic_bonds:
+                        processed_pyrrole_indices = [
+                            i[0]
+                            for i in temp_mol.GetSubstructMatches(
+                                Chem.MolFromSmarts("n")
+                            )
+                        ]
+                        processed_aromatic_bonds = [
+                            i.GetIdx()
+                            for i in temp_mol.GetBonds()
+                            if i.GetBondType() == Chem.rdchem.BondType.AROMATIC
+                        ]
+                        if (
+                            processed_pyrrole_indices != pyrrole_indices
+                            or aromatic_bonds != processed_aromatic_bonds
+                        ):
                             continue
                         Chem.rdmolops.RemoveStereochemistry(temp_mol)
                         temp_smiles = Chem.MolToSmiles(temp_mol)
                         break
                     except:
                         continue
-                if 'temp_smiles' not in vars():
+                if "temp_smiles" not in vars():
                     Chem.rdmolops.RemoveStereochemistry(temp_mol)
                     temp_smiles = Chem.MolToSmiles(temp_mol)
                     sanitized_list.append([temp_smiles])
@@ -488,10 +504,12 @@ def postsanitize_smiles(smiles_list):
                 continue
         rxn = AllChem.ReactionFromSmarts(tautomer_smarts)
         try:
-            tautomer_mols = rxn.RunReactants((Chem.MolFromSmiles(temp_smiles), ))
+            tautomer_mols = rxn.RunReactants((Chem.MolFromSmiles(temp_smiles),))
         except:
             try:
-                tautomer_mols = rxn.RunReactants((Chem.MolFromSmiles(temp_smiles, sanitize=False),))
+                tautomer_mols = rxn.RunReactants(
+                    (Chem.MolFromSmiles(temp_smiles, sanitize=False),)
+                )
             except:
                 continue
         tautomer_smiles = [Chem.MolToSmiles(m[0]) for m in tautomer_mols]

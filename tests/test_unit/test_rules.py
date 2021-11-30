@@ -20,7 +20,7 @@ def test_metacyc_generalized_full():
     pk = pickaxe.Pickaxe(rule_list=rule_list, coreactant_list=correactant_list)
 
     assert rule_name == "Metacyc_generalized"
-    assert len(pk.operators) == 1221
+    assert len(pk.operators) == 1216
     assert len(pk.coreactants) == 45
 
     assert (
@@ -48,7 +48,7 @@ def test_metacyc_generalized_specify_fraction():
     pk = pickaxe.Pickaxe(rule_list=rule_list, coreactant_list=correactant_list)
 
     assert rule_name == "Metacyc_generalized_0,9_fraction_coverage"
-    assert len(pk.operators) == 353
+    assert len(pk.operators) == 413
     assert len(pk.coreactants) == 45
 
     assert (
@@ -64,7 +64,7 @@ def test_metacyc_exclude():
     pk = pickaxe.Pickaxe(rule_list=rule_list, coreactant_list=correactant_list)
 
     assert rule_name == "Metacyc_generalized_0,9_fraction_coverage_with_exclusion"
-    assert len(pk.operators) == 843
+    assert len(pk.operators) == 839
     assert len(pk.coreactants) == 45
 
 
@@ -75,7 +75,7 @@ def test_metacyc_include():
     pk = pickaxe.Pickaxe(rule_list=rule_list, coreactant_list=correactant_list)
 
     assert rule_name == "Metacyc_generalized_0,9_fraction_coverage_with_inclusion"
-    assert len(pk.operators) == 378
+    assert len(pk.operators) == 377
     assert len(pk.coreactants) == 45
 
 
@@ -84,7 +84,7 @@ def test_metacyc_intermediate():
     pk = pickaxe.Pickaxe(rule_list=rule_list, coreactant_list=correactant_list)
 
     assert rule_name == "Metacyc_intermediate"
-    assert len(pk.operators) == 7358
+    assert len(pk.operators) == 7154
     assert len(pk.coreactants) == 45
 
     assert (
@@ -118,7 +118,7 @@ def test_metacyc_intermediate_exclude():
     pk = pickaxe.Pickaxe(rule_list=rule_list, coreactant_list=correactant_list)
 
     assert rule_name == "Metacyc_intermediate_0,9_fraction_coverage_with_exclusion"
-    assert len(pk.operators) == 5887
+    assert len(pk.operators) == 5775
     assert len(pk.coreactants) == 45
 
 
@@ -129,7 +129,7 @@ def test_metacyc_intermediate_include():
     pk = pickaxe.Pickaxe(rule_list=rule_list, coreactant_list=correactant_list)
 
     assert rule_name == "Metacyc_intermediate_0,9_fraction_coverage_with_inclusion"
-    assert len(pk.operators) == 84
+    assert len(pk.operators) == 67
     assert len(pk.coreactants) == 45
 
 

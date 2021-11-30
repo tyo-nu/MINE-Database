@@ -15,7 +15,7 @@ from rdkit.Chem.AllChem import (
     RDKFingerprint,
     RemoveHs,
     SanitizeMol,
-    GetFormalCharge
+    GetFormalCharge,
 )
 
 from minedatabase import utils
@@ -111,21 +111,21 @@ def _run_reaction(
                 atom_counts[atom_id] += atom_count * cpd_counter[cpd_id]
 
         # correct for number of H based on charge
-        atom_counts['H'] -= charge_correction
+        atom_counts["H"] -= charge_correction
 
         cpd_returns = [(stoich, cpds[cpd_id]) for cpd_id, stoich in cpd_counter.items()]
-        
+
         return cpd_returns, atom_counts
 
     def _gen_compound(mol):
-        rkl.DisableLog('rdApp.*')
+        rkl.DisableLog("rdApp.*")
         try:
             if explicit_h:
                 mol = RemoveHs(mol)
 
             # resolve potential tautomers and choose first one
             mol_smiles = MolToSmiles(mol, True)
-            if 'n' in mol_smiles:
+            if "n" in mol_smiles:
                 mol_smiles = utils.postsanitize_smiles([mol_smiles])[0][0]
                 mol = MolFromSmiles(mol_smiles)
 
@@ -136,7 +136,7 @@ def _run_reaction(
         # This is for predicted compounds that are infeasible, so we throw them out
         except BaseException:
             return None
-        rkl.EnableLog('rdApp.*')
+        rkl.EnableLog("rdApp.*")
 
         mol_smiles = MolToSmiles(mol, True)
         if "." in mol_smiles:
@@ -360,7 +360,7 @@ def transform_all_compounds_with_full(
         operators,
         generation,
         explicit_h,
-        kekulize
+        kekulize,
     )
     # par loop
     if processes > 1:

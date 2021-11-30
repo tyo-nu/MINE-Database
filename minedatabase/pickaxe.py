@@ -312,7 +312,7 @@ class Pickaxe:
                 # Do not operate on inorganic compounds
                 if "C" in smi or "c" in smi:
                     # resolve potential tautomers and choose first one
-                    if 'n' in smi:
+                    if "n" in smi:
                         smi = utils.postsanitize_smiles([smi])[0][0]
                         mol = MolFromSmiles(smi)
                     if mol:
@@ -322,14 +322,16 @@ class Pickaxe:
                         )
                         compound_smiles.append(smi)
                     else:
-                        print('Warning: could not load compound:', smi)
+                        print("Warning: could not load compound:", smi)
 
         else:
             raise ValueError("No input file specified for starting compounds")
 
         print(f"{len(compound_smiles)} compounds loaded...")
-        print(f"({len(self.compounds) - initial_cpds_n} "
-              f"after removing stereochemistry)")
+        print(
+            f"({len(self.compounds) - initial_cpds_n} "
+            f"after removing stereochemistry)"
+        )
 
         return compound_smiles
 
@@ -515,7 +517,7 @@ class Pickaxe:
         """
         # resolve potential tautomers and choose first one
         try:
-            if 'n' in smi:
+            if "n" in smi:
                 smi = utils.postsanitize_smiles([smi])[0][0]
 
             cpd_dict = {}
