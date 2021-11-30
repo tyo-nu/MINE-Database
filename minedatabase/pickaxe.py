@@ -14,6 +14,7 @@ from pathlib import Path, PosixPath, WindowsPath
 from sys import exit
 from typing import List, Set, Tuple, Union
 
+from rdkit.Chem import RemoveStereochemistry
 from rdkit.Chem.AllChem import (
     AddHs,
     GetMolFrags,
@@ -296,28 +297,39 @@ class Pickaxe:
         """
 
         # load compounds
+        initial_cpds_n = len(self.compounds)
         compound_smiles = []
         if compound_file:
             for cpd_dict in utils.file_to_dict_list(compound_file):
                 mol = self._mol_from_dict(cpd_dict)
                 if not mol:
                     continue
+                RemoveStereochemistry(mol)
                 # Add compound to internal dictionary as a starting
                 # compound and store SMILES string to be returned
                 smi = MolToSmiles(mol, True)
                 cpd_name = cpd_dict[id_field]
                 # Do not operate on inorganic compounds
                 if "C" in smi or "c" in smi:
-                    SanitizeMol(mol)
-                    self._add_compound(
-                        cpd_name, smi, cpd_type="Starting Compound", mol=mol
-                    )
-                    compound_smiles.append(smi)
+                    # resolve potential tautomers and choose first one
+                    if 'n' in smi:
+                        smi = utils.postsanitize_smiles([smi])[0][0]
+                        mol = MolFromSmiles(smi)
+                    if mol:
+                        SanitizeMol(mol)
+                        self._add_compound(
+                            cpd_name, smi, cpd_type="Starting Compound", mol=mol
+                        )
+                        compound_smiles.append(smi)
+                    else:
+                        print('Warning: could not load compound:', smi)
 
         else:
             raise ValueError("No input file specified for starting compounds")
 
-        print(f"{len(compound_smiles)} compounds loaded")
+        print(f"{len(compound_smiles)} compounds loaded...")
+        print(f"({len(self.compounds) - initial_cpds_n} "
+              f"after removing stereochemistry)")
 
         return compound_smiles
 
@@ -501,10 +513,18 @@ class Pickaxe:
         Tuple[str, dict]
             Compound id and compound dict.
         """
-        cpd_dict = {}
-        cpd_id, inchi_key = utils.get_compound_hash(
-            smi, cpd_type, self.cid_num_inchi_blocks
-        )
+        # resolve potential tautomers and choose first one
+        try:
+            if 'n' in smi:
+                smi = utils.postsanitize_smiles([smi])[0][0]
+
+            cpd_dict = {}
+            cpd_id, inchi_key = utils.get_compound_hash(
+                smi, cpd_type, self.cid_num_inchi_blocks
+            )
+        except BaseException:
+            return None, None
+
         if cpd_id:
             # We don't want to overwrite the same compound from a prior
             # generation so we check with hashed id from above
@@ -1274,6 +1294,7 @@ class Pickaxe:
             self.operators,
             self.generation + 1,
             self.explicit_h,
+            self.kekulize,
             processes,
         )
 
