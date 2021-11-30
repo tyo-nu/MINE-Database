@@ -109,8 +109,6 @@ def metacyc_generalized(
 
     # Generate CDF for determining fraction coverage
     rule_counts = rule_df.value_counts().rename_axis("Name").reset_index(name="counts")
-    print(rule_counts)
-    print(rule_df.loc[~rule_df.Name.isin(rule_counts.Name)])
 
     # Attach rules to this DF
     rule_df = pd.read_csv(
@@ -119,7 +117,6 @@ def metacyc_generalized(
         # usecols=["Name", "Reactants", "SMARTS", "Prod"]
     )
     removed_df = pd.DataFrame()
-    print(rule_df)
 
     # Filter out any reactions based on filtering
     name_append = ""
@@ -157,15 +154,12 @@ def metacyc_generalized(
     rule_ids = rule_df.index.to_list()
     keep_ids = [i for i in rule_ids if i not in removed_ids]
     removed_ids = [i for i in rule_ids if i in removed_ids]
-    print(removed_ids)
+
     new_ids = keep_ids + removed_ids
 
     # Merge with rule counts, saving old ids
     rule_df["index"] = rule_df.index
-    print(rule_df)
-    print(set(rule_df.Name).difference(set(rule_counts.Name)))
     rule_df = pd.merge(rule_counts, rule_df, on="Name").set_index("index")
-    print(rule_df)
 
     # TODO why is this happening?
     # Calculate ids to keep, some rules are dropped due to not having reactions
