@@ -93,7 +93,7 @@ verbose = False              # Display RDKit warnings and errors
 # Be careful changing these.
 inchikey_blocks_for_cid = 1  # Number of inchi key blocks to gen cid
 explicit_h = False           # use explicit hydrogens in rules
-kekulize = True              # kekulize molecules
+kekulize = False             # kekulize molecules
 neutralise = True            # Neutralise all molecules when loading
 quiet = True                 # Silence errors
 indexing = False             #

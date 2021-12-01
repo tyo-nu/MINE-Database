@@ -98,17 +98,16 @@ def metacyc_generalized(
     return_counts = kwargs.get("return_counts", False)
     return_all = kwargs.get("return_all", False)
     # Metacyc Rules
-    reaction_mapping = pwd / Path("data/metacyc_rules/metacyc_mapped.tsv")
+    reaction_mapping = pwd / Path("data/metacyc_rules/metacyc21_coverage.tsv")
     rules = pwd / Path("data/metacyc_rules/metacyc_generalized_rules.tsv")
     coreactants = pwd / Path("data/metacyc_rules/metacyc_coreactants.tsv")
 
     # Get dataframe to help select rules
-    rule_df = pd.read_csv(reaction_mapping, delimiter="\t", usecols=["rule"]).rename(
-        columns={"rule": "Name"}
+    rule_df = pd.read_csv(reaction_mapping, delimiter="\t", usecols=["Rules"]).rename(
+        columns={"Rules": "Name"}
     )
 
     # Generate CDF for determining fraction coverage
-    rule_df.Name = rule_df.Name.map(lambda s: s.split("_")[0])
     rule_counts = rule_df.value_counts().rename_axis("Name").reset_index(name="counts")
 
     # Attach rules to this DF
@@ -155,6 +154,7 @@ def metacyc_generalized(
     rule_ids = rule_df.index.to_list()
     keep_ids = [i for i in rule_ids if i not in removed_ids]
     removed_ids = [i for i in rule_ids if i in removed_ids]
+
     new_ids = keep_ids + removed_ids
 
     # Merge with rule counts, saving old ids

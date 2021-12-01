@@ -17,24 +17,30 @@ file_dir = file_path.parent
 DATA_DIR = (file_dir / "../data/").resolve()
 
 # check for eQ
-try:
-    from equilibrator_api import Q_
+sqlite_loc = file_dir / "../compounds.sqlite"
 
-    from minedatabase.filters.thermodynamics import ThermoFilter
-    from minedatabase.thermodynamics import Thermodynamics
+# Thermodynamics
+loaded_db = False
 
-    thermo = Thermodynamics()
+if sqlite_loc.is_file():
     try:
-        thermo.load_thermo_from_postgres()
-        loaded_db = True
-    except:
+        from equilibrator_api import Q_
+
+        from minedatabase.filters.thermodynamics import ThermoFilter
+        from minedatabase.thermodynamics import Thermodynamics
+
+        thermo = Thermodynamics()
         try:
-            thermo.load_thermo_from_sqlite()
+            thermo.load_thermo_from_postgres()
             loaded_db = True
         except:
-            pass
-except:
-    pass
+            try:
+                thermo.load_thermo_from_sqlite()
+                loaded_db = True
+            except:
+                pass
+    except:
+        pass
 
 
 def test_similarity_cutoff_single(pk_target):
@@ -113,7 +119,7 @@ def test_similarity_no_targets(pk_target):
     pk_target.filters.append(_filter)
     pk_target.transform_all(generations=2)
 
-    assert len(pk_target.compounds) == 1717
+    assert len(pk_target.compounds) == 1740
     assert (
         pk_target.compounds["C779bfa0d747509f0499664b390657a336edec104"]["Expand"]
         == True

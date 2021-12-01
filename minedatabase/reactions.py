@@ -15,7 +15,7 @@ from rdkit.Chem.AllChem import (
     RDKFingerprint,
     RemoveHs,
     SanitizeMol,
-    GetFormalCharge
+    GetFormalCharge,
 )
 
 from minedatabase import utils
@@ -87,7 +87,7 @@ def _run_reaction(
     def _make_half_rxn(mol_list, rules):
         cpds = {}
         cpd_counter = collections.Counter()
-        
+
         # correct for number of H based on charge
         charge_correction = 0
 
@@ -111,20 +111,32 @@ def _run_reaction(
                 atom_counts[atom_id] += atom_count * cpd_counter[cpd_id]
 
         # correct for number of H based on charge
-        atom_counts['H'] -= charge_correction
+        atom_counts["H"] -= charge_correction
 
         cpd_returns = [(stoich, cpds[cpd_id]) for cpd_id, stoich in cpd_counter.items()]
 
         return cpd_returns, atom_counts
 
     def _gen_compound(mol):
+        rkl.DisableLog("rdApp.*")
         try:
             if explicit_h:
                 mol = RemoveHs(mol)
+
+            # resolve potential tautomers and choose first one
+            mol_smiles = MolToSmiles(mol, True)
+            if "n" in mol_smiles:
+                mol_smiles = utils.postsanitize_smiles([mol_smiles])[0][0]
+                mol = MolFromSmiles(mol_smiles)
+
             SanitizeMol(mol)
+
         # TODO: logger
+        # Get lots of "Explicit valence greater than permitted" errors here
+        # This is for predicted compounds that are infeasible, so we throw them out
         except BaseException:
             return None
+        rkl.EnableLog("rdApp.*")
 
         mol_smiles = MolToSmiles(mol, True)
         if "." in mol_smiles:
@@ -155,10 +167,12 @@ def _run_reaction(
             return None
 
     try:
-        product_sets = rule[0].RunReactants(reactant_mols)
+        product_sets = rule[0].RunReactants(reactant_mols, maxProducts=10000)
         reactants, reactant_atoms = _make_half_rxn(reactant_mols, rule[1]["Reactants"])
-        # TODO: Logger
     except BaseException:
+        reactants = None, None
+
+    if reactants is None:
         reactants = None, None
 
     if not all(reactants):
@@ -213,6 +227,7 @@ def _transform_ind_compound_with_full(
     operators: list,
     generation: int,
     explicit_h: bool,
+    kekulize: bool,
     compound_smiles: list,
 ) -> Tuple[dict, dict]:
     """Transform a compound with the full reaction operators.
@@ -231,6 +246,8 @@ def _transform_ind_compound_with_full(
         Which generation these reactions are in.
     explicit_h : bool
         Whether or not to use explicit hydrogen.
+    kekulize : bool
+        Whether or not to kekulize molecules.
     compound_smiles : list
         List of compound smiles.
 
@@ -247,7 +264,8 @@ def _transform_ind_compound_with_full(
     if not mol:
         print(f"Unable to parse: {compound_smiles}")
         return None
-    Kekulize(mol, clearAromaticFlags=True)
+    if kekulize:
+        Kekulize(mol, clearAromaticFlags=True)
     if explicit_h:
         mol = AddHs(mol)
     # Apply reaction rules to prepared compound
@@ -287,6 +305,7 @@ def transform_all_compounds_with_full(
     operators: dict,
     generation: int,
     explicit_h: bool,
+    kekulize: bool,
     processes: int,
 ) -> Tuple[dict, dict]:
     """Transform compounds given a list of rules.
@@ -308,6 +327,8 @@ def transform_all_compounds_with_full(
         Value of generation to expand.
     explicit_h : bool
         Whether or not to have explicit Hs in reactions.
+    kekulize : bool
+        Whether or not to kekulize compounds.
     processes : int
         Number of processors being used.
 
@@ -339,6 +360,7 @@ def transform_all_compounds_with_full(
         operators,
         generation,
         explicit_h,
+        kekulize,
     )
     # par loop
     if processes > 1:
