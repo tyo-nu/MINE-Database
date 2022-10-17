@@ -352,9 +352,12 @@ def test_local_cli():
     WHEN pickaxe is run from the command line
     THEN make sure it exits with exit code 0 (no errors)
     """
-    os.chdir(file_dir / "../data/../..")
+    pickaxe_file = (file_dir / "../../minedatabase/pickaxe.py").resolve()
+    test_dir = (file_dir / "../").resolve()
+    rule_file = (file_dir / "../data/test_cd_rxn_rule.tsv").resolve()
+    os.chdir(file_dir / "../../")
     rc = subprocess.call(
-        f"python minedatabase/pickaxe.py -o tests/ -r tests/data/test_cd_rxn_rule.tsv",
+        f"python {pickaxe_file} -o {test_dir} -r {rule_file}",
         shell=True,
     )
     assert not rc

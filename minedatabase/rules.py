@@ -1,7 +1,6 @@
 """Generate rules to use in pickaxe runs."""
 from bisect import bisect_right
 from io import StringIO
-from os import remove
 from pathlib import Path
 from typing import List, Tuple
 
@@ -384,9 +383,4 @@ def BNICE() -> Tuple[Path, Path, str]:
     rule_name = "BNICE"
 
     return rules, coreactants, rule_name
-
-
-import seaborn as sns
-
-
-sns.scatterplot()
+    

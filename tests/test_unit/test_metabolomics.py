@@ -367,7 +367,7 @@ def test_spectra_download(test_db):
                 "Pos_CFM_spectra": test_spectra,
             }
         )
-    cpd_query = '{"_id": "ms2_test"}'
+    cpd_query = "ms2_test"
     spectra = spectra_download(test_db, cpd_query)
 
     spectra_path = DATA_DIR / "test_metabolomics/test_spectra.txt"
