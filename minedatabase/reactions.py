@@ -9,13 +9,13 @@ import rdkit.RDLogger as rkl
 from rdkit.Chem.AllChem import (
     AddHs,
     CalcMolFormula,
+    GetFormalCharge,
     Kekulize,
     MolFromSmiles,
     MolToSmiles,
     RDKFingerprint,
     RemoveHs,
     SanitizeMol,
-    GetFormalCharge,
 )
 
 from minedatabase import utils

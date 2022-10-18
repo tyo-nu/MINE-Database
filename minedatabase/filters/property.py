@@ -144,7 +144,7 @@ class AtomicCompositionFilter(Filter):
                 atom_range = self.atomic_composition_constraints.get(atom)
                 if atom_range:
                     atom_min = atom_range[0] or 0
-                    atom_max = atom_range[1] or 10 ** 5
+                    atom_max = atom_range[1] or 10**5
 
                     if not (
                         atom_min <= atom_count[atom] and atom_count[atom] <= atom_max

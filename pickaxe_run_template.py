@@ -16,8 +16,6 @@ import pickle
 import time
 
 import pymongo
-from rdkit import DataStructs
-from rdkit.Chem import AllChem
 
 # Make sure you have minedatabase installed! (either from GitHub or via pip)
 from minedatabase.filters import (
@@ -26,14 +24,16 @@ from minedatabase.filters import (
     MetabolomicsFilter,
     MWFilter,
     SimilarityFilter,
-    SimilaritySamplingFilter
+    SimilaritySamplingFilter,
 )
+from minedatabase.pickaxe import Pickaxe
+from minedatabase.rules import metacyc_generalized, metacyc_intermediate
+
+
 # Uncomment to use these. Pickaxe doesn't come packaged with dependencies by default.
 # from minedatabase.filters import ThermoFilter
 # from minedatabase.filters import ReactionFeasibilityFilter
 
-from minedatabase.pickaxe import Pickaxe
-from minedatabase.rules import metacyc_generalized, metacyc_intermediate
 
 start = time.time()
 

@@ -1115,8 +1115,11 @@ class Pickaxe:
 
         columns = ("ID", "Type", "Generation", "Formula", "InChIKey", "SMILES")
         for _id, val in self.compounds.items():
-            inchi_key = MolToInchiKey(MolFromSmiles(val["SMILES"]))
-            self.compounds[_id]["InChIKey"] = inchi_key
+            try:
+                inchi_key = MolToInchiKey(MolFromSmiles(val["SMILES"]))
+                self.compounds[_id]["InChIKey"] = inchi_key
+            except:
+                pass
 
         with open(path, "w") as outfile:
             writer = csv.DictWriter(

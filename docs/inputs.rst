@@ -125,13 +125,13 @@ In the event that the default rules do not contain a reaction of interest, it is
 to generate your own rules. Outlined below is the process to generate rules for esterification reactions, which consists
 of three parts
 
-#. Writing the reaction SMIRKS.
+#. Writing the reaction SMARTS.
 #. Writing the reaction rule.
 #. Writing the coreactant list.
 
-Writing Reactiton SMIRKS
+Writing Reactiton SMARTS
 ************************
-Rules are generated using `reaction SMIRKS <https://daylight.com/dayhtml/doc/theory/theory.smirks.html>`_
+Rules are generated using `SMARTS <https://www.daylight.com/dayhtml/doc/theory/theory.smarts.html>`_
 which represent reactions in a string. Importantly, these reaction rules specify atom mapping,
 which keeps track of the species throughout the reaction. To higlight a simple reaction rule generation,
 a deesterification reaction will be used.
@@ -140,7 +140,7 @@ a deesterification reaction will be used.
     :width: 600
     :align: center
 
-The reaction SMIRKS is highighted the same color as the corresponding molecule in the reaction above.
+The reaction SMARTS is highighted the same color as the corresponding molecule in the reaction above.
 Ensuring correct atom mapping is important when writing these rules. This is an exact reaction rule 
 and it matches the exact pattern of the reaction, which is not useful as it will not match many molecules. 
 
@@ -155,13 +155,13 @@ the radius of the atom away from the reactive site is decreased.
 
 Writing Reaction Rules
 **********************
-With the reaction SMIRKS written, now the whole rule for Pickaxe must be written. The rules are written
+With the reaction SMARTS written, now the whole rule for Pickaxe must be written. The rules are written
 as follows in a .tsv::
 
     RULE_ID REACTANTS   RULE    PROODUCTS   NOTES
 
 The rule_id is an arbitrary, unique value, the reactants and products specify how many compounds a rule
-should be expecting, and the rule is the reaction SMIRKS. Notes can be provided, but have no effect
+should be expecting, and the rule is the reaction SMARTS. Notes can be provided, but have no effect
 on the running of Pickaxe. The reactants and products are specified as a generic compound, "Any", or
 as a predefined coreactant.
 

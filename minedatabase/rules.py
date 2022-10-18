@@ -383,4 +383,3 @@ def BNICE() -> Tuple[Path, Path, str]:
     rule_name = "BNICE"
 
     return rules, coreactants, rule_name
-    

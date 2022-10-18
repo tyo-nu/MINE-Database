@@ -336,7 +336,7 @@ class SimilaritySamplingFilter(Filter):
         if weighting is None:
 
             def weighting(T):
-                return T ** 4
+                return T**4
 
         # TODO Make more memory efficient... maybe use np directly instead?
         # Could be due to spawn vs fork
