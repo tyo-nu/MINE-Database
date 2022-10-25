@@ -52,14 +52,14 @@ write_db = False
 database = "example_db"
 message = "Example run to show how pickaxe is run."
 # Whether to write compounds to core compound database with extra info
-write_core = False
+write_core = True
 # Force overwrite existing database
 database_overwrite = False
 # Use local DB, i.e. localhost:27017
-use_local = False
+use_local = True
 
 # Writing compound and reaction csv files locally
-write_to_csv = False
+write_to_csv = True
 output_dir = "."
 ###############################################################################
 
@@ -67,7 +67,7 @@ output_dir = "."
 #### Starting Compounds, Cofactors, and Rules
 # Input compounds in a csv folder with headings:
 # id,smiles
-input_cpds = "./example_data/starting_cpds_single.csv"
+input_cpds = "./example_data/starting_cpds_ten.csv"
 
 # Rule specification and generation. Rules can be manually created or
 # metacyc_intermediate or metacyc_generalized can provide correctly formatted
@@ -78,7 +78,7 @@ rule_list, coreactant_list, rule_name = metacyc_intermediate(
     n_rules=None,
     fraction_coverage=0.2,
     anaerobic=True,
-    exclude_containing = ["aromatic", "halogen"]
+    # exclude_containing = ["aromatic", "halogen"]
 )
 
 ###############################################################################
@@ -110,7 +110,7 @@ target_cpds = "./example_data/target_list_many.csv"
 
 # Load compounds even without a filter
 # Can be paired with prune_to_targets to reduce end network
-load_targets_without_filter = True
+load_targets_without_filter = False
 
 # Should targets be flagged for reaction
 react_targets = False
@@ -127,7 +127,7 @@ filter_after_final_gen = True
 # Removes compounds not in range of [min_MW, max_MW]
 
 # Apply this filter?
-MW_filter = True
+MW_filter = False
 
 # Minimum MW in g/mol. None gives no lower bound.
 min_MW = 100
@@ -200,7 +200,7 @@ feasibility_filter = None
 # Filters by similarity score, uses default RDKit fingerprints and tanimoto by default
 
 # Apply this filter?
-similarity_filter = True
+similarity_filter = False
 
 # Methods to calculate similarity by, default is RDkit and Tanimoto
 # Supports Morgan Fingerprints and Dice similarity as well.
@@ -223,7 +223,7 @@ increasing_similarity = False
 # Morgan and dice
 
 # Apply this sampler?
-similarity_sample = True
+similarity_sample = False
 # Number of compounds per generation to sample
 sample_size = 100
 

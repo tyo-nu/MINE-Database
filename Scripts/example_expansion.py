@@ -32,7 +32,7 @@ output_dir = "."
 
 # Input compounds in a csv folder with headings:
 # id,smiles
-input_cpds = "./example_data/starting_cpds_single.csv"
+input_cpds = "./example_data/starting_cpds_ten.csv"
 
 # Rule specification and generation. Rules can be manually created or
 # metacyc_intermediate or metacyc_generalized can provide correctly formatted

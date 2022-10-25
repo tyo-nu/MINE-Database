@@ -211,6 +211,78 @@ def metacyc_generalized(
     return rule_stream, coreactants, rule_name
 
 
+def metacyc_generalized_as_df(
+    n_rules: int = None,
+    fraction_coverage: float = None,
+    anaerobic: float = False,
+    include_containing: List[str] = None,
+    exclude_containing: List[str] = None,
+) -> pd.DataFrame:
+    """Generate generalized metacyc rule subsets as Pandas Dataframe
+
+    Generate subsets of the metacyc intermediate reaction opreators by specifying the
+    number of rules of the fraction coverage of metacyc desired. Coverage and number of
+    rules are taken from the generalized operators and their intermediate operators are
+    chosen.
+
+    Parameters
+    ----------
+    n_rules : int, optional
+        Number of rules to use, by default None.
+    fraction_coverage : float, optional
+        The fraction of coverage desired, by default None.
+    anaerobic: float, optional
+        Whether to remove oxygen requiring reactions.
+    include_containing: List[str], optional
+        A list containing features to include. Valid features are:
+            - aromatic
+            - aromatic_oxygen
+            - carbonyl
+            - halogen
+            - nitrogen
+            - oxygen
+            - phosphorus
+            - sulfur
+            - fluorine
+            - chlorine
+            - bromine
+            - iodine
+        sending None gives all groups, by default None.
+    exclude_containing: List[str], optional
+        A list containing features to exclude. Valid features are:
+            - aromatic
+            - aromatic_oxygen
+            - carbonyl
+            - halogen
+            - nitrogen
+            - oxygen
+            - phosphorus
+            - sulfur
+            - fluorine
+            - chlorine
+            - bromine
+            - iodine
+        by default None
+
+    Returns
+    -------
+    pd.DataFrame
+        A Pandas DataFrame containig the ruleset.
+
+    """
+    rules, _, _ = metacyc_generalized(
+        n_rules=n_rules,
+        fraction_coverage=fraction_coverage,
+        anaerobic=anaerobic,
+        include_containing=include_containing,
+        exclude_containing=exclude_containing,
+    )
+
+    rules_df = pd.read_csv(rules, delimiter="\t")
+
+    return rules_df
+
+
 def metacyc_intermediate(
     n_rules: int = None,
     fraction_coverage: float = None,

@@ -14,6 +14,8 @@ from pathlib import Path, PosixPath, WindowsPath
 from sys import exit
 from typing import List, Set, Tuple, Union
 
+import libsbml
+import lxml.etree as etree
 from rdkit.Chem import RemoveStereochemistry
 from rdkit.Chem.AllChem import (
     AddHs,
@@ -23,7 +25,6 @@ from rdkit.Chem.AllChem import (
     MolFromSmiles,
     MolToInchiKey,
     MolToSmiles,
-    RDKFingerprint,
     ReactionFromSmarts,
     SanitizeMol,
 )
@@ -216,7 +217,6 @@ class Pickaxe:
                         )
                     )
                     exit("Exiting due to database name collision.")
-                    self.mine = None
             else:
                 self.mine = database
             del db
@@ -1240,6 +1240,240 @@ class Pickaxe:
         print("-------------- Overall ---------------")
         print(f"Finished uploading everything in {time.time() - start} sec")
         print("----------------------------------------\n")
+
+    def save_to_SBML(
+        self,
+        file_name: str,
+        save_reactions_uniprot: bool = False,
+        uniprot_save_style: str = "grouped",
+    ) -> None:
+        """Save pickaxe run to an SBML file.
+
+        This function saves the species and reactions to an SBML file with annotations. Specifically, the species
+        will be annotated with their SMILES and reactions annotated with their operator and uniprot ids (if available and desired).
+
+        Parameters
+        ----------
+        file_name : str
+            The file name to save the SBML at.
+        save_reactions_uniprot : bool
+            Whether or not to save the uniprot ids for a reaction operator (if available)
+        uniprot_save_style : str
+            The stle to save uniprot ids in. There are two options:
+                grouped : all uniprot information is stored in a semicolon delimited list
+                individual : uniprot information is saved individually as a link to the uniprot website
+        """
+
+        def populate_reaction_generation(
+            meta_id: str,
+            rxn: dict,
+            save_uniprot: bool = False,
+            uniprot_save_style: str = "grouped",
+        ):
+            """Generates the annotation for reactions in the SBML format. Saves the reaction operator by default and
+            can also save uniprot information in two forms:
+                (1) grouped: all uniprot info is in a semicolon delimited list.
+                (2) individual: all uniprot info is by itself and links to uniprot.
+            """
+            operator_str = ";".join([o for o in rxn["Operators"]])
+            operators = "\n".join(
+                [
+                    f'    <rdf:pickaxe rdf:about="#{meta_id}">',
+                    f'      <pickaxe:pickaxe xmlns:pickaxe="http://minedatabase.ci.nu/pickaxe">',
+                    f"          <pickaxe:operator>{operator_str}</pickaxe:operator>",
+                    f"      </pickaxe:pickaxe>",
+                    f"    </rdf:pickaxe>",
+                ]
+            )
+
+            if save_uniprot:
+                if (
+                    uniprot_save_style == "individual"
+                ):  # Save everything in a uniprot identifier
+                    uniprot_set = set()
+                    for op in rxn["Operators"]:
+                        uniprot_set |= set(self.operators[op][1]["Uniprot"].split(";"))
+
+                    # Create Uniprot Annotations
+                    first_str = "\n".join(
+                        [
+                            f'    <rdf:Description rdf:about="#{meta_id}">'
+                            f"\n        <rdf:Bag>"
+                        ]
+                    )
+                    resource_str = "\n".join(
+                        [
+                            f"""                <rdf:li rdf:resource="http://identifiers.org/uniprot/{uniprot_id}"></rdf:li>"""
+                            for uniprot_id in uniprot_set
+                        ]
+                    )
+                    end_str = "\n".join(
+                        [f"\n        </rdf:Bag>" f"\n    </rdf:Description>"]
+                    )
+
+                    uniprot_str = "\n".join([first_str, resource_str, end_str])
+                    operators = "\n".join([operators, uniprot_str])
+
+                else:  # Save everthing in a X;Y;Z list format.
+                    uniprot_set = set()
+                    for op in rxn["Operators"]:
+                        uniprot_set |= set(self.operators[op][1]["Uniprot"].split(";"))
+
+                    # Create Uniprot Annotations
+                    first_str = "\n".join(
+                        [
+                            f'    <rdf:Description rdf:about="#{meta_id}">'
+                            f"\n        <rdf:Bag>"
+                        ]
+                    )
+                    resource_str = f"""                <rdf:li rdf:uniprot_list="{";".join(list(uniprot_set))}"/>"""
+                    end_str = "\n".join(
+                        [f"\n        </rdf:Bag>" f"\n    </rdf:Description>"]
+                    )
+
+                    uniprot_str = "\n".join([first_str, resource_str, end_str])
+                    operators = "\n".join([operators, uniprot_str])
+
+            return operators
+
+        def get_reaction_annotation(
+            reaction: libsbml.Reaction,
+            operators,
+            uniprot=False,
+            uniprot_save_style="grouped",
+        ):
+            """Assembles the full reaction annotation with two levels and then gets the rest of the annotation from populate_reaction_annotation."""
+            annotation_string = reaction.getAnnotationString()
+            reaction_annotation = populate_reaction_generation(
+                reaction.getMetaId(), operators, uniprot, uniprot_save_style
+            )
+            if annotation_string:
+                annotation_string = "\n".join(
+                    annotation_string[0:-2]
+                    + reaction_annotation
+                    + annotation_string[-2:]
+                )
+            else:
+                annotation_string = (
+                    [
+                        # "<annotation>",
+                        '<sbml:annotation xmlns:sbml="http://www.sbml.org/sbml/level3/version1/core" >',
+                        '  <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:bqbiol="http://biomodels.net/biology-qualifiers/">',
+                    ]
+                    + reaction_annotation.split("\n")
+                    + [
+                        "  </rdf:RDF>",
+                        "</sbml:annotation>"
+                        # "</annotation>"
+                    ]
+                )
+
+                annotation_string = "\n".join(annotation_string)
+
+            return annotation_string
+
+        def get_species_annotation(
+            species: libsbml.Species, smiles: str, cpd_type: str
+        ):
+            """Generates the annotation for a species."""
+            meta_id = species.getMetaId()
+            # if annotation_string:
+            #     annotation_string = "\n".join(annotation_string[0:-2] + inchi_annotation + annotation_string[-2:])
+            # else:
+            annotation_string = [
+                '<sbml:annotation xmlns:sbml="http://www.sbml.org/sbml/level3/version1/core">',
+                '   <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">',
+                f'       <rdf:pickaxe rdf:about="#{meta_id}">',
+                '           <pickaxe:pickaxe xmlns:pickaxe="http://minedatabase.ci.nu/pickaxe">',
+                f"              <pickaxe:smiles>{smiles}</pickaxe:smiles>",
+                f"              <pickaxe:type>{cpd_type}</pickaxe:type>"
+                "           </pickaxe:pickaxe>",
+                "       </rdf:pickaxe>",
+                "   </rdf:RDF>",
+                "</sbml:annotation>",
+            ]
+
+            annotation_string = "\n".join(annotation_string)
+
+            return annotation_string
+
+        # Create Document and Model Basics
+        document = libsbml.SBMLDocument(3, 1)
+        model = document.createModel()
+        model.setTimeUnits("second")
+        model.setExtentUnits("mole")
+        model.setSubstanceUnits("mole")
+
+        # Add Cytosol Compartment
+        compartment = model.createCompartment()
+        compartment.setId("c")
+        compartment.setConstant(True)
+        compartment.setSize(1)
+        compartment.setSpatialDimensions(3)
+        compartment.setUnits("litre")
+
+        # Loop through Compounds and add to model
+        # species_dict = {}
+        for cpd_id, cpd in self.compounds.items():
+            # Create a species and provide required information
+            s = model.createSpecies()
+            s.setMetaId(cpd["ID"])  # cpd["ID"])
+            s.setId(cpd_id)
+            s.setCompartment("c")
+            s.setConstant(False)
+            s.setInitialAmount(1)
+            s.setSubstanceUnits("mole")
+            s.setBoundaryCondition(False)
+            s.setHasOnlySubstanceUnits(False)
+
+            # Add Molecule SMILES
+            annotation_string = get_species_annotation(s, cpd["SMILES"], cpd["Type"])
+            # Set compound annotation string
+            s.setAnnotation(annotation_string)
+
+        # Loop through Reactions and add to model
+        for rxn_id, rxn in self.reactions.items():
+            # Add reaction to model and provide required information
+            r = model.createReaction()
+            r.setMetaId(rxn["ID"])
+            r.setId(rxn_id)
+            r.setName(rxn["ID"])
+            r.setReversible(False)
+            r.setCompartment("c")
+            r.setFast(False)
+
+            # Add reactants to the reaction object
+            for stoich, r_id in rxn["Reactants"]:
+                s_ref = r.createReactant()
+                s_ref.setSpecies(r_id)
+                s_ref.setConstant(True)
+                s_ref.setStoichiometry(abs(stoich))
+
+            # Add products to the reaction object
+            for stoich, p_id in rxn["Products"]:
+                s_ref = r.createProduct()
+                s_ref.setSpecies(p_id)
+                s_ref.setConstant(True)
+                s_ref.setStoichiometry(abs(stoich))
+
+            # Add operator number and uniprot, if desired and available
+            annotation_string = get_reaction_annotation(
+                r, rxn, save_reactions_uniprot, uniprot_save_style
+            )
+            r.setAnnotation(annotation_string)
+
+        # Write initial xml without formatting
+        file_name = Path(file_name).stem
+        libsbml.writeSBMLToFile(document, f"{file_name}_temp.xml")
+        # Format and write xml
+        with open(f"{file_name}.sbml", "w") as output_file:
+            parser = etree.XMLParser(remove_blank_text=True)
+            parsed_file = etree.parse(f"{file_name}_temp.xml", parser)
+            parsed_bytes = etree.tostring(parsed_file, pretty_print=True)
+            parsed_string = str(parsed_bytes, "utf-8")
+            output_file.write(parsed_string)
+        # Remove temp xml
+        Path(f"{file_name}_temp.xml").unlink()
 
     def _transform_helper(self, compound_smiles: List[str], processes: int) -> None:
         """Help to transform reactions external to pickaxe class
