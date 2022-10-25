@@ -1,11 +1,16 @@
+keras
+lxml
 mordred
 numpy
 pandas
 pymongo
 pytest
 pytest-cov
+python-libsbml
 rdkit
 scikit-learn
 scipy
 sphinxcontrib-napoleon
+tensorflow
+torch
 numpydoc
