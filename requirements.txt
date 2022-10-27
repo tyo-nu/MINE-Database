@@ -1,9 +1,9 @@
 keras
-lxml
-mordred
+lxml==4.9
+mordred==1.2
 numpy
 pandas
-pymongo
+pymongo==4.3
 pytest
 pytest-cov
 python-libsbml

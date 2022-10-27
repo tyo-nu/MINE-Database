@@ -11,17 +11,17 @@ For general information on MINE Databases, please consult [JJeffryes et al. 2015
 Documentation is hosted at https://mine-database.readthedocs.io/en/latest/. It gives more detailed descriptions and example uses of the software.
 
 ## Installation
-MINE-Database requires the use of [rdkit](https://rdkit.org/), which currently is unavailable to install on pip. Thus, we recommend you use conda to create a new environment and then install rdkit into that environment before proceeding:
+If a conda environment is desired to be used:
 
 `conda create -n mine`
 
 `conda activate mine`
 
-`conda install -c rdkit rdkit`
 
-Then, use pip (in your conda environment) to install minedatabase:
+Then, use pip (with or without conda) to install minedatabase:
 
 `pip install minedatabase`
+
 
 ## Running Pickaxe
 ### Running Pickaxe through a python file (recommended)
