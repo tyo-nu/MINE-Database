@@ -129,7 +129,7 @@ of three parts
 #. Writing the reaction rule.
 #. Writing the coreactant list.
 
-Writing Reactiton SMARTS
+Writing Reaction SMARTS
 ************************
 Rules are generated using `SMARTS <https://www.daylight.com/dayhtml/doc/theory/theory.smarts.html>`_
 which represent reactions in a string. Importantly, these reaction rules specify atom mapping,
