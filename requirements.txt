@@ -3,7 +3,7 @@ lxml==4.9
 mordred==1.2
 numpy
 pandas
-pymongo==4.3
+pymongo
 pytest
 pytest-cov
 python-libsbml
