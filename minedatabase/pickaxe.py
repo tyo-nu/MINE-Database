@@ -807,12 +807,13 @@ class Pickaxe:
         # Loop through identified compounds and update
         # reactions/compounds accordingly
         rxns_to_del = set()
+        cofactor_rxn_ids = set()
         for cpd_id in cofactors_as_cpds:
             rxn_ids = set(
                 self.compounds[cpd_id]["Product_of"]
                 + self.compounds[cpd_id]["Reactant_in"]
             )
-            rxns_to_del = rxns_to_del.union(rxn_ids)
+            rxns_to_del = rxns_to_del.union(rxn_ids).difference(cofactor_rxn_ids)
             # Check and fix reactions as needed
             for rxn_id in rxn_ids:
                 rxn = self.reactions[rxn_id]
@@ -832,6 +833,7 @@ class Pickaxe:
                         products.append((s, self.compounds[product]))
 
                 cofactor_rxn_id, rxn_text = utils.get_reaction_hash(reactants, products)
+                cofactor_rxn_ids.add(cofactor_rxn_id)
 
                 # Check to see if reaction makes changes
                 # Reactions such as
