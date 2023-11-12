@@ -1,5 +1,5 @@
 keras
-lxml==4.9
+lxml==4.9.1
 mordred==1.2
 numpy
 pandas
