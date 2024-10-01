@@ -3,6 +3,7 @@
 This module generates new compounds from user-specified starting
 compounds using a set of SMARTS-based reaction rules.
 """
+
 import csv
 import datetime
 import os
@@ -12,7 +13,7 @@ from argparse import ArgumentParser
 from io import StringIO
 from pathlib import Path, PosixPath, WindowsPath
 from sys import exit
-from typing import List, Set, Tuple, Union
+from typing import List, Set, Tuple, Union, Optional
 
 import libsbml
 import lxml.etree as etree
@@ -42,6 +43,7 @@ from minedatabase.databases import (
     write_targets_to_mine,
 )
 from minedatabase.reactions import transform_all_compounds_with_full
+from minedatabase.exceptions import DisconnectedMoleculeException
 
 
 # Default to no errors
@@ -189,8 +191,9 @@ class Pickaxe:
         # cid options
         self.cid_num_inchi_blocks = inchikey_blocks_for_cid
 
-        print("----------------------------------------")
-        print("Intializing pickaxe object")
+        if not self.quiet:
+            print("----------------------------------------")
+            print("Intializing pickaxe object")
         if database:
             # Determine if a specified database is legal
             db = MINE(database, self.mongo_uri)
@@ -198,24 +201,26 @@ class Pickaxe:
                 if database_overwrite:
                     # If db exists, remove db from all of core compounds
                     # and drop db
-                    print(
-                        (
-                            f"Database {database} already exists. "
-                            "Deleting database and removing from core compound"
-                            " mines."
+                    if not self.quiet:
+                        print(
+                            (
+                                f"Database {database} already exists. "
+                                "Deleting database and removing from core compound"
+                                " mines."
+                            )
                         )
-                    )
                     db.core_compounds.update_many({}, {"$pull": {"MINES": database}})
                     db.client.drop_database(database)
                     self.mine = database
                 else:
-                    print(
-                        (
-                            f"Warning! Database {database} already exists."
-                            "Specify database_overwrite as true to delete "
-                            "old database and write new."
+                    if not self.quiet:
+                        print(
+                            (
+                                f"Warning! Database {database} already exists."
+                                "Specify database_overwrite as true to delete "
+                                "old database and write new."
+                            )
                         )
-                    )
                     exit("Exiting due to database name collision.")
             else:
                 self.mine = database
@@ -238,8 +243,9 @@ class Pickaxe:
         if rule_list:
             self._load_operators(rule_list)
 
-        print("\nDone intializing pickaxe object")
-        print("----------------------------------------\n")
+        if not self.quiet:
+            print("\nDone intializing pickaxe object")
+            print("----------------------------------------\n")
 
     def load_targets(
         self,
@@ -274,6 +280,76 @@ class Pickaxe:
                 self.target_smiles.append(smi)
 
         print(f"{len(self.target_smiles)} target compounds loaded\n")
+
+    def add_molecule(self, molecule: Mol, identifier: Optional[str] = None) -> str:
+        """Adds the provided molecule to the pickaxe object after sanitizing it.
+
+        Parameters
+        ----------
+        molecule : Mol
+            RDKit molecule to add.
+        identifier : Optional[str] = None
+            Identifier for the molecule.
+            If None, the molecule will be assigned an identifier equal to
+            the string version of the number of compounds in the pickaxe object.
+
+        Returns
+        -------
+        str
+            Identifier of the molecule.
+
+        Raises
+        ------
+        DisconnectedMoleculeException
+            If the molecule is disconnected and fragmented_mols is False.
+        """
+
+        assert molecule is not None
+        assert isinstance(molecule, Mol)
+
+        if identifier is None:
+            identifier = str(len(self.compounds))
+
+        assert isinstance(identifier, str)
+        assert len(identifier) > 0
+
+        # If compound is disconnected (determined by GetMolFrags
+        # from rdkit) and loading of these molecules is not
+        # allowed, then don't add to internal dictionary.
+        # This is most common when compounds are salts.
+        if not self.fragmented_mols and len(GetMolFrags(molecule)) > 1:
+            raise DisconnectedMoleculeException(molecule)
+
+        # If specified remove charges (before applying reaction
+        # rules later on)
+        if self.neutralise:
+            molecule = utils.neutralise_charges(molecule)
+
+        assert molecule is not None
+        assert isinstance(molecule, Mol)
+
+        RemoveStereochemistry(molecule)
+
+        # Add compound to internal dictionary as a starting
+        # compound and store SMILES string to be returned
+        smile = MolToSmiles(molecule, True)
+
+        # Do not operate on inorganic compounds
+        if "C" in smile or "c" in smile:
+            # resolve potential tautomers and choose first one
+            if "n" in smile:
+                smile = utils.postsanitize_smiles([smile])[0][0]
+                molecule = MolFromSmiles(smile)
+
+            SanitizeMol(molecule)
+            self._add_compound(
+                cpd_name=identifier,
+                smi=smile,
+                cpd_type="Starting Compound",
+                mol=molecule,
+            )
+
+        return identifier
 
     def load_compound_set(self, compound_file: str = None, id_field: str = "id") -> str:
         """Load compounds for expansion into pickaxe.
@@ -428,11 +504,12 @@ class Pickaxe:
                         rule["Reactants"]
                     ) or rxn.GetNumProductTemplates() != len(rule["Products"]):
                         skipped += 1
-                        print(
-                            "The number of coreactants does not match the "
-                            "number of compounds in the SMARTS for reaction "
-                            "rule: " + rule["Name"]
-                        )
+                        if self.errors:
+                            print(
+                                "The number of coreactants does not match the "
+                                "number of compounds in the SMARTS for reaction "
+                                "rule: " + rule["Name"]
+                            )
                     if rule["Name"] in self.operators:
                         raise ValueError("Duplicate reaction rule name")
                     # Update reaction rules dictionary
@@ -643,9 +720,10 @@ class Pickaxe:
 
                     # Prune network to only things being expanded
                     self.prune_network(white_list, True)
-
-                print("----------------------------------------")
-                print(f"Expanding Generation {self.generation + 1}\n")
+                
+                if not self.quiet:
+                    print("----------------------------------------")
+                    print(f"Expanding Generation {self.generation + 1}\n")
 
                 # Starting time for expansion
                 time_init = time.time()
@@ -664,23 +742,25 @@ class Pickaxe:
                 ]
                 # No compounds found
                 if not compound_smiles:
-                    print(
-                        "No compounds to expand in generation "
-                        f"{self.generation + 1}. Finished expanding."
-                    )
+                    if not self.quiet:
+                        print(
+                            "No compounds to expand in generation "
+                            f"{self.generation + 1}. Finished expanding."
+                        )
                     return None
 
                 self._transform_helper(compound_smiles, processes)
                 self._remove_cofactor_redundancy()
 
-                print(
-                    f"Generation {self.generation + 1} finished in"
-                    f" {time.time()-time_init} s and contains:"
-                )
-                print(f"\t\t{len(self.compounds) - n_comps} new compounds")
-                print(f"\t\t{len(self.reactions) - n_rxns} new reactions")
-                print(f"\nDone expanding Generation: {self.generation + 1}.")
-                print("----------------------------------------\n")
+                if not self.quiet:
+                    print(
+                        f"Generation {self.generation + 1} finished in"
+                        f" {time.time()-time_init} s and contains:"
+                    )
+                    print(f"\t\t{len(self.compounds) - n_comps} new compounds")
+                    print(f"\t\t{len(self.reactions) - n_rxns} new reactions")
+                    print(f"\nDone expanding Generation: {self.generation + 1}.")
+                    print("----------------------------------------\n")
 
             self.generation += 1
 
@@ -1363,7 +1443,7 @@ class Pickaxe:
                     + reaction_annotation.split("\n")
                     + [
                         "  </rdf:RDF>",
-                        "</sbml:annotation>"
+                        "</sbml:annotation>",
                         # "</annotation>"
                     ]
                 )

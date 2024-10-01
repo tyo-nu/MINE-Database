@@ -395,7 +395,9 @@ class SimilaritySamplingFilter(Filter):
         for mol_chunk in Chunks(mol_info, 10000):
             # Construct targets to sample df
             temp_df = pd.DataFrame(mol_chunk, columns=["_id", "SMILES"])
-            df = df.append(_parallelize_dataframe(temp_df, partial_T_calc, processes))
+            df = pd.concat(
+                [df, _parallelize_dataframe(temp_df, partial_T_calc, processes)]
+            )
 
         # Reset index for CDF calculation
         df.reset_index(inplace=True, drop=True)
@@ -733,6 +735,7 @@ class SimilarityFilter(Filter):
 
         Returns cpd_id if a the compound is similar enough to a target.
         """
+
         # Generate the fingerprint of a compound and compare to the fingerprints
         # of the targets
         def fingerprint(fingerprint_method, keyword_dict, smi):
