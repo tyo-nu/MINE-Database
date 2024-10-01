@@ -27,8 +27,5 @@ setup(name='minedatabase',
           'License :: OSI Approved :: MIT License',
           'Topic :: Scientific/Engineering :: Bio-Informatics',
           'Topic :: Scientific/Engineering :: Chemistry',
-          'Programming Language :: Python :: 3.7',
-          'Programming Language :: Python :: 3.9',
-          'Programming Language :: Python :: 3.8',
       ],
       )
